@@ -5,31 +5,49 @@ import random
 import hashlib
 import time
 import json
+import os
+from datetime import datetime, time as dt_time
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from telegram.ext import ApplicationBuilder, ContextTypes
 
+
 # =========================
-# CONFIGURAÇÕES
+# CONFIGURAÇÕES (SEGURO VIA RAILWAY)
 # =========================
-TELEGRAM_TOKEN = "7591538191:AAH6PsQwQH2Xh9Q-2xH3Y5Q3oMxAxpBmES0"
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
+
 CHAT_ID_DESTINO = "7311246066"
 
 SHOPEE_APP_ID = "18349740277"
-SHOPEE_PASSWORD = "6VWUZA5SYDQ6Q3XXIHBSTILAY2SNNNXV"
 AFILIADO_ID = "18349740277"
 
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-CHECK_INTERVAL = 3600  # 1 hora
-MAX_PRODUTOS_POR_RODADA = 4
+CHECK_INTERVAL = 5400  # 1h30
+MAX_PRODUTOS_POR_RODADA = 3
+
 
 logging.basicConfig(level=logging.INFO)
 produtos_enviados = set()
 
 
 # =========================
-# CTAs TURBINADAS
+# CONTROLE DE HORÁRIO
 # =========================
+
+def dentro_do_horario():
+    agora = datetime.now().time()
+    inicio = dt_time(6, 30)
+    fim = dt_time(21, 0)
+    return inicio <= agora <= fim
+
+
+# =========================
+# CTAs
+# =========================
+
 CTAS = [
     "🔥 Corre antes que acabe!",
     "⚠️ Últimas unidades!",
@@ -52,7 +70,7 @@ TITULOS = [
 
 
 # =========================
-# FUNÇÕES DE APOIO
+# FUNÇÕES
 # =========================
 
 def aplicar_id_afiliado(link):
@@ -80,8 +98,9 @@ def get_shopee_offers():
     """
 
     payload = json.dumps({"query": query_body})
+
     base_str = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
-    signature = hashlib.sha256(base_str.encode('utf-8')).hexdigest()
+    signature = hashlib.sha256(base_str.encode("utf-8")).hexdigest()
 
     headers = {
         "Content-Type": "application/json",
@@ -89,61 +108,59 @@ def get_shopee_offers():
     }
 
     try:
-        logging.info("Conectando à Shopee...")
+        logging.info("🔎 Buscando ofertas na Shopee...")
         resp = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=20)
 
         if resp.status_code == 200:
             data = resp.json()
-            if "errors" in data:
-                logging.error(f"Erro da API: {data['errors']}")
-                return []
             return data.get("data", {}).get("productOfferV2", {}).get("nodes", [])
-        else:
-            logging.error(f"Erro HTTP {resp.status_code}")
-            return []
+
+        logging.error(f"Erro HTTP {resp.status_code}")
+        return []
 
     except Exception as e:
-        logging.error(f"Erro de conexão: {e}")
+        logging.error(f"Erro conexão Shopee: {e}")
         return []
 
 
 # =========================
-# ENVIO PARA TELEGRAM
+# ENVIO TELEGRAM
 # =========================
 
 async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
-    logging.info("Buscando novas ofertas...")
+
+    if not dentro_do_horario():
+        logging.info("🌙 Fora do horário. Bot pausado.")
+        return
+
     ofertas = get_shopee_offers()
 
     if not ofertas:
-        logging.info("Nenhuma oferta encontrada.")
         return
 
-    enviados_nesta_rodada = 0
+    enviados = 0
 
     for item in ofertas:
 
-        if enviados_nesta_rodada >= MAX_PRODUTOS_POR_RODADA:
+        if enviados >= MAX_PRODUTOS_POR_RODADA:
             break
 
+        link_final = aplicar_id_afiliado(item["productLink"])
+
+        if link_final in produtos_enviados:
+            continue
+
+        preco = float(item["price"])
+
+        mensagem = (
+            f"{random.choice(TITULOS)}\n\n"
+            f"📦 *{item['productName']}*\n"
+            f"💰 *R$ {preco:.2f}*\n\n"
+            f"{random.choice(CTAS)}\n\n"
+            f"🛒 [CLIQUE AQUI PARA COMPRAR]({link_final})"
+        )
+
         try:
-            link_final = aplicar_id_afiliado(item["productLink"])
-
-            if link_final in produtos_enviados:
-                continue
-
-            preco = float(item["price"])
-
-            mensagem = (
-                f"{random.choice(TITULOS)}\n\n"
-                f"📦 *{item['productName']}*\n"
-                f"💰 *R$ {preco:.2f}*\n\n"
-                f"{random.choice(CTAS)}\n\n"
-                f"🛒 [CLIQUE AQUI PARA COMPRAR]({link_final})\n\n"
-                f"━━━━━━━━━━━━━━━\n"
-                f"📢 *Ofertas Secretas*"
-            )
-
             if item.get("imageUrl"):
                 await context.bot.send_photo(
                     chat_id=CHAT_ID_DESTINO,
@@ -159,11 +176,14 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
                 )
 
             produtos_enviados.add(link_final)
-            enviados_nesta_rodada += 1
-            await asyncio.sleep(5)
+            enviados += 1
+
+            # delay humanizado
+            delay = random.randint(5, 12)
+            await asyncio.sleep(delay)
 
         except Exception as e:
-            logging.error(f"Erro ao enviar oferta: {e}")
+            logging.error(f"Erro envio: {e}")
 
 
 # =========================
@@ -174,8 +194,9 @@ async def post_init(app):
     app.job_queue.run_repeating(
         send_shopee_offers,
         interval=CHECK_INTERVAL,
-        first=5
+        first=10
     )
+
     logging.info("🤖 Bot Shopee Online!")
 
 
