@@ -6,7 +6,10 @@ import hashlib
 import time
 import json
 import os
+
 from datetime import datetime, time as dt_time
+from zoneinfo import ZoneInfo
+
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from telegram.ext import ApplicationBuilder, ContextTypes
 
@@ -28,19 +31,23 @@ SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 CHECK_INTERVAL = 5400  # 1h30
 MAX_PRODUTOS_POR_RODADA = 3
 
-
 logging.basicConfig(level=logging.INFO)
 produtos_enviados = set()
 
 
 # =========================
-# CONTROLE DE HORÁRIO
+# ✅ FUSO HORÁRIO BRASIL (CORREÇÃO DEFINITIVA)
 # =========================
 
+FUSO_BR = ZoneInfo("America/Sao_Paulo")
+
+
 def dentro_do_horario():
-    agora = datetime.now().time()
+    agora = datetime.now(FUSO_BR).time()
+
     inicio = dt_time(6, 30)
     fim = dt_time(21, 0)
+
     return inicio <= agora <= fim
 
 
@@ -153,12 +160,15 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         preco = float(item["price"])
 
         mensagem = (
-            f"{random.choice(TITULOS)}\n\n"
-            f"📦 *{item['productName']}*\n"
-            f"💰 *R$ {preco:.2f}*\n\n"
-            f"{random.choice(CTAS)}\n\n"
-            f"🛒 [CLIQUE AQUI PARA COMPRAR]({link_final})"
-        )
+    f"{random.choice(TITULOS)}\n\n"
+    f"📦 *{item['productName']}*\n"
+    f"💰 *R$ {preco:.2f}*\n\n"
+    f"{random.choice(CTAS)}\n\n"
+    f"🛒 *CLIQUE AQUI PARA COMPRAR*\n"
+    f"{link_final}\n\n"
+    f"━━━━━━━━━━━━━━━\n"
+    f"📢 *Ofertas Secretas*"
+)
 
         try:
             if item.get("imageUrl"):
@@ -178,9 +188,8 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             produtos_enviados.add(link_final)
             enviados += 1
 
-            # delay humanizado
-            delay = random.randint(5, 12)
-            await asyncio.sleep(delay)
+            # delay humanizado (anti-spam)
+            await asyncio.sleep(random.randint(5, 12))
 
         except Exception as e:
             logging.error(f"Erro envio: {e}")
@@ -201,5 +210,18 @@ async def post_init(app):
 
 
 if __name__ == "__main__":
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
-    app.run_polling()
+
+    app = (
+        ApplicationBuilder()
+        .token(TELEGRAM_TOKEN)
+        .post_init(post_init)
+        .build()
+    )
+
+    # ✅ POLLING LEVE = MENOS CUSTO RAILWAY
+    app.run_polling(
+        poll_interval=60,      # consulta só 1x por minuto
+        timeout=60,
+        drop_pending_updates=True
+    )
+
