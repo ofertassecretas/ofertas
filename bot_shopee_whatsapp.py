@@ -10,12 +10,15 @@ import os
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+from urllib.parse import (
+    urlparse, parse_qs, urlencode, urlunparse, quote
+)
+
 from telegram.ext import ApplicationBuilder, ContextTypes
 
 
 # =========================
-# CONFIGURAÇÕES (SEGURO VIA RAILWAY)
+# CONFIGURAÇÕES
 # =========================
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -36,7 +39,7 @@ produtos_enviados = set()
 
 
 # =========================
-# ✅ FUSO HORÁRIO BRASIL (CORREÇÃO DEFINITIVA)
+# 🇧🇷 FUSO HORÁRIO BRASIL
 # =========================
 
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
@@ -44,15 +47,13 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
-
     inicio = dt_time(6, 30)
     fim = dt_time(21, 0)
-
     return inicio <= agora <= fim
 
 
 # =========================
-# CTAs
+# TEXTOS
 # =========================
 
 CTAS = [
@@ -77,7 +78,7 @@ TITULOS = [
 
 
 # =========================
-# FUNÇÕES
+# FUNÇÕES AUXILIARES
 # =========================
 
 def aplicar_id_afiliado(link):
@@ -87,6 +88,15 @@ def aplicar_id_afiliado(link):
     nova_query = urlencode(query, doseq=True)
     return urlunparse(parsed._replace(query=nova_query))
 
+
+# 🔥 NOVO → gerar link automático do WhatsApp
+def gerar_link_whatsapp(texto):
+    return f"https://wa.me/?text={quote(texto)}"
+
+
+# =========================
+# SHOPEE API
+# =========================
 
 def get_shopee_offers():
     timestamp = int(time.time())
@@ -122,11 +132,10 @@ def get_shopee_offers():
             data = resp.json()
             return data.get("data", {}).get("productOfferV2", {}).get("nodes", [])
 
-        logging.error(f"Erro HTTP {resp.status_code}")
         return []
 
     except Exception as e:
-        logging.error(f"Erro conexão Shopee: {e}")
+        logging.error(f"Erro Shopee: {e}")
         return []
 
 
@@ -159,16 +168,28 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         preco = float(item["price"])
 
+        # 🔥 TEXTO PRONTO PRO WHATSAPP
+        texto_whats = (
+            f"🔥 OFERTA SHOPEE\n\n"
+            f"📦 {item['productName']}\n"
+            f"💰 R$ {preco:.2f}\n\n"
+            f"{link_final}"
+        )
+
+        link_whats = gerar_link_whatsapp(texto_whats)
+
         mensagem = (
-    f"{random.choice(TITULOS)}\n\n"
-    f"📦 *{item['productName']}*\n"
-    f"💰 *R$ {preco:.2f}*\n\n"
-    f"{random.choice(CTAS)}\n\n"
-    f"🛒 *CLIQUE AQUI PARA COMPRAR*\n"
-    f"{link_final}\n\n"
-    f"━━━━━━━━━━━━━━━\n"
-    f"📢 *Ofertas Secretas*"
-)
+            f"{random.choice(TITULOS)}\n\n"
+            f"📦 *{item['productName']}*\n"
+            f"💰 *R$ {preco:.2f}*\n\n"
+            f"{random.choice(CTAS)}\n\n"
+            f"🛒 *CLIQUE AQUI PARA COMPRAR*\n"
+            f"{link_final}\n\n"
+            f"📲 *Enviar no WhatsApp*\n"
+            f"{link_whats}\n\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"📢 *Ofertas Secretas*"
+        )
 
         try:
             if item.get("imageUrl"):
@@ -188,7 +209,6 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             produtos_enviados.add(link_final)
             enviados += 1
 
-            # delay humanizado (anti-spam)
             await asyncio.sleep(random.randint(5, 12))
 
         except Exception as e:
@@ -218,9 +238,8 @@ if __name__ == "__main__":
         .build()
     )
 
-    # ✅ POLLING LEVE = MENOS CUSTO RAILWAY
     app.run_polling(
-        poll_interval=60,      # consulta só 1x por minuto
+        poll_interval=60,
         timeout=60,
         drop_pending_updates=True
     )
