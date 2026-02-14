@@ -6,6 +6,7 @@ import hashlib
 import time
 import json
 import os
+import html
 
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
@@ -89,7 +90,6 @@ def aplicar_id_afiliado(link):
     return urlunparse(parsed._replace(query=nova_query))
 
 
-# 🔥 NOVO → gerar link automático do WhatsApp
 def gerar_link_whatsapp(texto):
     return f"https://wa.me/?text={quote(texto)}"
 
@@ -167,8 +167,8 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             continue
 
         preco = float(item["price"])
+        nome_produto = html.escape(item["productName"])
 
-        # 🔥 TEXTO PRONTO PRO WHATSAPP
         texto_whats = (
             f"🔥 OFERTA SHOPEE\n\n"
             f"📦 {item['productName']}\n"
@@ -180,15 +180,13 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         mensagem = (
             f"{random.choice(TITULOS)}\n\n"
-            f"📦 *{item['productName']}*\n"
-            f"💰 *R$ {preco:.2f}*\n\n"
+            f"📦 <b>{nome_produto}</b>\n"
+            f"💰 <b>R$ {preco:.2f}</b>\n\n"
             f"{random.choice(CTAS)}\n\n"
-            f"🛒 *CLIQUE AQUI PARA COMPRAR*\n"
-            f"{link_final}\n\n"
-            f"📲 *Enviar no WhatsApp*\n"
-            f"{link_whats}\n\n"
+            f"🛒 <a href=\"{link_final}\">CLIQUE AQUI PARA COMPRAR</a>\n\n"
+            f"📲 <a href=\"{link_whats}\">Enviar no WhatsApp</a>\n\n"
             f"━━━━━━━━━━━━━━━\n"
-            f"📢 *Ofertas Secretas*"
+            f"📢 <b>Ofertas Secretas</b>"
         )
 
         try:
@@ -197,13 +195,13 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
                     chat_id=CHAT_ID_DESTINO,
                     photo=item["imageUrl"],
                     caption=mensagem,
-                    parse_mode="Markdown"
+                    parse_mode="HTML"
                 )
             else:
                 await context.bot.send_message(
                     chat_id=CHAT_ID_DESTINO,
                     text=mensagem,
-                    parse_mode="Markdown"
+                    parse_mode="HTML"
                 )
 
             produtos_enviados.add(link_final)
