@@ -25,8 +25,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
 
-# ID FIXO DO SEU GRUPO PRIVADO
-CHAT_ID_DESTINO = -1005280967179
+CHAT_ID_DESTINO = "7311246066"
 
 SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
@@ -41,16 +40,42 @@ produtos_enviados = set()
 
 
 # =========================
-# FUSO HORÁRIO
+# 🇧🇷 FUSO HORÁRIO BRASIL
 # =========================
 
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
+
 
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
     inicio = dt_time(6, 30)
     fim = dt_time(21, 0)
     return inicio <= agora <= fim
+
+
+# =========================
+# TEXTOS
+# =========================
+
+CTAS = [
+    "🔥 Corre antes que acabe!",
+    "⚠️ Últimas unidades!",
+    "🛒 Oferta exclusiva do grupo!",
+    "⏰ Aproveita agora!",
+    "💥 Desconto absurdo, só hoje!"
+]
+
+TITULOS = [
+    "🔥 OFERTA SHOPEE",
+    "🚨 PROMOÇÃO IMPERDÍVEL",
+    "💥 SUPER DESCONTO HOJE",
+    "🛒 ACHADINHO DA SHOPEE",
+    "⚡ PREÇO DESPENCOU",
+    "😱 BARATO DEMAIS PRA IGNORAR",
+    "🎯 OFERTA RELÂMPAGO",
+    "💣 PROMOÇÃO BOMBÁSTICA",
+    "📉 MENOR PREÇO DO DIA"
+]
 
 
 # =========================
@@ -63,6 +88,7 @@ def aplicar_id_afiliado(link):
     query["af_siteid"] = AFILIADO_ID
     nova_query = urlencode(query, doseq=True)
     return urlunparse(parsed._replace(query=nova_query))
+
 
 def gerar_link_whatsapp(texto):
     return f"https://wa.me/?text={quote(texto)}"
@@ -124,6 +150,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         return
 
     ofertas = get_shopee_offers()
+
     if not ofertas:
         return
 
@@ -152,14 +179,14 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         link_whats = gerar_link_whatsapp(texto_whats)
 
         mensagem = (
-            f"{random.choice(['🔥 OFERTA SHOPEE','🚨 PROMOÇÃO IMPERDÍVEL','💥 SUPER DESCONTO HOJE'])}\n\n"
+            f"{random.choice(TITULOS)}\n\n"
             f"📦 <b>{nome_produto}</b>\n"
             f"💰 <b>R$ {preco:.2f}</b>\n\n"
-            f"{random.choice(['🔥 Corre antes que acabe!','⚠️ Últimas unidades!','⏰ Aproveita agora!'])}\n\n"
+            f"{random.choice(CTAS)}\n\n"
             f"🛒 <a href=\"{link_final}\">CLIQUE AQUI PARA COMPRAR</a>\n\n"
             f"📲 <a href=\"{link_whats}\">Enviar no WhatsApp</a>\n\n"
             f"━━━━━━━━━━━━━━━\n"
-            f"📢 <b>Radar de Promoções VIP</b>"
+            f"📢 <b>Ofertas Secretas</b>"
         )
 
         try:
@@ -209,7 +236,11 @@ if __name__ == "__main__":
         .build()
     )
 
-    app.run_polling(drop_pending_updates=True)
+    app.run_polling(
+        poll_interval=60,
+        timeout=60,
+        drop_pending_updates=True
+    )
 
 
 
