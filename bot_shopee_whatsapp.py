@@ -22,10 +22,10 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # CONFIGURAÇÕES
 # =========================
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID_DESTINO = int(os.getenv("CHAT_ID_DESTINO"))
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
 
-CHAT_ID_DESTINO = "7311246066"
+CHAT_ID_DESTINO = -1005280967179
 
 SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
@@ -241,4 +241,5 @@ if __name__ == "__main__":
         timeout=60,
         drop_pending_updates=True
     )
+
 
