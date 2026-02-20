@@ -10,7 +10,6 @@ import html
 
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
-
 from urllib.parse import (
     urlparse, parse_qs, urlencode, urlunparse, quote
 )
@@ -22,9 +21,10 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # CONFIGURAÇÕES
 # =========================
 
-
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
 
+# 🔥 COLOQUEI SEU GRUPO AQUI FIXO
 CHAT_ID_DESTINO = -1005280967179
 
 SHOPEE_APP_ID = "18349740277"
@@ -241,6 +241,5 @@ if __name__ == "__main__":
         timeout=60,
         drop_pending_updates=True
     )
-
 
 
