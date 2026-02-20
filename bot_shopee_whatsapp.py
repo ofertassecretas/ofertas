@@ -22,7 +22,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # CONFIGURAÇÕES
 # =========================
 
-CHAT_ID_DESTINO = int(os.getenv("CHAT_ID_DESTINO"))
+
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
 
 CHAT_ID_DESTINO = -1005280967179
@@ -241,5 +241,6 @@ if __name__ == "__main__":
         timeout=60,
         drop_pending_updates=True
     )
+
 
 
