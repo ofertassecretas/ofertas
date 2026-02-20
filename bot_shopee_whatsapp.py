@@ -15,12 +15,8 @@ from urllib.parse import (
     urlparse, parse_qs, urlencode, urlunparse, quote
 )
 
-from telegram.ext import (
-    ApplicationBuilder,
-    ContextTypes,
-    MessageHandler,
-    filters
-)
+from telegram.ext import ApplicationBuilder, ContextTypes
+
 
 # =========================
 # CONFIGURAÇÕES
@@ -29,7 +25,7 @@ from telegram.ext import (
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
 
-# COLOQUE AQUI O ID REAL DO SEU GRUPO (com -100 na frente)
+# ID FIXO DO SEU GRUPO PRIVADO
 CHAT_ID_DESTINO = -1005280967179
 
 SHOPEE_APP_ID = "18349740277"
@@ -37,11 +33,12 @@ AFILIADO_ID = "18349740277"
 
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-CHECK_INTERVAL = 5400
+CHECK_INTERVAL = 5400  # 1h30
 MAX_PRODUTOS_POR_RODADA = 3
 
 logging.basicConfig(level=logging.INFO)
 produtos_enviados = set()
+
 
 # =========================
 # FUSO HORÁRIO
@@ -55,12 +52,6 @@ def dentro_do_horario():
     fim = dt_time(21, 0)
     return inicio <= agora <= fim
 
-# =========================
-# TESTE DE RESPOSTA
-# =========================
-
-async def teste_resposta(update, context):
-    await update.message.reply_text("✅ Estou funcionando no grupo 🚀")
 
 # =========================
 # FUNÇÕES AUXILIARES
@@ -75,6 +66,7 @@ def aplicar_id_afiliado(link):
 
 def gerar_link_whatsapp(texto):
     return f"https://wa.me/?text={quote(texto)}"
+
 
 # =========================
 # SHOPEE API
@@ -120,6 +112,7 @@ def get_shopee_offers():
         logging.error(f"Erro Shopee: {e}")
         return []
 
+
 # =========================
 # ENVIO TELEGRAM
 # =========================
@@ -127,6 +120,7 @@ def get_shopee_offers():
 async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
     if not dentro_do_horario():
+        logging.info("🌙 Fora do horário. Bot pausado.")
         return
 
     ofertas = get_shopee_offers()
@@ -158,13 +152,14 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         link_whats = gerar_link_whatsapp(texto_whats)
 
         mensagem = (
-            f"🔥 OFERTA SHOPEE\n\n"
+            f"{random.choice(['🔥 OFERTA SHOPEE','🚨 PROMOÇÃO IMPERDÍVEL','💥 SUPER DESCONTO HOJE'])}\n\n"
             f"📦 <b>{nome_produto}</b>\n"
             f"💰 <b>R$ {preco:.2f}</b>\n\n"
+            f"{random.choice(['🔥 Corre antes que acabe!','⚠️ Últimas unidades!','⏰ Aproveita agora!'])}\n\n"
             f"🛒 <a href=\"{link_final}\">CLIQUE AQUI PARA COMPRAR</a>\n\n"
             f"📲 <a href=\"{link_whats}\">Enviar no WhatsApp</a>\n\n"
             f"━━━━━━━━━━━━━━━\n"
-            f"📢 <b>Ofertas Secretas</b>"
+            f"📢 <b>Radar de Promoções VIP</b>"
         )
 
         try:
@@ -184,10 +179,12 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
             produtos_enviados.add(link_final)
             enviados += 1
-            await asyncio.sleep(5)
+
+            await asyncio.sleep(random.randint(5, 12))
 
         except Exception as e:
             logging.error(f"Erro envio: {e}")
+
 
 # =========================
 # INICIALIZAÇÃO
@@ -202,6 +199,7 @@ async def post_init(app):
 
     logging.info("🤖 Bot Shopee Online!")
 
+
 if __name__ == "__main__":
 
     app = (
@@ -210,8 +208,6 @@ if __name__ == "__main__":
         .post_init(post_init)
         .build()
     )
-
-    app.add_handler(MessageHandler(filters.TEXT, teste_resposta))
 
     app.run_polling(drop_pending_updates=True)
 
