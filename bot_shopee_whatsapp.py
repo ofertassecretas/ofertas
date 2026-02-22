@@ -15,8 +15,12 @@ from urllib.parse import (
     urlparse, parse_qs, urlencode, urlunparse, quote
 )
 
-from telegram.ext import ApplicationBuilder, ContextTypes
-
+from telegram.ext import (
+    ApplicationBuilder,
+    ContextTypes,
+    MessageHandler,
+    filters
+)
 
 # =========================
 # CONFIGURAÇÕES
@@ -25,26 +29,38 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
 
-CHAT_ID_DESTINO = "7311246066"
+CHAT_ID_DESTINO = "7311246066"  # depois vamos trocar pelo -100...
 
 SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-CHECK_INTERVAL = 5400  # 1h30
+CHECK_INTERVAL = 5400
 MAX_PRODUTOS_POR_RODADA = 3
 
 logging.basicConfig(level=logging.INFO)
 produtos_enviados = set()
 
-
-# =========================
-# 🇧🇷 FUSO HORÁRIO BRASIL
-# =========================
-
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
+
+# =========================
+# 🆔 CAPTURAR CHAT ID
+# =========================
+
+async def descobrir_chat_id(update, context):
+    if update.effective_chat:
+        print("===================================")
+        print("CHAT ID ENCONTRADO:", update.effective_chat.id)
+        print("NOME:", update.effective_chat.title)
+        print("TIPO:", update.effective_chat.type)
+        print("===================================")
+
+
+# =========================
+# HORÁRIO
+# =========================
 
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
@@ -236,11 +252,13 @@ if __name__ == "__main__":
         .build()
     )
 
+    # 👇 ADICIONA CAPTURADOR DE CHAT ID
+    app.add_handler(MessageHandler(filters.ALL, descobrir_chat_id))
+
     app.run_polling(
         poll_interval=60,
         timeout=60,
         drop_pending_updates=True
     )
-
 
 
