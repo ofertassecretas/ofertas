@@ -15,12 +15,8 @@ from urllib.parse import (
     urlparse, parse_qs, urlencode, urlunparse, quote
 )
 
-from telegram.ext import (
-    ApplicationBuilder,
-    ContextTypes,
-    MessageHandler,
-    filters
-)
+from telegram.ext import ApplicationBuilder, ContextTypes
+
 
 # =========================
 # CONFIGURAÇÕES
@@ -29,33 +25,21 @@ from telegram.ext import (
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
 
-CHAT_ID_DESTINO = "7311246066"  # depois vamos trocar pelo -100...
+# 🔥 SEU CANAL DEFINITIVO
+CHAT_ID_DESTINO = -1003848415150
 
 SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-CHECK_INTERVAL = 5400
+CHECK_INTERVAL = 5400  # 1h30
 MAX_PRODUTOS_POR_RODADA = 3
 
 logging.basicConfig(level=logging.INFO)
 produtos_enviados = set()
 
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
-
-
-# =========================
-# 🆔 CAPTURAR CHAT ID
-# =========================
-
-async def descobrir_chat_id(update, context):
-    if update.effective_chat:
-        print("===================================")
-        print("CHAT ID ENCONTRADO:", update.effective_chat.id)
-        print("NOME:", update.effective_chat.title)
-        print("TIPO:", update.effective_chat.type)
-        print("===================================")
 
 
 # =========================
@@ -251,9 +235,6 @@ if __name__ == "__main__":
         .post_init(post_init)
         .build()
     )
-
-    # 👇 ADICIONA CAPTURADOR DE CHAT ID
-    app.add_handler(MessageHandler(filters.ALL, descobrir_chat_id))
 
     app.run_polling(
         poll_interval=60,
