@@ -25,7 +25,6 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
 
-# 🔥 SEU CANAL DEFINITIVO
 CHAT_ID_DESTINO = -1003848415150
 
 SHOPEE_APP_ID = "18349740277"
@@ -106,9 +105,13 @@ def get_shopee_offers():
         productOfferV2 {
             nodes {
                 productName
-                price
+                priceMin
+                priceMax
+                commissionRate
+                sales
+                ratingStar
                 productLink
-                imageUrl
+                itemId
             }
         }
     }
@@ -132,6 +135,7 @@ def get_shopee_offers():
             data = resp.json()
             return data.get("data", {}).get("productOfferV2", {}).get("nodes", [])
 
+        logging.error(f"Erro HTTP Shopee: {resp.status_code}")
         return []
 
     except Exception as e:
@@ -166,13 +170,21 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         if link_final in produtos_enviados:
             continue
 
-        preco = float(item["price"])
+        try:
+            preco = float(item["priceMin"])
+        except:
+            continue
+
         nome_produto = html.escape(item["productName"])
+        vendas = item.get("sales", 0)
+        avaliacao = item.get("ratingStar", "0")
+        comissao = float(item.get("commissionRate", 0)) * 100
 
         texto_whats = (
             f"🔥 OFERTA SHOPEE\n\n"
             f"📦 {item['productName']}\n"
-            f"💰 R$ {preco:.2f}\n\n"
+            f"💰 R$ {preco:.2f}\n"
+            f"⭐ {avaliacao} | 🛒 {vendas} vendas\n\n"
             f"{link_final}"
         )
 
@@ -181,7 +193,9 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         mensagem = (
             f"{random.choice(TITULOS)}\n\n"
             f"📦 <b>{nome_produto}</b>\n"
-            f"💰 <b>R$ {preco:.2f}</b>\n\n"
+            f"💰 <b>R$ {preco:.2f}</b>\n"
+            f"⭐ {avaliacao} | 🛒 {vendas} vendas\n"
+            f"💸 Comissão: <b>{comissao:.0f}%</b>\n\n"
             f"{random.choice(CTAS)}\n\n"
             f"🛒 <a href=\"{link_final}\">CLIQUE AQUI PARA COMPRAR</a>\n\n"
             f"📲 <a href=\"{link_whats}\">Enviar no WhatsApp</a>\n\n"
@@ -190,19 +204,11 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         )
 
         try:
-            if item.get("imageUrl"):
-                await context.bot.send_photo(
-                    chat_id=CHAT_ID_DESTINO,
-                    photo=item["imageUrl"],
-                    caption=mensagem,
-                    parse_mode="HTML"
-                )
-            else:
-                await context.bot.send_message(
-                    chat_id=CHAT_ID_DESTINO,
-                    text=mensagem,
-                    parse_mode="HTML"
-                )
+            await context.bot.send_message(
+                chat_id=CHAT_ID_DESTINO,
+                text=mensagem,
+                parse_mode="HTML"
+            )
 
             produtos_enviados.add(link_final)
             enviados += 1
