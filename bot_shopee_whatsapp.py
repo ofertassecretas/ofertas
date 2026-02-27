@@ -32,7 +32,7 @@ AFILIADO_ID = "18349740277"
 
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-CHECK_INTERVAL = 5400  # 1h30
+CHECK_INTERVAL = 5400
 MAX_PRODUTOS_POR_RODADA = 3
 
 logging.basicConfig(level=logging.INFO)
@@ -111,6 +111,7 @@ def get_shopee_offers():
                 sales
                 ratingStar
                 productLink
+                imageUrl
                 itemId
             }
         }
@@ -128,14 +129,12 @@ def get_shopee_offers():
     }
 
     try:
-        logging.info("🔎 Buscando ofertas na Shopee...")
         resp = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=20)
 
         if resp.status_code == 200:
             data = resp.json()
             return data.get("data", {}).get("productOfferV2", {}).get("nodes", [])
 
-        logging.error(f"Erro HTTP Shopee: {resp.status_code}")
         return []
 
     except Exception as e:
@@ -150,7 +149,6 @@ def get_shopee_offers():
 async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
     if not dentro_do_horario():
-        logging.info("🌙 Fora do horário. Bot pausado.")
         return
 
     ofertas = get_shopee_offers()
@@ -179,6 +177,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         vendas = item.get("sales", 0)
         avaliacao = item.get("ratingStar", "0")
         comissao = float(item.get("commissionRate", 0)) * 100
+        imagem_url = item.get("imageUrl")
 
         texto_whats = (
             f"🔥 OFERTA SHOPEE\n\n"
@@ -204,11 +203,20 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         )
 
         try:
-            await context.bot.send_message(
-                chat_id=CHAT_ID_DESTINO,
-                text=mensagem,
-                parse_mode="HTML"
-            )
+            if imagem_url:
+                await context.bot.send_photo(
+                    chat_id=CHAT_ID_DESTINO,
+                    photo=imagem_url,
+                    caption=mensagem,
+                    parse_mode="HTML"
+                )
+            else:
+                await context.bot.send_message(
+                    chat_id=CHAT_ID_DESTINO,
+                    text=mensagem,
+                    parse_mode="HTML",
+                    disable_web_page_preview=True
+                )
 
             produtos_enviados.add(link_final)
             enviados += 1
