@@ -46,37 +46,46 @@ def dentro_do_horario():
     return inicio <= agora <= fim
 
 # =========================
-# COPY OTIMIZADA PARA CONVERSÃO
+# COPY MAIS AGRESSIVA
 # =========================
 
 COPYS = [
 
-"""💣 <b>PROMOÇÃO BOMBÁSTICA</b>
+"""🚨 <b>VOCÊ NÃO VAI VER ESSE PREÇO DUAS VEZES.</b>
 
 📦 <b>{nome}</b>
+
 💰 <b>R$ {preco}</b>
 ⭐ {avaliacao} | 🛒 {vendas} vendas
 💸 Comissão: <b>{comissao}%</b>
 
-🔥 Produto validado pelo mercado.
+Isso aqui já tem validação pesada.
+Quem comprou, aprovou.
 
-👇 Corre antes que ajuste:
-<a href="{link}">🛒 COMPRAR AGORA</a>
+⚠️ Produto girando rápido e com avaliação alta.
+Quando junta preço baixo + venda alta… some.
+
+👇 Se for esperar, vai perder:
+<a href="{link}">🔥 GARANTIR AGORA</a>
 
 📲 <a href="{zap}">Enviar no WhatsApp</a>
 """,
 
-"""🚨 <b>OFERTA VALIDADA</b>
+"""💣 <b>PREÇO FORA DO PADRÃO.</b>
 
 📦 <b>{nome}</b>
+
 💰 <b>R$ {preco}</b>
 ⭐ {avaliacao} | 🛒 {vendas} vendas
 💸 Comissão: <b>{comissao}%</b>
 
-⚠️ Estoque girando rápido.
+Mais de {vendas} pessoas já confiaram.
+Avaliação alta não mente.
 
-👇 Aproveite enquanto está nesse valor:
-<a href="{link}">🔥 GARANTIR AGORA</a>
+Esse é o tipo de produto que vira tendência rápido.
+
+👇 Antes que o preço corrija:
+<a href="{link}">🛒 COMPRAR AGORA</a>
 
 📲 <a href="{zap}">Enviar no WhatsApp</a>
 """
@@ -193,6 +202,12 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         comissao = item.get("commissionRate", 0)
         imagem_url = item.get("imageUrl")
 
+        # 🔥 multiplicando comissão x100
+        try:
+            comissao_formatada = round(float(comissao) * 100, 2)
+        except:
+            comissao_formatada = 0
+
         zap_link = montar_texto_whatsapp(nome_produto, f"{preco:.2f}", link_final)
 
         copy_escolhida = random.choice(COPYS)
@@ -202,7 +217,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             preco=f"{preco:.2f}",
             vendas=vendas,
             avaliacao=avaliacao,
-            comissao=round(float(comissao), 2),
+            comissao=comissao_formatada,
             link=link_final,
             zap=zap_link
         )
