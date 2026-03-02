@@ -46,7 +46,7 @@ def dentro_do_horario():
     return inicio <= agora <= fim
 
 # =========================
-# COPY MAIS AGRESSIVA
+# COPY MAIS PSICOLÓGICA
 # =========================
 
 COPYS = [
@@ -62,10 +62,10 @@ COPYS = [
 Isso aqui já tem validação pesada.
 Quem comprou, aprovou.
 
-⚠️ Produto girando rápido e com avaliação alta.
-Quando junta preço baixo + venda alta… some.
+⚠️ Produto girando forte.
+Preço baixo + venda alta não ficam juntos por muito tempo.
 
-👇 Se for esperar, vai perder:
+👇 Quem clicar primeiro paga esse valor:
 <a href="{link}">🔥 GARANTIR AGORA</a>
 
 📲 <a href="{zap}">Enviar no WhatsApp</a>
@@ -82,9 +82,9 @@ Quando junta preço baixo + venda alta… some.
 Mais de {vendas} pessoas já confiaram.
 Avaliação alta não mente.
 
-Esse é o tipo de produto que vira tendência rápido.
+Esse tipo de oferta corrige rápido.
 
-👇 Antes que o preço corrija:
+👇 Depois que ajustar, não adianta reclamar:
 <a href="{link}">🛒 COMPRAR AGORA</a>
 
 📲 <a href="{zap}">Enviar no WhatsApp</a>
@@ -202,11 +202,17 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         comissao = item.get("commissionRate", 0)
         imagem_url = item.get("imageUrl")
 
-        # 🔥 multiplicando comissão x100
+        # 🔥 comissão x100
         try:
             comissao_formatada = round(float(comissao) * 100, 2)
         except:
             comissao_formatada = 0
+
+        # 🔥 formatar vendas (4.684)
+        try:
+            vendas_formatadas = f"{int(vendas):,}".replace(",", ".")
+        except:
+            vendas_formatadas = vendas
 
         zap_link = montar_texto_whatsapp(nome_produto, f"{preco:.2f}", link_final)
 
@@ -215,7 +221,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         mensagem = copy_escolhida.format(
             nome=nome_produto,
             preco=f"{preco:.2f}",
-            vendas=vendas,
+            vendas=vendas_formatadas,
             avaliacao=avaliacao,
             comissao=comissao_formatada,
             link=link_final,
