@@ -46,50 +46,87 @@ def dentro_do_horario():
     return inicio <= agora <= fim
 
 # =========================
-# COPY MAIS PSICOLÓGICA
+# DETECTAR CATEGORIA
 # =========================
 
-COPYS = [
+def detectar_categoria(nome):
+    nome = nome.lower()
 
-"""🚨 <b>VOCÊ NÃO VAI VER ESSE PREÇO DUAS VEZES.</b>
+    if any(p in nome for p in ["tv", "televis", "smart", "monitor"]):
+        return "tv"
+    if any(p in nome for p in ["panela", "frigideira", "cozinha", "air fryer"]):
+        return "cozinha"
+    if any(p in nome for p in ["mochila", "bolsa", "carteira"]):
+        return "moda"
+    if any(p in nome for p in ["varal", "organizador", "armario", "caixa"]):
+        return "casa"
+    if any(p in nome for p in ["fone", "bluetooth", "caixa de som"]):
+        return "eletronico"
 
-📦 <b>{nome}</b>
+    return "geral"
+
+# =========================
+# COPY INTELIGENTE
+# =========================
+
+def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
+
+    categoria = detectar_categoria(nome)
+
+    emojis = {
+        "tv": "📺",
+        "cozinha": "🍳",
+        "moda": "🎒",
+        "casa": "🏠",
+        "eletronico": "🎧",
+        "geral": "🔥"
+    }
+
+    headlines = [
+        "🚨 ISSO AQUI NÃO FICA NESSE PREÇO.",
+        "💣 OFERTA FORA DO NORMAL.",
+        "⚡ ACHADO DO DIA.",
+        "🔥 PREÇO ABAIXO DO MERCADO."
+    ]
+
+    headline = random.choice(headlines)
+    emoji = emojis.get(categoria, "🔥")
+
+    # Texto por categoria
+    textos_categoria = {
+        "tv": "Perfeito pra quem quer transformar a sala sem pagar absurdo.",
+        "cozinha": "Pra quem quer facilitar a rotina e gastar menos tempo na cozinha.",
+        "moda": "Ideal pra quem gosta de estilo pagando pouco.",
+        "casa": "Resolve organização e espaço sem pesar no bolso.",
+        "eletronico": "Tecnologia boa e preço baixo não andam juntos por muito tempo.",
+        "geral": "Preço baixo com validação alta não fica disponível muito tempo."
+    }
+
+    texto_categoria = textos_categoria.get(categoria)
+
+    copy = f"""
+<b>{headline}</b>
+
+{emoji} <b>{nome}</b>
 
 💰 <b>R$ {preco}</b>
 ⭐ {avaliacao} | 🛒 {vendas} vendas
 💸 Comissão: <b>{comissao}%</b>
 
-Isso aqui já tem validação pesada.
-Quem comprou, aprovou.
+{texto_categoria}
 
-⚠️ Produto girando forte.
-Preço baixo + venda alta não ficam juntos por muito tempo.
-
-👇 Quem clicar primeiro paga esse valor:
-<a href="{link}">🔥 GARANTIR AGORA</a>
-
-📲 <a href="{zap}">Enviar no WhatsApp</a>
-""",
-
-"""💣 <b>PREÇO FORA DO PADRÃO.</b>
-
-📦 <b>{nome}</b>
-
-💰 <b>R$ {preco}</b>
-⭐ {avaliacao} | 🛒 {vendas} vendas
-💸 Comissão: <b>{comissao}%</b>
-
-Mais de {vendas} pessoas já confiaram.
+Mais de {vendas} pessoas já compraram.
 Avaliação alta não mente.
 
-Esse tipo de oferta corrige rápido.
+⚠️ Produto girando forte.
 
-👇 Depois que ajustar, não adianta reclamar:
+👇 Se for esperar, vai perder:
 <a href="{link}">🛒 COMPRAR AGORA</a>
 
-📲 <a href="{zap}">Enviar no WhatsApp</a>
+📲 <a href="{zap}">Copiar para divulgar no WhatsApp</a>
 """
-]
+
+    return copy
 
 # =========================
 # FUNÇÕES AUXILIARES
@@ -202,13 +239,11 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         comissao = item.get("commissionRate", 0)
         imagem_url = item.get("imageUrl")
 
-        # 🔥 comissão x100
         try:
             comissao_formatada = round(float(comissao) * 100, 2)
         except:
             comissao_formatada = 0
 
-        # 🔥 formatar vendas (4.684)
         try:
             vendas_formatadas = f"{int(vendas):,}".replace(",", ".")
         except:
@@ -216,16 +251,14 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         zap_link = montar_texto_whatsapp(nome_produto, f"{preco:.2f}", link_final)
 
-        copy_escolhida = random.choice(COPYS)
-
-        mensagem = copy_escolhida.format(
-            nome=nome_produto,
-            preco=f"{preco:.2f}",
-            vendas=vendas_formatadas,
-            avaliacao=avaliacao,
-            comissao=comissao_formatada,
-            link=link_final,
-            zap=zap_link
+        mensagem = gerar_copy(
+            nome_produto,
+            f"{preco:.2f}",
+            vendas_formatadas,
+            avaliacao,
+            comissao_formatada,
+            link_final,
+            zap_link
         )
 
         mensagem += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
