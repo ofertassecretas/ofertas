@@ -10,13 +10,8 @@ import html
 
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
-
-from urllib.parse import (
-    urlparse, parse_qs, urlencode, urlunparse, quote
-)
-
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
-
 
 # =========================
 # CONFIGURAÇÕES
@@ -32,14 +27,13 @@ AFILIADO_ID = "18349740277"
 
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-CHECK_INTERVAL = 5400
+CHECK_INTERVAL = 5400  # 1h30
 MAX_PRODUTOS_POR_RODADA = 3
 
 logging.basicConfig(level=logging.INFO)
+
 produtos_enviados = set()
-
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
-
 
 # =========================
 # HORÁRIO
@@ -51,31 +45,84 @@ def dentro_do_horario():
     fim = dt_time(21, 0)
     return inicio <= agora <= fim
 
-
 # =========================
-# TEXTOS
+# COPYS AGRESSIVAS
 # =========================
 
-CTAS = [
-    "🔥 Corre antes que acabe!",
-    "⚠️ Últimas unidades!",
-    "🛒 Oferta exclusiva do grupo!",
-    "⏰ Aproveita agora!",
-    "💥 Desconto absurdo, só hoje!"
-]
+COPYS = [
 
-TITULOS = [
-    "🔥 OFERTA SHOPEE",
-    "🚨 PROMOÇÃO IMPERDÍVEL",
-    "💥 SUPER DESCONTO HOJE",
-    "🛒 ACHADINHO DA SHOPEE",
-    "⚡ PREÇO DESPENCOU",
-    "😱 BARATO DEMAIS PRA IGNORAR",
-    "🎯 OFERTA RELÂMPAGO",
-    "💣 PROMOÇÃO BOMBÁSTICA",
-    "📉 MENOR PREÇO DO DIA"
-]
+"""🚨 PARA TUDO.
 
+Esse <b>{nome}</b> está por <b>R$ {preco}</b>.
+
+{vendas} vendas | {avaliacao} ⭐
+
+Isso aqui NÃO é preço normal.
+Se você estava esperando cair… caiu.
+
+👀 {vendo} pessoas estão vendo agora.
+
+👇 Pega antes que volte:
+<a href="{link}">GARANTIR AGORA</a>
+""",
+
+"""🔥 ISSO AQUI VAI SUBIR.
+
+<b>{nome}</b> por <b>R$ {preco}</b>.
+
+Produto validado ({vendas} vendas | {avaliacao} ⭐).
+
+Esse valor não faz sentido ficar muito tempo.
+
+⚠️ Pode acabar ainda hoje.
+
+👇 Corre:
+<a href="{link}">APROVEITAR ENQUANTO DÁ</a>
+""",
+
+"""💣 PREÇO FORA DO PADRÃO.
+
+<b>{nome}</b> → <b>R$ {preco}</b>
+
+{vendas} pessoas já compraram.
+Avaliação {avaliacao} ⭐.
+
+Quando entra nesse nível, gira rápido.
+
+👀 {vendo} pessoas olhando agora.
+
+👇 Se vacilar, perde:
+<a href="{link}">VER AGORA</a>
+""",
+
+"""⚡ NÃO IGNORA ISSO.
+
+<b>{nome}</b> por <b>R$ {preco}</b>.
+
+Com {vendas} vendas e {avaliacao} ⭐,
+não é produto encalhado.
+
+Está barato demais pro que entrega.
+
+👇 Enquanto ainda está nesse valor:
+<a href="{link}">GARANTIR</a>
+""",
+
+"""🚨 ALERTA DE OPORTUNIDADE.
+
+<b>{nome}</b> saindo por <b>R$ {preco}</b>.
+
+{vendas} vendas comprovando.
+Avaliação {avaliacao} ⭐.
+
+Esse tipo de preço corrige rápido.
+
+👀 Alta procura agora.
+
+👇 Antes que ajuste:
+<a href="{link}">CONFERIR PREÇO</a>
+"""
+]
 
 # =========================
 # FUNÇÕES AUXILIARES
@@ -88,10 +135,8 @@ def aplicar_id_afiliado(link):
     nova_query = urlencode(query, doseq=True)
     return urlunparse(parsed._replace(query=nova_query))
 
-
 def gerar_link_whatsapp(texto):
     return f"https://wa.me/?text={quote(texto)}"
-
 
 # =========================
 # SHOPEE API
@@ -106,7 +151,6 @@ def get_shopee_offers():
             nodes {
                 productName
                 priceMin
-                priceMax
                 commissionRate
                 sales
                 ratingStar
@@ -133,14 +177,15 @@ def get_shopee_offers():
 
         if resp.status_code == 200:
             data = resp.json()
-            return data.get("data", {}).get("productOfferV2", {}).get("nodes", [])
+            produtos = data.get("data", {}).get("productOfferV2", {}).get("nodes", [])
+            random.shuffle(produtos)
+            return produtos
 
         return []
 
     except Exception as e:
         logging.error(f"Erro Shopee: {e}")
         return []
-
 
 # =========================
 # ENVIO TELEGRAM
@@ -176,31 +221,22 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         nome_produto = html.escape(item["productName"])
         vendas = item.get("sales", 0)
         avaliacao = item.get("ratingStar", "0")
-        comissao = float(item.get("commissionRate", 0)) * 100
         imagem_url = item.get("imageUrl")
 
-        texto_whats = (
-            f"🔥 OFERTA SHOPEE\n\n"
-            f"📦 {item['productName']}\n"
-            f"💰 R$ {preco:.2f}\n"
-            f"⭐ {avaliacao} | 🛒 {vendas} vendas\n\n"
-            f"{link_final}"
+        vendo_agora = random.randint(12, 47)
+
+        copy_escolhida = random.choice(COPYS)
+
+        mensagem = copy_escolhida.format(
+            nome=nome_produto,
+            preco=f"{preco:.2f}",
+            vendas=vendas,
+            avaliacao=avaliacao,
+            vendo=vendo_agora,
+            link=link_final
         )
 
-        link_whats = gerar_link_whatsapp(texto_whats)
-
-        mensagem = (
-            f"{random.choice(TITULOS)}\n\n"
-            f"📦 <b>{nome_produto}</b>\n"
-            f"💰 <b>R$ {preco:.2f}</b>\n"
-            f"⭐ {avaliacao} | 🛒 {vendas} vendas\n"
-            f"💸 Comissão: <b>{comissao:.0f}%</b>\n\n"
-            f"{random.choice(CTAS)}\n\n"
-            f"🛒 <a href=\"{link_final}\">CLIQUE AQUI PARA COMPRAR</a>\n\n"
-            f"📲 <a href=\"{link_whats}\">Enviar no WhatsApp</a>\n\n"
-            f"━━━━━━━━━━━━━━━\n"
-            f"📢 <b>Ofertas Secretas</b>"
-        )
+        mensagem += "\n\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
         try:
             if imagem_url:
@@ -226,7 +262,6 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logging.error(f"Erro envio: {e}")
 
-
 # =========================
 # INICIALIZAÇÃO
 # =========================
@@ -239,7 +274,6 @@ async def post_init(app):
     )
 
     logging.info("🤖 Bot Shopee Online!")
-
 
 if __name__ == "__main__":
 
@@ -255,5 +289,6 @@ if __name__ == "__main__":
         timeout=60,
         drop_pending_updates=True
     )
+
 
 
