@@ -27,7 +27,7 @@ AFILIADO_ID = "18349740277"
 
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-CHECK_INTERVAL = 5400  # 1h30
+CHECK_INTERVAL = 5400
 MAX_PRODUTOS_POR_RODADA = 3
 
 logging.basicConfig(level=logging.INFO)
@@ -46,81 +46,39 @@ def dentro_do_horario():
     return inicio <= agora <= fim
 
 # =========================
-# COPYS AGRESSIVAS
+# COPY OTIMIZADA PARA CONVERSÃO
 # =========================
 
 COPYS = [
 
-"""🚨 PARA TUDO.
+"""💣 <b>PROMOÇÃO BOMBÁSTICA</b>
 
-Esse <b>{nome}</b> está por <b>R$ {preco}</b>.
+📦 <b>{nome}</b>
+💰 <b>R$ {preco}</b>
+⭐ {avaliacao} | 🛒 {vendas} vendas
+💸 Comissão: <b>{comissao}%</b>
 
-{vendas} vendas | {avaliacao} ⭐
+🔥 Produto validado pelo mercado.
 
-Isso aqui NÃO é preço normal.
-Se você estava esperando cair… caiu.
+👇 Corre antes que ajuste:
+<a href="{link}">🛒 COMPRAR AGORA</a>
 
-👀 {vendo} pessoas estão vendo agora.
-
-👇 Pega antes que volte:
-<a href="{link}">GARANTIR AGORA</a>
+📲 <a href="{zap}">Enviar no WhatsApp</a>
 """,
 
-"""🔥 ISSO AQUI VAI SUBIR.
+"""🚨 <b>OFERTA VALIDADA</b>
 
-<b>{nome}</b> por <b>R$ {preco}</b>.
+📦 <b>{nome}</b>
+💰 <b>R$ {preco}</b>
+⭐ {avaliacao} | 🛒 {vendas} vendas
+💸 Comissão: <b>{comissao}%</b>
 
-Produto validado ({vendas} vendas | {avaliacao} ⭐).
+⚠️ Estoque girando rápido.
 
-Esse valor não faz sentido ficar muito tempo.
+👇 Aproveite enquanto está nesse valor:
+<a href="{link}">🔥 GARANTIR AGORA</a>
 
-⚠️ Pode acabar ainda hoje.
-
-👇 Corre:
-<a href="{link}">APROVEITAR ENQUANTO DÁ</a>
-""",
-
-"""💣 PREÇO FORA DO PADRÃO.
-
-<b>{nome}</b> → <b>R$ {preco}</b>
-
-{vendas} pessoas já compraram.
-Avaliação {avaliacao} ⭐.
-
-Quando entra nesse nível, gira rápido.
-
-👀 {vendo} pessoas olhando agora.
-
-👇 Se vacilar, perde:
-<a href="{link}">VER AGORA</a>
-""",
-
-"""⚡ NÃO IGNORA ISSO.
-
-<b>{nome}</b> por <b>R$ {preco}</b>.
-
-Com {vendas} vendas e {avaliacao} ⭐,
-não é produto encalhado.
-
-Está barato demais pro que entrega.
-
-👇 Enquanto ainda está nesse valor:
-<a href="{link}">GARANTIR</a>
-""",
-
-"""🚨 ALERTA DE OPORTUNIDADE.
-
-<b>{nome}</b> saindo por <b>R$ {preco}</b>.
-
-{vendas} vendas comprovando.
-Avaliação {avaliacao} ⭐.
-
-Esse tipo de preço corrige rápido.
-
-👀 Alta procura agora.
-
-👇 Antes que ajuste:
-<a href="{link}">CONFERIR PREÇO</a>
+📲 <a href="{zap}">Enviar no WhatsApp</a>
 """
 ]
 
@@ -137,6 +95,17 @@ def aplicar_id_afiliado(link):
 
 def gerar_link_whatsapp(texto):
     return f"https://wa.me/?text={quote(texto)}"
+
+def montar_texto_whatsapp(nome, preco, link):
+    texto = f"""🔥 OFERTA SHOPEE
+
+📦 {nome}
+💰 R$ {preco}
+
+🛒 Comprar agora:
+{link}
+"""
+    return gerar_link_whatsapp(texto)
 
 # =========================
 # SHOPEE API
@@ -220,10 +189,11 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         nome_produto = html.escape(item["productName"])
         vendas = item.get("sales", 0)
-        avaliacao = item.get("ratingStar", "0")
+        avaliacao = item.get("ratingStar", 0)
+        comissao = item.get("commissionRate", 0)
         imagem_url = item.get("imageUrl")
 
-        vendo_agora = random.randint(12, 47)
+        zap_link = montar_texto_whatsapp(nome_produto, f"{preco:.2f}", link_final)
 
         copy_escolhida = random.choice(COPYS)
 
@@ -232,11 +202,12 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             preco=f"{preco:.2f}",
             vendas=vendas,
             avaliacao=avaliacao,
-            vendo=vendo_agora,
-            link=link_final
+            comissao=round(float(comissao), 2),
+            link=link_final,
+            zap=zap_link
         )
 
-        mensagem += "\n\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
+        mensagem += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
         try:
             if imagem_url:
