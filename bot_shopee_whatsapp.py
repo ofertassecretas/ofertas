@@ -66,7 +66,7 @@ def detectar_categoria(nome):
     return "geral"
 
 # =========================
-# COPY INTELIGENTE
+# COPY INTELIGENTE COMPLETA
 # =========================
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
@@ -83,26 +83,93 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
     }
 
     headlines = [
-        "🚨 ISSO AQUI NÃO FICA NESSE PREÇO.",
-        "💣 OFERTA FORA DO NORMAL.",
+        "🚨 ISSO NÃO FICA NESSE PREÇO.",
+        "💣 OFERTA FORA DO PADRÃO.",
         "⚡ ACHADO DO DIA.",
-        "🔥 PREÇO ABAIXO DO MERCADO."
+        "🔥 PREÇO ABAIXO DO MERCADO.",
+        "🚀 OPORTUNIDADE REAL AGORA."
+    ]
+
+    texto_categoria = {
+        "tv": [
+            "Ideal pra transformar sua sala sem pagar absurdo.",
+            "Pra quem quer imagem grande pagando pouco.",
+            "Cinema em casa sem gastar uma fortuna."
+        ],
+        "cozinha": [
+            "Facilita sua rotina e economiza tempo.",
+            "Quem cozinha todo dia sabe o valor disso.",
+            "Mais praticidade na cozinha por menos."
+        ],
+        "moda": [
+            "Estilo pagando pouco é outro nível.",
+            "Visual forte sem esvaziar o bolso.",
+            "Produto que entrega presença."
+        ],
+        "casa": [
+            "Resolve organização sem dor de cabeça.",
+            "Casa organizada muda o ambiente.",
+            "Pequeno investimento, grande diferença."
+        ],
+        "eletronico": [
+            "Tecnologia boa nesse valor é raro.",
+            "Eletrônico barato e bem avaliado some rápido.",
+            "Preço agressivo pra categoria."
+        ],
+        "geral": [
+            "Preço baixo com avaliação alta não dura.",
+            "Esse tipo de oferta corrige rápido.",
+            "Quando junta preço + validação, gira."
+        ]
+    }
+
+    try:
+        vendas_int = int(str(vendas).replace(".", ""))
+    except:
+        vendas_int = 0
+
+    if vendas_int > 1000:
+        validacao = [
+            "🔥 Já passou de mil vendas.",
+            "💥 Produto validado pesado.",
+            "🚀 Alta procura constante.",
+            "🏆 Muita gente já aprovou."
+        ]
+    elif vendas_int > 100:
+        validacao = [
+            "📈 Venda subindo.",
+            "👀 Produto ganhando força.",
+            "🔥 Já tem bastante gente comprando.",
+            "⚠️ Produto girando bem."
+        ]
+    else:
+        validacao = [
+            "💎 Pode ser o próximo a disparar.",
+            "👀 Oportunidade antes de estourar.",
+            "🔥 Ainda pouca gente percebeu.",
+            "⚡ Oferta escondida."
+        ]
+
+    pressao = [
+        "Preço baixo + venda alta não ficam juntos.",
+        "Depois que sobe, não volta.",
+        "Se esperar, paga mais.",
+        "Esse valor pode ajustar a qualquer momento."
+    ]
+
+    ctas = [
+        "🛒 COMPRAR AGORA",
+        "🔥 GARANTIR AGORA",
+        "⚡ APROVEITAR AGORA",
+        "🚀 PEGAR ESSA OFERTA"
     ]
 
     headline = random.choice(headlines)
     emoji = emojis.get(categoria, "🔥")
-
-    # Texto por categoria
-    textos_categoria = {
-        "tv": "Perfeito pra quem quer transformar a sala sem pagar absurdo.",
-        "cozinha": "Pra quem quer facilitar a rotina e gastar menos tempo na cozinha.",
-        "moda": "Ideal pra quem gosta de estilo pagando pouco.",
-        "casa": "Resolve organização e espaço sem pesar no bolso.",
-        "eletronico": "Tecnologia boa e preço baixo não andam juntos por muito tempo.",
-        "geral": "Preço baixo com validação alta não fica disponível muito tempo."
-    }
-
-    texto_categoria = textos_categoria.get(categoria)
+    texto_cat = random.choice(texto_categoria.get(categoria))
+    frase_validacao = random.choice(validacao)
+    frase_pressao = random.choice(pressao)
+    cta_final = random.choice(ctas)
 
     copy = f"""
 <b>{headline}</b>
@@ -113,15 +180,13 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
 ⭐ {avaliacao} | 🛒 {vendas} vendas
 💸 Comissão: <b>{comissao}%</b>
 
-{texto_categoria}
+{texto_cat}
 
-Mais de {vendas} pessoas já compraram.
-Avaliação alta não mente.
+{frase_validacao}
+{frase_pressao}
 
-⚠️ Produto girando forte.
-
-👇 Se for esperar, vai perder:
-<a href="{link}">🛒 COMPRAR AGORA</a>
+👇 Clique antes que mude:
+<a href="{link}">{cta_final}</a>
 
 📲 <a href="{zap}">Copiar para divulgar no WhatsApp</a>
 """
@@ -314,6 +379,7 @@ if __name__ == "__main__":
         timeout=60,
         drop_pending_updates=True
     )
+
 
 
 
