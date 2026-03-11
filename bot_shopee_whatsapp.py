@@ -7,6 +7,7 @@ import time
 import json
 import os
 import html
+import re
 
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
@@ -32,8 +33,25 @@ MAX_PRODUTOS_POR_RODADA = 3
 
 logging.basicConfig(level=logging.INFO)
 
-produtos_enviados = set()
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
+
+ARQUIVO_HISTORICO = "historico_produtos.json"
+
+# =========================
+# HISTÓRICO
+# =========================
+
+def carregar_historico():
+    if os.path.exists(ARQUIVO_HISTORICO):
+        with open(ARQUIVO_HISTORICO, "r") as f:
+            return json.load(f)
+    return {"links": [], "titulos": {}}
+
+def salvar_historico(data):
+    with open(ARQUIVO_HISTORICO, "w") as f:
+        json.dump(data, f)
+
+historico = carregar_historico()
 
 # =========================
 # HORÁRIO
@@ -46,147 +64,84 @@ def dentro_do_horario():
     return inicio <= agora <= fim
 
 # =========================
-# DETECTAR CATEGORIA
+# LIMPAR TITULO
 # =========================
 
-def detectar_categoria(nome):
+def limpar_titulo(nome):
+
     nome = nome.lower()
 
-    if any(p in nome for p in ["tv", "televis", "smart", "monitor"]):
-        return "tv"
-    if any(p in nome for p in ["panela", "frigideira", "cozinha", "air fryer"]):
-        return "cozinha"
-    if any(p in nome for p in ["mochila", "bolsa", "carteira"]):
-        return "moda"
-    if any(p in nome for p in ["varal", "organizador", "armario", "caixa"]):
-        return "casa"
-    if any(p in nome for p in ["fone", "bluetooth", "caixa de som"]):
-        return "eletronico"
+    nome = re.sub(r'\d+', '', nome)
+    nome = re.sub(r'\b(ml|l|litro|litros|cm|mm|pcs|peças)\b', '', nome)
 
-    return "geral"
+    palavras_ruins = [
+        "kit", "original", "novo", "oficial", "promoção", "oferta"
+    ]
+
+    for p in palavras_ruins:
+        nome = nome.replace(p, "")
+
+    nome = re.sub(r'\s+', ' ', nome).strip()
+
+    return nome
 
 # =========================
-# COPY INTELIGENTE COMPLETA
+# VERIFICAR SIMILARIDADE
+# =========================
+
+def produto_similar(nome_limpo):
+
+    agora = time.time()
+
+    for titulo, timestamp in historico["titulos"].items():
+
+        if agora - timestamp < 43200:  # 12 horas
+
+            palavras_novas = set(nome_limpo.split())
+            palavras_antigas = set(titulo.split())
+
+            inter = palavras_novas & palavras_antigas
+
+            if len(inter) >= 2:
+                return True
+
+    return False
+
+# =========================
+# COPY
 # =========================
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
-
-    categoria = detectar_categoria(nome)
-
-    emojis = {
-        "tv": "📺",
-        "cozinha": "🍳",
-        "moda": "🎒",
-        "casa": "🏠",
-        "eletronico": "🎧",
-        "geral": "🔥"
-    }
 
     headlines = [
         "🚨 ISSO NÃO FICA NESSE PREÇO.",
         "💣 OFERTA FORA DO PADRÃO.",
         "⚡ ACHADO DO DIA.",
-        "🔥 PREÇO ABAIXO DO MERCADO.",
-        "🚀 OPORTUNIDADE REAL AGORA."
+        "🔥 PREÇO ABAIXO DO MERCADO."
     ]
-
-    texto_categoria = {
-        "tv": [
-            "Ideal pra transformar sua sala sem pagar absurdo.",
-            "Pra quem quer imagem grande pagando pouco.",
-            "Cinema em casa sem gastar uma fortuna."
-        ],
-        "cozinha": [
-            "Facilita sua rotina e economiza tempo.",
-            "Quem cozinha todo dia sabe o valor disso.",
-            "Mais praticidade na cozinha por menos."
-        ],
-        "moda": [
-            "Estilo pagando pouco é outro nível.",
-            "Visual forte sem esvaziar o bolso.",
-            "Produto que entrega presença."
-        ],
-        "casa": [
-            "Resolve organização sem dor de cabeça.",
-            "Casa organizada muda o ambiente.",
-            "Pequeno investimento, grande diferença."
-        ],
-        "eletronico": [
-            "Tecnologia boa nesse valor é raro.",
-            "Eletrônico barato e bem avaliado some rápido.",
-            "Preço agressivo pra categoria."
-        ],
-        "geral": [
-            "Preço baixo com avaliação alta não dura.",
-            "Esse tipo de oferta corrige rápido.",
-            "Quando junta preço + validação, gira."
-        ]
-    }
-
-    try:
-        vendas_int = int(str(vendas).replace(".", ""))
-    except:
-        vendas_int = 0
-
-    if vendas_int > 1000:
-        validacao = [
-            "🔥 Já passou de mil vendas.",
-            "💥 Produto validado pesado.",
-            "🚀 Alta procura constante.",
-            "🏆 Muita gente já aprovou."
-        ]
-    elif vendas_int > 100:
-        validacao = [
-            "📈 Venda subindo.",
-            "👀 Produto ganhando força.",
-            "🔥 Já tem bastante gente comprando.",
-            "⚠️ Produto girando bem."
-        ]
-    else:
-        validacao = [
-            "💎 Pode ser o próximo a disparar.",
-            "👀 Oportunidade antes de estourar.",
-            "🔥 Ainda pouca gente percebeu.",
-            "⚡ Oferta escondida."
-        ]
 
     pressao = [
         "Preço baixo + venda alta não ficam juntos.",
         "Depois que sobe, não volta.",
-        "Se esperar, paga mais.",
-        "Esse valor pode ajustar a qualquer momento."
-    ]
-
-    ctas = [
-        "🛒 COMPRAR AGORA",
-        "🔥 GARANTIR AGORA",
-        "⚡ APROVEITAR AGORA",
-        "🚀 PEGAR ESSA OFERTA"
+        "Se esperar, paga mais."
     ]
 
     headline = random.choice(headlines)
-    emoji = emojis.get(categoria, "🔥")
-    texto_cat = random.choice(texto_categoria.get(categoria))
-    frase_validacao = random.choice(validacao)
     frase_pressao = random.choice(pressao)
-    cta_final = random.choice(ctas)
 
     copy = f"""
 <b>{headline}</b>
 
-{emoji} <b>{nome}</b>
+🔥 <b>{nome}</b>
 
 💰 <b>R$ {preco}</b>
 ⭐ {avaliacao} | 🛒 {vendas} vendas
 💸 Comissão: <b>{comissao}%</b>
 
-{texto_cat}
-
-{frase_validacao}
 {frase_pressao}
 
 👇 Clique antes que mude:
-<a href="{link}">{cta_final}</a>
+<a href="{link}">🛒 COMPRAR AGORA</a>
 
 📲 <a href="{zap}">Copiar para divulgar no WhatsApp</a>
 """
@@ -208,6 +163,7 @@ def gerar_link_whatsapp(texto):
     return f"https://wa.me/?text={quote(texto)}"
 
 def montar_texto_whatsapp(nome, preco, link):
+
     texto = f"""🔥 OFERTA SHOPEE
 
 📦 {nome}
@@ -216,6 +172,7 @@ def montar_texto_whatsapp(nome, preco, link):
 🛒 Comprar agora:
 {link}
 """
+
     return gerar_link_whatsapp(texto)
 
 # =========================
@@ -223,6 +180,7 @@ def montar_texto_whatsapp(nome, preco, link):
 # =========================
 
 def get_shopee_offers():
+
     timestamp = int(time.time())
 
     query_body = """
@@ -253,18 +211,23 @@ def get_shopee_offers():
     }
 
     try:
+
         resp = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=20)
 
         if resp.status_code == 200:
             data = resp.json()
             produtos = data.get("data", {}).get("productOfferV2", {}).get("nodes", [])
+
             random.shuffle(produtos)
+
             return produtos
 
         return []
 
     except Exception as e:
+
         logging.error(f"Erro Shopee: {e}")
+
         return []
 
 # =========================
@@ -278,9 +241,6 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
     ofertas = get_shopee_offers()
 
-    if not ofertas:
-        return
-
     enviados = 0
 
     for item in ofertas:
@@ -290,7 +250,14 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         link_final = aplicar_id_afiliado(item["productLink"])
 
-        if link_final in produtos_enviados:
+        if link_final in historico["links"]:
+            continue
+
+        nome_produto = html.escape(item["productName"])
+
+        nome_limpo = limpar_titulo(nome_produto)
+
+        if produto_similar(nome_limpo):
             continue
 
         try:
@@ -298,7 +265,6 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         except:
             continue
 
-        nome_produto = html.escape(item["productName"])
         vendas = item.get("sales", 0)
         avaliacao = item.get("ratingStar", 0)
         comissao = item.get("commissionRate", 0)
@@ -329,6 +295,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         mensagem += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
         try:
+
             if imagem_url:
                 await context.bot.send_photo(
                     chat_id=CHAT_ID_DESTINO,
@@ -344,7 +311,11 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
                     disable_web_page_preview=True
                 )
 
-            produtos_enviados.add(link_final)
+            historico["links"].append(link_final)
+            historico["titulos"][nome_limpo] = time.time()
+
+            salvar_historico(historico)
+
             enviados += 1
 
             await asyncio.sleep(random.randint(5, 12))
@@ -357,6 +328,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 # =========================
 
 async def post_init(app):
+
     app.job_queue.run_repeating(
         send_shopee_offers,
         interval=CHECK_INTERVAL,
