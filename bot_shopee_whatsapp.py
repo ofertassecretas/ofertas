@@ -20,6 +20,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
+ML_ACCESS_TOKEN = os.getenv("ML_ACCESS_TOKEN")
 
 CHAT_ID_DESTINO = -1003848415150
 
@@ -28,7 +29,9 @@ AFILIADO_ID = "18349740277"
 
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-CHECK_INTERVAL = 5400
+CHECK_INTERVAL_SHOPEE = 5400
+CHECK_INTERVAL_ML = 2700
+
 MAX_PRODUTOS_POR_RODADA = 3
 
 logging.basicConfig(level=logging.INFO)
@@ -59,7 +62,7 @@ historico = carregar_historico()
 
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
-    inicio = dt_time(6, 30)
+    inicio = dt_time(5, 0)
     fim = dt_time(21, 0)
     return inicio <= agora <= fim
 
@@ -95,7 +98,7 @@ def produto_similar(nome_limpo):
 
     for titulo, timestamp in historico["titulos"].items():
 
-        if agora - timestamp < 43200:  # 12 horas
+        if agora - timestamp < 43200:
 
             palavras_novas = set(nome_limpo.split())
             palavras_antigas = set(titulo.split())
@@ -149,7 +152,7 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
     return copy
 
 # =========================
-# FUNÇÕES AUXILIARES
+# AUXILIARES
 # =========================
 
 def aplicar_id_afiliado(link):
@@ -164,7 +167,7 @@ def gerar_link_whatsapp(texto):
 
 def montar_texto_whatsapp(nome, preco, link):
 
-    texto = f"""🔥 OFERTA SHOPEE
+    texto = f"""🔥 OFERTA
 
 📦 {nome}
 💰 R$ {preco}
@@ -231,7 +234,53 @@ def get_shopee_offers():
         return []
 
 # =========================
-# ENVIO TELEGRAM
+# MERCADO LIVRE
+# =========================
+
+def get_ml_offers():
+
+    try:
+
+        url = "https://api.mercadolibre.com/sites/MLB/search"
+
+        params = {
+            "sort": "sold_quantity_desc",
+            "limit": 20
+        }
+
+        headers = {
+            "Authorization": f"Bearer {ML_ACCESS_TOKEN}"
+        }
+
+        resp = requests.get(url, params=params, headers=headers)
+
+        data = resp.json()
+
+        produtos = data.get("results", [])
+
+        filtrados = []
+
+        for p in produtos:
+
+            preco = p.get("price", 0)
+
+            if preco > 250:
+                continue
+
+            filtrados.append(p)
+
+        random.shuffle(filtrados)
+
+        return filtrados
+
+    except Exception as e:
+
+        logging.error(f"Erro ML: {e}")
+
+        return []
+
+# =========================
+# ENVIO SHOPEE
 # =========================
 
 async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
@@ -265,20 +314,17 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         except:
             continue
 
+        if preco > 250:
+            continue
+
         vendas = item.get("sales", 0)
         avaliacao = item.get("ratingStar", 0)
         comissao = item.get("commissionRate", 0)
         imagem_url = item.get("imageUrl")
 
-        try:
-            comissao_formatada = round(float(comissao) * 100, 2)
-        except:
-            comissao_formatada = 0
+        comissao_formatada = round(float(comissao) * 100, 2)
 
-        try:
-            vendas_formatadas = f"{int(vendas):,}".replace(",", ".")
-        except:
-            vendas_formatadas = vendas
+        vendas_formatadas = f"{int(vendas):,}".replace(",", ".")
 
         zap_link = montar_texto_whatsapp(nome_produto, f"{preco:.2f}", link_final)
 
@@ -303,13 +349,6 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
                     caption=mensagem,
                     parse_mode="HTML"
                 )
-            else:
-                await context.bot.send_message(
-                    chat_id=CHAT_ID_DESTINO,
-                    text=mensagem,
-                    parse_mode="HTML",
-                    disable_web_page_preview=True
-                )
 
             historico["links"].append(link_final)
             historico["titulos"][nome_limpo] = time.time()
@@ -324,6 +363,59 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             logging.error(f"Erro envio: {e}")
 
 # =========================
+# ENVIO MERCADO LIVRE
+# =========================
+
+async def send_ml_offers(context: ContextTypes.DEFAULT_TYPE):
+
+    if not dentro_do_horario():
+        return
+
+    ofertas = get_ml_offers()
+
+    enviados = 0
+
+    for item in ofertas:
+
+        if enviados >= MAX_PRODUTOS_POR_RODADA:
+            break
+
+        nome = item["title"]
+        preco = item["price"]
+        link = item["permalink"]
+        imagem = item["thumbnail"]
+
+        zap = montar_texto_whatsapp(nome, preco, link)
+
+        mensagem = gerar_copy(
+            nome,
+            preco,
+            item.get("sold_quantity", 0),
+            5,
+            0,
+            link,
+            zap
+        )
+
+        mensagem += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
+
+        try:
+
+            await context.bot.send_photo(
+                chat_id=CHAT_ID_DESTINO,
+                photo=imagem,
+                caption=mensagem,
+                parse_mode="HTML"
+            )
+
+            enviados += 1
+
+            await asyncio.sleep(random.randint(5, 12))
+
+        except Exception as e:
+            logging.error(e)
+
+# =========================
 # INICIALIZAÇÃO
 # =========================
 
@@ -331,11 +423,17 @@ async def post_init(app):
 
     app.job_queue.run_repeating(
         send_shopee_offers,
-        interval=CHECK_INTERVAL,
+        interval=CHECK_INTERVAL_SHOPEE,
         first=10
     )
 
-    logging.info("🤖 Bot Shopee Online!")
+    app.job_queue.run_repeating(
+        send_ml_offers,
+        interval=CHECK_INTERVAL_ML,
+        first=2700
+    )
+
+    logging.info("🤖 Bot Shopee + Mercado Livre Online!")
 
 if __name__ == "__main__":
 
@@ -351,7 +449,4 @@ if __name__ == "__main__":
         timeout=60,
         drop_pending_updates=True
     )
-
-
-
 
