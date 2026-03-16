@@ -240,12 +240,12 @@ def get_shopee_offers():
 def get_ml_offers():
 
     try:
-
         url = "https://api.mercadolibre.com/sites/MLB/search"
 
         params = {
+            "q": "oferta",
             "sort": "sold_quantity_desc",
-            "limit": 20
+            "limit": 50
         }
 
         headers = {
@@ -253,7 +253,6 @@ def get_ml_offers():
         }
 
         resp = requests.get(url, params=params, headers=headers)
-
         data = resp.json()
 
         produtos = data.get("results", [])
@@ -263,9 +262,21 @@ def get_ml_offers():
         for p in produtos:
 
             preco = p.get("price", 0)
+            preco_antigo = p.get("original_price")
 
             if preco > 250:
                 continue
+
+            if not preco_antigo:
+                continue
+
+            desconto = round(((preco_antigo - preco) / preco_antigo) * 100)
+
+            if desconto < 15:
+                continue
+
+            p["desconto"] = desconto
+            p["preco_antigo"] = preco_antigo
 
             filtrados.append(p)
 
@@ -274,9 +285,7 @@ def get_ml_offers():
         return filtrados
 
     except Exception as e:
-
         logging.error(f"Erro ML: {e}")
-
         return []
 
 # =========================
@@ -387,15 +396,25 @@ async def send_ml_offers(context: ContextTypes.DEFAULT_TYPE):
 
         zap = montar_texto_whatsapp(nome, preco, link)
 
-        mensagem = gerar_copy(
-            nome,
-            preco,
-            item.get("sold_quantity", 0),
-            5,
-            0,
-            link,
-            zap
-        )
+       preco_antigo = item.get("preco_antigo")
+desconto = item.get("desconto")
+
+mensagem = f"""
+🚨 <b>OFERTA MERCADO LIVRE</b>
+
+🔥 <b>{nome}</b>
+
+💸 De: <s>R$ {preco_antigo}</s>
+💰 Por: <b>R$ {preco}</b>
+📉 Desconto: <b>{desconto}%</b>
+
+🛒 {item.get("sold_quantity",0)} vendidos
+
+👇 Aproveite:
+<a href="{link}">🛒 COMPRAR AGORA</a>
+
+📲 <a href="{zap}">Copiar para WhatsApp</a>
+"""
 
         mensagem += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
