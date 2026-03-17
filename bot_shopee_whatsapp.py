@@ -448,9 +448,10 @@ if __name__ == "__main__":
         .build()
     )
 
-    app.run_polling(
-        poll_interval=60,
-        timeout=60,
-        drop_pending_updates=True
-    )
+    app.job_queue.run_once(send_ml_offers, when=5)
 
+app.run_polling(
+    poll_interval=60,
+    timeout=60,
+    drop_pending_updates=True
+)
