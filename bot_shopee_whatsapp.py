@@ -238,13 +238,12 @@ def get_shopee_offers():
 # =========================
 
 def get_ml_offers():
-    """✅ ML OFERTAS REAIS - Links e fotos funcionais"""
     ofertas = [
         {
             "title": "🔥 Fone Bluetooth TWS JBL Vibe Beam",
             "price": 89.90,
             "permalink": "https://www.mercadolivre.com.br/fone-de-ouvido-bluetooth-tws-jbl-vibe-beam-preto/p/MLB23653227",
-            "thumbnail": "https://http2.mlstatic.com/D_NQ_NP_2X_614788-MLB74769144698_042025-F.webp",
+            "thumbnail": "https://images.unsplash.com/photo-1574535996508-372f518592f9?w=400",  # Unsplash
             "sold_quantity": 1245,
             "preco_antigo": 159.90
         },
@@ -252,33 +251,22 @@ def get_ml_offers():
             "title": "Smartwatch Xiaomi Smart Band 9 Active",
             "price": 179.90,
             "permalink": "https://www.mercadolivre.com.br/smartwatch-xiaomi-smart-band-9-ate-21-dias-bateria/p/MLB18916604",
-            "thumbnail": "https://http2.mlstatic.com/D_NQ_NP_2X_889504-MLB74895337571_042025-F.webp",
+            "thumbnail": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400",  # Unsplash
             "sold_quantity": 856,
             "preco_antigo": 279.90
         },
         {
-            "title": "Caixa Som Bluetooth JBL Go 3 Preto",
+            "title": "Caixa Som Bluetooth JBL Go 3 Preto", 
             "price": 199.90,
             "permalink": "https://www.mercadolivre.com.br/caixa-de-som-jbl-go-3-preto-bluetooth-a-prova-d-agua/p/MLB18499889",
-            "thumbnail": "https://http2.mlstatic.com/D_NQ_NP_2X_960466-MLB53215110013_022023-F.webp",
+            "thumbnail": "https://images.unsplash.com/photo-1613333829962-c0b9ba9325aa?w=400",  # Unsplash
             "sold_quantity": 2034,
             "preco_antigo": 349.90
-        },
-        {
-            "title": "Panela Elétrica Digital 5L Mondial",
-            "price": 129.90,
-            "permalink": "https://www.mercadolivre.com.br/panela-eletrica-digital-mondial-pe-12s-5l-inox-127v/p/MLB17268976",
-            "thumbnail": "https://http2.mlstatic.com/D_NQ_NP_2X_800520-MLB69938514820_042024-F.webp",
-            "sold_quantity": 678,
-            "preco_antigo": 219.90
         }
     ]
-    
-    print(f"✅ ML: {len(ofertas)} ofertas REAIS carregadas")
+    print(f"✅ ML: {len(ofertas)} ofertas com fotos")
     random.shuffle(ofertas)
     return ofertas
-
-
 
 
 
@@ -381,10 +369,11 @@ async def send_ml_offers(context):
             
         nome = html.escape(item["title"])
         preco = item["price"]
-        link = aplicar_id_afiliado(item["permalink"])  # Seu ID afiliado
-        thumbnail = item["thumbnail"]
+        link = item["permalink"]  # ✅ SEM aplicar_id_afiliado() pro ML
         
-        desconto = item.get("preco_antigo") and round(((item["preco_antigo"] - preco) / item["preco_antigo"]) * 100, 0) or 25
+        # Calcula desconto
+        preco_antigo = item.get("preco_antigo", preco * 1.5)
+        desconto = round(((preco_antigo - preco) / preco_antigo) * 100)
         vendas = item.get("sold_quantity", 0)
         
         zap_link = montar_texto_whatsapp(nome, f"R$ {preco:.2f}", link)
@@ -394,8 +383,8 @@ async def send_ml_offers(context):
 
 🔥 <b>{nome}</b>
 
-💸 De: <s>R$ {item.get('preco_antigo', '---'):.2f}</s>
-💰 Por: <b>R$ {preco:.2f}</b>
+💸 De: <s>R$ {preco_antigo:.2f}</s>
+💰 Por: <b>R$ {preco:.2f}</b> 
 📉 Desconto: <b>{desconto}%</b>
 
 🛒 {vendas:,} vendidos
@@ -403,7 +392,7 @@ async def send_ml_offers(context):
 👇 Aproveite:
 <a href="{link}">🛒 COMPRAR AGORA</a>
 
-📲 <a href="{zap_link}">Copiar para WhatsApp</a>
+📲 <a href="{zap_link}">Copiar WhatsApp</a>
 
 ━━━━━━━━━━━━━━━
 📢 <b>Ofertas Secretas</b>
@@ -412,21 +401,24 @@ async def send_ml_offers(context):
         try:
             await bot.send_photo(
                 chat_id=CHAT_ID_DESTINO,
-                photo=thumbnail,
+                photo=item["thumbnail"],  # ✅ Foto Unsplash
                 caption=mensagem,
                 parse_mode="HTML"
             )
-            print(f"✅ ML Enviado: {nome}")
-            enviados += 1
+            print(f"✅ ML Enviado: {nome[:30]}...")
+            
+            # Histórico SEM o ID Shopee
             historico["links"].append(link)
             historico["titulos"][limpar_titulo(nome)] = time.time()
             salvar_historico(historico)
+            
+            enviados += 1
             await asyncio.sleep(random.randint(5, 12))
             
         except Exception as e:
             logging.error(f"Erro ML: {e}")
     
-    print(f"✅ ML: {enviados} enviados")
+    print(f"✅ ML: {enviados} enviados com sucesso!")
 
 
 
