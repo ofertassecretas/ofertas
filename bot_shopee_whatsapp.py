@@ -375,23 +375,22 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 # ENVIO MERCADO LIVRE
 # =========================
 
-async def send_ml_offers(context: ContextTypes.DEFAULT_TYPE):
+async def send_ml_offers(context):
 
-    if not dentro_do_horario():
-        return
+    bot = context.bot
 
     ofertas = get_ml_offers()
 
-for item in ofertas:
+    for item in ofertas:
 
-    nome = item.get("title")
-    preco = item.get("price")
-    link = item.get("permalink")
+        nome = item.get("title")
+        preco = item.get("price")
+        link = item.get("permalink")
 
-    preco_antigo = item.get("preco_antigo")
-    desconto = item.get("desconto")
+        preco_antigo = item.get("preco_antigo")
+        desconto = item.get("desconto")
 
-    mensagem = f"""
+        mensagem = f"""
 🚨 <b>OFERTA MERCADO LIVRE</b>
 
 🔥 <b>{nome}</b>
@@ -408,17 +407,17 @@ for item in ofertas:
 📲 <a href="{zap}">Copiar para WhatsApp</a>
 """
 
-    mensagem += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
+        mensagem += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
-    try:
-        await bot.send_photo(
-            chat_id=CHAT_ID,
-            photo=item.get("thumbnail"),
-            caption=mensagem,
-            parse_mode="HTML"
-        )
-    except Exception as e:
-        print(f"Erro ao enviar: {e}")
+        try:
+            await bot.send_photo(
+                chat_id=CHAT_ID,
+                photo=item.get("thumbnail"),
+                caption=mensagem,
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            print(f"Erro ao enviar: {e}")
 
 # =========================
 # INICIALIZAÇÃO
