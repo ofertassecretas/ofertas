@@ -345,8 +345,7 @@ async def send_ml_offers(context):
     
     ofertas = get_ml_offers()
     print("ML OFERTAS:", ofertas)
-ofertas = ofertas or []
-
+    ofertas = ofertas or []
     
     enviados = 0
     for item in ofertas:
@@ -357,11 +356,9 @@ ofertas = ofertas or []
         preco = item.get("price", 0)
         link = item.get("permalink", "")
         
-        # ✅ MELHORAR FILTRO
-        if preco > 300 or preco < 10:  # Aumentar limite
+        if preco > 300 or preco < 10:
             continue
             
-        # ✅ Calcular desconto corretamente
         preco_antigo = item.get("preco_antigo")
         if preco_antigo:
             desconto = round(((preco_antigo - preco) / preco_antigo) * 100)
@@ -392,16 +389,20 @@ ofertas = ofertas or []
         
         try:
             await bot.send_photo(
-                chat_id=CHAT_ID_DESTINO,  # ✅ Corrigido
+                chat_id=CHAT_ID_DESTINO,
                 photo=item.get("thumbnail", ""),
                 caption=mensagem,
                 parse_mode="HTML"
             )
+            historico["links"].append(link)
+            historico["titulos"][limpar_titulo(nome)] = time.time()
+            salvar_historico(historico)
             enviados += 1
             await asyncio.sleep(random.randint(5, 12))
             
         except Exception as e:
             logging.error(f"Erro ML envio: {e}")
+
 
 
 # =========================
