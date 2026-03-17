@@ -478,5 +478,41 @@ if __name__ == "__main__":
         drop_pending_updates=True
     )
 
+# 🔑 GERADOR ML ACCESS TOKEN (RODE 1x)
+ML_CLIENT_ID = "2239931406798467"
+ML_CLIENT_SECRET = "LwUz7jRmHMd8ffid7YA9WNsCNEzZfo7l"
+ML_REDIRECT_URI = "https://google.com"  # Qualquer URL
+
+def gerar_ml_token():
+    # 1. PRIMEIRO: Gere o CODE (abra no navegador)
+    auth_url = f"https://auth.mercadolibre.com.br/authorization?response_type=code&client_id={ML_CLIENT_ID}&redirect_uri={ML_REDIRECT_URI}"
+    print(f"🔑 PASSO 1: Abra este link no navegador:\n{auth_url}")
+    print("\n👉 Autorize → Copie o 'code=XXXXX' da URL final")
+    
+    # 2. DEPOIS: Cole o CODE aqui e rode novamente
+    code = input("🔑 Cole o CODE aqui: ").split('code=')[1].split('&')[0]
+    
+    # 3. Troca CODE por TOKEN
+    token_url = "https://api.mercadolibre.com/oauth/token"
+    data = {
+        "grant_type": "authorization_code",
+        "client_id": ML_CLIENT_ID,
+        "client_secret": ML_CLIENT_SECRET,
+        "code": code,
+        "redirect_uri": ML_REDIRECT_URI
+    }
+    
+    resp = requests.post(token_url, data=data)
+    token_data = resp.json()
+    
+    print(f"✅ ACCESS TOKEN: {token_data['access_token']}")
+    print(f"✅ REFRESH TOKEN: {token_data['refresh_token']}")
+    return token_data
+
+# Teste (rode 1x)
+if __name__ == "__main__":
+    print("🚀 GERANDO ML TOKEN...")
+    token = gerar_ml_token()
+
 
 
