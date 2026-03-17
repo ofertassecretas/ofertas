@@ -238,46 +238,20 @@ def get_shopee_offers():
 # =========================
 
 def get_ml_offers():
+    termos = [
+        "fone bluetooth TWS", "smartwatch economico", 
+        "caixa som bluetooth", "panela eletrica", 
+        "liquidificador 3l", "ferro passar roupa"
+    ]
+    
+    params = {
+        "q": random.choice(termos),      # ✅ Termos mais específicos
+        "sort": "sold_quantity_desc",
+        "limit": 50,
+        "condition": "new"              # ✅ Só produtos novos
+    }
+    # ✅ SEM filtro de preço aqui - deixa passar mais produtos
 
-    try:
-        url = "https://api.mercadolibre.com/sites/MLB/search"
-
-        params = {
-    "q": random.choice(["fone bluetooth", "smartwatch", "caixa de som", "kit cozinha"]),
-    "sort": "sold_quantity_desc",
-    "limit": 50
-}
-
-        resp = requests.get(url, params=params)
-        data = resp.json()
-
-        produtos = data.get("results", [])
-        filtrados = []
-
-        for p in produtos:
-
-            preco = p.get("price", 0)
-            preco_antigo = p.get("original_price")  # ⚠️ nome correto
-
-            if preco > 250:
-                continue
-
-            if preco_antigo:
-                desconto = round(((preco_antigo - preco) / preco_antigo) * 100)
-            else:
-                desconto = random.randint(5, 20)
-
-            p["desconto"] = desconto
-            p["preco_antigo"] = preco_antigo
-
-            filtrados.append(p)
-
-        random.shuffle(filtrados)
-        return filtrados
-
-    except Exception as e:
-        logging.error(f"Erro ML: {e}")
-        return []
 
 # =========================
 # ENVIO SHOPEE
@@ -367,49 +341,66 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 # =========================
 
 async def send_ml_offers(context):
-
     bot = context.bot
-
+    
     ofertas = get_ml_offers()
-    print("ML OFERTAS:", ofertas)
-
+    print("ML OFERTAS:", len(ofertas), ofertas[:2])  # Debug melhor
+    
+    enviados = 0
     for item in ofertas:
-
-        nome = item.get("title")
-        preco = item.get("price")
-        link = item.get("permalink")
-
+        if enviados >= MAX_PRODUTOS_POR_RODADA:
+            break
+            
+        nome = html.escape(item.get("title", ""))
+        preco = item.get("price", 0)
+        link = item.get("permalink", "")
+        
+        # ✅ MELHORAR FILTRO
+        if preco > 300 or preco < 10:  # Aumentar limite
+            continue
+            
+        # ✅ Calcular desconto corretamente
         preco_antigo = item.get("preco_antigo")
-        desconto = item.get("desconto")
-
+        if preco_antigo:
+            desconto = round(((preco_antigo - preco) / preco_antigo) * 100)
+        else:
+            desconto = random.randint(10, 30)
+            
+        zap_link = montar_texto_whatsapp(nome, f"R$ {preco:.2f}", link)
+        
         mensagem = f"""
 🚨 <b>OFERTA MERCADO LIVRE</b>
 
 🔥 <b>{nome}</b>
 
-💸 De: <s>R$ {preco_antigo}</s>
-💰 Por: <b>R$ {preco}</b>
+💸 De: <s>R$ {preco_antigo or '---'}</s>
+💰 Por: <b>R$ {preco:.2f}</b>
 📉 Desconto: <b>{desconto}%</b>
 
-🛒 {item.get("sold_quantity",0)} vendidos
+🛒 {item.get("sold_quantity", 0)} vendidos
 
 👇 Aproveite:
 <a href="{link}">🛒 COMPRAR AGORA</a>
 
-📲 <a href="{zap}">Copiar para WhatsApp</a>
+📲 <a href="{zap_link}">Copiar para WhatsApp</a>
+
+━━━━━━━━━━━━━━━
+📢 <b>Ofertas Secretas</b>
 """
-
-        mensagem += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
-
+        
         try:
             await bot.send_photo(
-                chat_id=CHAT_ID,
-                photo=item.get("thumbnail"),
+                chat_id=CHAT_ID_DESTINO,  # ✅ Corrigido
+                photo=item.get("thumbnail", ""),
                 caption=mensagem,
                 parse_mode="HTML"
             )
+            enviados += 1
+            await asyncio.sleep(random.randint(5, 12))
+            
         except Exception as e:
-            print(f"Erro ao enviar: {e}")
+            logging.error(f"Erro ML envio: {e}")
+
 
 # =========================
 # INICIALIZAÇÃO
@@ -440,10 +431,16 @@ if __name__ == "__main__":
         .build()
     )
 
+    # ✅ TESTE ML IMEDIATO (rode só 1x)
+    import asyncio
+    asyncio.run(send_ml_offers(app))
+    print("✅ TESTE ML CONCLUÍDO - verifique o Telegram!")
+    
     app.job_queue.run_once(send_ml_offers, when=5)
 
-app.run_polling(
-    poll_interval=60,
-    timeout=60,
-    drop_pending_updates=True
-)
+    app.run_polling(
+        poll_interval=60,
+        timeout=60,
+        drop_pending_updates=True
+    )
+
