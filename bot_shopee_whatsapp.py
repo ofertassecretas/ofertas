@@ -30,7 +30,7 @@ AFILIADO_ID = "18349740277"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 CHECK_INTERVAL_SHOPEE = 5400
-CHECK_INTERVAL_ML = 2700
+CHECK_INTERVAL_ML = 10
 
 MAX_PRODUTOS_POR_RODADA = 3
 
@@ -238,19 +238,56 @@ def get_shopee_offers():
 # =========================
 
 def get_ml_offers():
-    termos = [
-        "fone bluetooth TWS", "smartwatch economico", 
-        "caixa som bluetooth", "panela eletrica", 
-        "liquidificador 3l", "ferro passar roupa"
-    ]
-    
-    params = {
-        "q": random.choice(termos),      # ✅ Termos mais específicos
-        "sort": "sold_quantity_desc",
-        "limit": 50,
-        "condition": "new"              # ✅ Só produtos novos
-    }
-    # ✅ SEM filtro de preço aqui - deixa passar mais produtos
+    try:
+        url = "https://api.mercadolibre.com/sites/MLB/search"
+        
+        termos = [
+            "fone bluetooth TWS barato", 
+            "smartwatch economico", 
+            "caixa som bluetooth", 
+            "panela eletrica 110v"
+        ]
+        
+        params = {
+            "q": random.choice(termos),
+            "sort": "sold_quantity_desc",
+            "limit": 50,
+            "condition": "new"
+        }
+        
+        print(f"🔍 ML Query: {params['q']}")
+        resp = requests.get(url, params=params, timeout=15)
+        print(f"🔍 ML Status: {resp.status_code}")
+        
+        if resp.status_code != 200:
+            print(f"🔍 ML Response: {resp.text[:200]}")
+            return []
+            
+        data = resp.json()
+        print(f"🔍 ML Total: {data.get('paging', {}).get('total', 0)}")
+        
+        produtos = data.get("results", [])
+        filtrados = []
+        
+        print(f"🔍 ML Produtos iniciais: {len(produtos)}")
+        
+        for p in produtos:
+            preco = p.get("price", 0)
+            if preco > 250 or preco < 10:
+                continue
+                
+            p["desconto"] = random.randint(10, 30)
+            p["preco_antigo"] = preco * 1.3  # Simula preço antigo
+            filtrados.append(p)
+            
+        print(f"🔍 ML Filtrados: {len(filtrados)}")
+        random.shuffle(filtrados)
+        return filtrados
+        
+    except Exception as e:
+        print(f"🔍 ML ERRO COMPLETO: {e}")
+        return []
+
 
 
 # =========================
@@ -433,13 +470,6 @@ if __name__ == "__main__":
         .build()
     )
 
-    # ✅ TESTE ML IMEDIATO (corrigido)
-    import asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(send_ml_offers(app))
-    print("✅ TESTE ML CONCLUÍDO - verifique o Telegram!")
-    
     app.job_queue.run_once(send_ml_offers, when=5)
 
     app.run_polling(
@@ -447,5 +477,6 @@ if __name__ == "__main__":
         timeout=60,
         drop_pending_updates=True
     )
+
 
 
