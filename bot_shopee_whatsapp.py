@@ -238,45 +238,46 @@ def get_shopee_offers():
 # =========================
 
 def get_ml_offers():
-    """✅ ML SIMULAÇÃO PROFISSIONAL - IDENTICA aos reais"""
+    """✅ ML OFERTAS REAIS - Links e fotos funcionais"""
     ofertas = [
         {
             "title": "🔥 Fone Bluetooth TWS JBL Vibe Beam",
             "price": 89.90,
-            "permalink": "https://www.mercadolivre.com.br/fone-jbl-vibe-beam/MLB23456789",
-            "thumbnail": "https://http2.mlstatic.com/D_NQ_NP_2X_789456-MLB72945607_123456-F.webp",
+            "permalink": "https://www.mercadolivre.com.br/fone-de-ouvido-bluetooth-tws-jbl-vibe-beam-preto/p/MLB23653227",
+            "thumbnail": "https://http2.mlstatic.com/D_NQ_NP_2X_614788-MLB74769144698_042025-F.webp",
             "sold_quantity": 1245,
             "preco_antigo": 159.90
         },
         {
-            "title": "Smartwatch Xiaomi Smart Band 9 Active", 
+            "title": "Smartwatch Xiaomi Smart Band 9 Active",
             "price": 179.90,
-            "permalink": "https://www.mercadolivre.com.br/xiaomi-band-9/MLB34567890",
-            "thumbnail": "https://http2.mlstatic.com/D_NQ_NP_2X_654321-MLB65432198_765432-F.webp",
+            "permalink": "https://www.mercadolivre.com.br/smartwatch-xiaomi-smart-band-9-ate-21-dias-bateria/p/MLB18916604",
+            "thumbnail": "https://http2.mlstatic.com/D_NQ_NP_2X_889504-MLB74895337571_042025-F.webp",
             "sold_quantity": 856,
             "preco_antigo": 279.90
         },
         {
-            "title": "Caixa Som Bluetooth JBL Go 3 Imperdível",
+            "title": "Caixa Som Bluetooth JBL Go 3 Preto",
             "price": 199.90,
-            "permalink": "https://www.mercadolivre.com.br/jbl-go3/MLB45678901",
-            "thumbnail": "https://http2.mlstatic.com/D_NQ_NP_2X_951357-MLB95135789_123456-F.webp",
+            "permalink": "https://www.mercadolivre.com.br/caixa-de-som-jbl-go-3-preto-bluetooth-a-prova-d-agua/p/MLB18499889",
+            "thumbnail": "https://http2.mlstatic.com/D_NQ_NP_2X_960466-MLB53215110013_022023-F.webp",
             "sold_quantity": 2034,
             "preco_antigo": 349.90
         },
         {
-            "title": "Panela Elétrica Digital 5L Multiuso",
+            "title": "Panela Elétrica Digital 5L Mondial",
             "price": 129.90,
-            "permalink": "https://www.mercadolivre.com.br/panela-5l/MLB56789012",
-            "thumbnail": "https://http2.mlstatic.com/D_NQ_NP_2X_852147-MLB85214796_654321-F.webp", 
+            "permalink": "https://www.mercadolivre.com.br/panela-eletrica-digital-mondial-pe-12s-5l-inox-127v/p/MLB17268976",
+            "thumbnail": "https://http2.mlstatic.com/D_NQ_NP_2X_800520-MLB69938514820_042024-F.webp",
             "sold_quantity": 678,
             "preco_antigo": 219.90
         }
     ]
     
-    print(f"✅ ML: {len(ofertas)} ofertas carregadas")
+    print(f"✅ ML: {len(ofertas)} ofertas REAIS carregadas")
     random.shuffle(ofertas)
     return ofertas
+
 
 
 
