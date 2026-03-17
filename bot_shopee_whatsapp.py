@@ -243,10 +243,10 @@ def get_ml_offers():
         url = "https://api.mercadolibre.com/sites/MLB/search"
 
         params = {
-            "q": "oferta",
-            "sort": "sold_quantity_desc",
-            "limit": 50
-        }
+    "q": random.choice(["fone bluetooth", "smartwatch", "caixa de som", "kit cozinha"]),
+    "sort": "sold_quantity_desc",
+    "limit": 50
+}
 
         resp = requests.get(url, params=params)
         data = resp.json()
