@@ -34,7 +34,7 @@ AFILIADO_ID = "18349740277"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 CHECK_INTERVAL_SHOPEE = 5400
-CHECK_INTERVAL_ML = 7500
+CHECK_INTERVAL_ML = 10
 
 MAX_PRODUTOS_POR_RODADA = 3
 
@@ -242,35 +242,40 @@ def get_shopee_offers():
 # =========================
 
 def get_ml_offers():
-    ofertas = [
-        {
-            "title": "🔥 Smartwatch Xiaomi Smart Band 9",
-            "price": 179.90,
-            "permalink": "https://www.mercadolivre.com.br/smartwatch-xiaomi-smart-band-9-ate-21-dias-bateria/p/MLB26123456",  # REAL
-            "thumbnail": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400",
-            "sold_quantity": 856,
-            "preco_antigo": 279.90
-        },
-        {
-            "title": "Fone TWS JBL Wave Beam Preto",
-            "price": 89.90,
-            "permalink": "https://www.mercadolibre.com.br/fone-de-ouvido-bluetooth-tws-jbl-wave-beam-preto/p/MLB27987654",  # REAL
-            "thumbnail": "https://images.unsplash.com/photo-1574535996508-372f518592f9?w=400",
-            "sold_quantity": 1245,
-            "preco_antigo": 159.90
-        },
-        {
-            "title": "Caixa Som JBL Go 3 Preto Bluetooth", 
-            "price": 199.90,
-            "permalink": "https://www.mercadolivre.com.br/caixa-de-som-jbl-go-3-preto-bluetooth-a-prova-d-agua/p/MLB28456789",  # REAL
-            "thumbnail": "https://images.unsplash.com/photo-1613333829962-c0b9ba9325aa?w=400",
-            "sold_quantity": 2034,
-            "preco_antigo": 349.90
-        }
-    ]
-    print(f"✅ ML: {len(ofertas)} ofertas carregadas")
-    random.shuffle(ofertas)
-    return ofertas
+    try:
+        url = "https://api.mercadolibre.com/sites/MLB/search?q=ofertas&limit=10"
+        
+        headers = {}
+        if ML_ACCESS_TOKEN:
+            headers["Authorization"] = f"Bearer {ML_ACCESS_TOKEN}"
+
+        response = requests.get(url, headers=headers, timeout=15)
+
+        if response.status_code != 200:
+            print(f"Erro ML API: {response.status_code}")
+            return []
+
+        data = response.json()
+        results = data.get("results", [])
+
+        ofertas = []
+
+        for item in results:
+            ofertas.append({
+                "title": item.get("title"),
+                "price": item.get("price"),
+                "permalink": item.get("permalink"),
+                "thumbnail": item.get("thumbnail"),
+                "sold_quantity": item.get("sold_quantity", 0),
+                "preco_antigo": item.get("original_price") or item.get("price") * 1.3
+            })
+
+        random.shuffle(ofertas)
+        return ofertas
+
+    except Exception as e:
+        print(f"Erro ML: {e}")
+        return []
 
 
 
