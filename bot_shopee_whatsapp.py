@@ -382,24 +382,16 @@ async def send_ml_offers(context: ContextTypes.DEFAULT_TYPE):
 
     ofertas = get_ml_offers()
 
-    enviados = 0
+for item in ofertas:
 
-    for item in ofertas:
+    nome = item.get("title")
+    preco = item.get("price")
+    link = item.get("permalink")
 
-        if enviados >= MAX_PRODUTOS_POR_RODADA:
-            break
+    preco_antigo = item.get("preco_antigo")
+    desconto = item.get("desconto")
 
-        nome = item["title"]
-        preco = item["price"]
-        link = item["permalink"]
-        imagem = item["thumbnail"]
-
-        zap = montar_texto_whatsapp(nome, preco, link)
-
-       preco_antigo = item.get("preco_antigo")
-desconto = item.get("desconto")
-
-mensagem = f"""
+    mensagem = f"""
 🚨 <b>OFERTA MERCADO LIVRE</b>
 
 🔥 <b>{nome}</b>
