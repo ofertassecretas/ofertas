@@ -262,23 +262,21 @@ def get_ml_offers():
         for p in produtos:
 
             preco = p.get("price", 0)
-            preco_antigo = p.get("original_price")
+preco_antigo = p.get("original_price")
 
-            if preco > 250:
-                continue
+if preco > 250:
+    continue
 
-            if not preco_antigo:
-                continue
+# Se tiver preço antigo calcula desconto, senão simula
+if preco_antigo:
+    desconto = round(((preco_antigo - preco) / preco_antigo) * 100)
+else:
+    desconto = random.randint(5, 20)
 
-            desconto = round(((preco_antigo - preco) / preco_antigo) * 100)
+p["desconto"] = desconto
+p["preco_antigo"] = preco_antigo
 
-            if desconto < 15:
-                continue
-
-            p["desconto"] = desconto
-            p["preco_antigo"] = preco_antigo
-
-            filtrados.append(p)
+filtrados.append(p)
 
         random.shuffle(filtrados)
 
