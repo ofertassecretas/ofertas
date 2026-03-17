@@ -248,11 +248,7 @@ def get_ml_offers():
             "limit": 50
         }
 
-        headers = {
-            "Authorization": f"Bearer {ML_ACCESS_TOKEN}"
-        }
-
-        resp = requests.get(url, params=params, headers=headers)
+        resp = requests.get(url, params=params)
         data = resp.json()
 
         produtos = data.get("results", [])
