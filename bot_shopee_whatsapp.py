@@ -344,7 +344,9 @@ async def send_ml_offers(context):
     bot = context.bot
     
     ofertas = get_ml_offers()
-    print("ML OFERTAS:", len(ofertas), ofertas[:2])  # Debug melhor
+    print("ML OFERTAS:", ofertas)
+ofertas = ofertas or []
+
     
     enviados = 0
     for item in ofertas:
@@ -423,7 +425,6 @@ async def post_init(app):
     logging.info("🤖 Bot Shopee + Mercado Livre Online!")
 
 if __name__ == "__main__":
-
     app = (
         ApplicationBuilder()
         .token(TELEGRAM_TOKEN)
@@ -431,9 +432,11 @@ if __name__ == "__main__":
         .build()
     )
 
-    # ✅ TESTE ML IMEDIATO (rode só 1x)
+    # ✅ TESTE ML IMEDIATO (corrigido)
     import asyncio
-    asyncio.run(send_ml_offers(app))
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(send_ml_offers(app))
     print("✅ TESTE ML CONCLUÍDO - verifique o Telegram!")
     
     app.job_queue.run_once(send_ml_offers, when=5)
@@ -443,4 +446,5 @@ if __name__ == "__main__":
         timeout=60,
         drop_pending_updates=True
     )
+
 
