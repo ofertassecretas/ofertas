@@ -8,6 +8,10 @@ import json
 import os
 import html
 import re
+# =========================
+# CONFIG PAUSA ML
+# =========================
+PAUSAR_ML = True  # Mude para False quando quiser reativar
 
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
@@ -30,7 +34,7 @@ AFILIADO_ID = "18349740277"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 CHECK_INTERVAL_SHOPEE = 5400
-CHECK_INTERVAL_ML = 12
+CHECK_INTERVAL_ML = 7500
 
 MAX_PRODUTOS_POR_RODADA = 3
 
