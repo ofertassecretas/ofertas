@@ -375,6 +375,7 @@ async def send_ml_offers(context):
     bot = context.bot
 
     ofertas = get_ml_offers()
+    print("ML OFERTAS:", ofertas)
 
     for item in ofertas:
 
