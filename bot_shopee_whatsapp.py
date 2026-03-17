@@ -30,7 +30,7 @@ AFILIADO_ID = "18349740277"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 CHECK_INTERVAL_SHOPEE = 5400
-CHECK_INTERVAL_ML = 2700
+CHECK_INTERVAL_ML = 60
 
 MAX_PRODUTOS_POR_RODADA = 3
 
@@ -63,7 +63,7 @@ historico = carregar_historico()
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
     inicio = dt_time(5, 0)
-    fim = dt_time(21, 0)
+    fim = dt_time(23, 0)
     return inicio <= agora <= fim
 
 # =========================
