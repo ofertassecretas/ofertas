@@ -408,23 +408,17 @@ for item in ofertas:
 📲 <a href="{zap}">Copiar para WhatsApp</a>
 """
 
-mensagem += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
+    mensagem += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
-        try:
-
-            await context.bot.send_photo(
-                chat_id=CHAT_ID_DESTINO,
-                photo=imagem,
-                caption=mensagem,
-                parse_mode="HTML"
-            )
-
-            enviados += 1
-
-            await asyncio.sleep(random.randint(5, 12))
-
-        except Exception as e:
-            logging.error(e)
+    try:
+        await bot.send_photo(
+            chat_id=CHAT_ID,
+            photo=item.get("thumbnail"),
+            caption=mensagem,
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        print(f"Erro ao enviar: {e}")
 
 # =========================
 # INICIALIZAÇÃO
