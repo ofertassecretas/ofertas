@@ -408,7 +408,7 @@ for item in ofertas:
 📲 <a href="{zap}">Copiar para WhatsApp</a>
 """
 
-        mensagem += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
+mensagem += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
         try:
 
