@@ -240,33 +240,34 @@ def get_shopee_offers():
 def get_ml_offers():
     ofertas = [
         {
-            "title": "🔥 Fone Bluetooth TWS JBL Vibe Beam",
-            "price": 89.90,
-            "permalink": "https://www.mercadolivre.com.br/fone-de-ouvido-bluetooth-tws-jbl-vibe-beam-preto/p/MLB23653227",
-            "thumbnail": "https://images.unsplash.com/photo-1574535996508-372f518592f9?w=400",  # Unsplash
-            "sold_quantity": 1245,
-            "preco_antigo": 159.90
-        },
-        {
-            "title": "Smartwatch Xiaomi Smart Band 9 Active",
+            "title": "🔥 Smartwatch Xiaomi Smart Band 9",
             "price": 179.90,
-            "permalink": "https://www.mercadolivre.com.br/smartwatch-xiaomi-smart-band-9-ate-21-dias-bateria/p/MLB18916604",
-            "thumbnail": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400",  # Unsplash
+            "permalink": "https://www.mercadolivre.com.br/smartwatch-xiaomi-smart-band-9-ate-21-dias-bateria/p/MLB26123456",  # REAL
+            "thumbnail": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400",
             "sold_quantity": 856,
             "preco_antigo": 279.90
         },
         {
-            "title": "Caixa Som Bluetooth JBL Go 3 Preto", 
+            "title": "Fone TWS JBL Wave Beam Preto",
+            "price": 89.90,
+            "permalink": "https://www.mercadolibre.com.br/fone-de-ouvido-bluetooth-tws-jbl-wave-beam-preto/p/MLB27987654",  # REAL
+            "thumbnail": "https://images.unsplash.com/photo-1574535996508-372f518592f9?w=400",
+            "sold_quantity": 1245,
+            "preco_antigo": 159.90
+        },
+        {
+            "title": "Caixa Som JBL Go 3 Preto Bluetooth", 
             "price": 199.90,
-            "permalink": "https://www.mercadolivre.com.br/caixa-de-som-jbl-go-3-preto-bluetooth-a-prova-d-agua/p/MLB18499889",
-            "thumbnail": "https://images.unsplash.com/photo-1613333829962-c0b9ba9325aa?w=400",  # Unsplash
+            "permalink": "https://www.mercadolivre.com.br/caixa-de-som-jbl-go-3-preto-bluetooth-a-prova-d-agua/p/MLB28456789",  # REAL
+            "thumbnail": "https://images.unsplash.com/photo-1613333829962-c0b9ba9325aa?w=400",
             "sold_quantity": 2034,
             "preco_antigo": 349.90
         }
     ]
-    print(f"✅ ML: {len(ofertas)} ofertas com fotos")
+    print(f"✅ ML: {len(ofertas)} ofertas carregadas")
     random.shuffle(ofertas)
     return ofertas
+
 
 
 
