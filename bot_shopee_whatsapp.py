@@ -67,7 +67,7 @@ historico = carregar_historico()
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
     inicio = dt_time(5, 0)
-    fim = dt_time(21, 0)
+    fim = dt_time(23, 0)
     return inicio <= agora <= fim
 
 # =========================
@@ -243,11 +243,11 @@ def get_shopee_offers():
 
 def get_ml_offers():
     try:
-        url = "https://api.mercadolibre.com/sites/MLB/search?q=ofertas&limit=10"
-        
-        headers = {}
-        if ML_ACCESS_TOKEN:
-            headers["Authorization"] = f"Bearer {ML_ACCESS_TOKEN}"
+        url = "https://api.mercadolibre.com/sites/MLB/search?q=moto&limit=10"
+
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
 
         response = requests.get(url, headers=headers, timeout=15)
 
