@@ -259,32 +259,28 @@ def get_ml_offers():
 
         produtos = []
 
-        blocos = html_text.split('ui-search-result__wrapper')
+        # pega TODOS os links de produto válidos
+        links = re.findall(r'https://produto\.mercadolivre\.com\.br/MLB-\d+-[^"]+', html_text)
 
-        for bloco in blocos[1:10]:
+        titulos = re.findall(r'class="poly-component__title">(.*?)</h2>', html_text)
 
-            try:
-                titulo = re.search(r'title="(.*?)"', bloco)
-                preco = re.search(r'price-tag-fraction">(\d+)', bloco)
-                link = re.search(r'href="(https://[^"]+)"', bloco)
-                imagem = re.search(r'src="(https://[^"]+)"', bloco)
+        precos = re.findall(r'andes-money-amount__fraction">(\d+)', html_text)
 
-                if not (titulo and preco and link):
-                    continue
+        for i in range(min(len(links), len(titulos), len(precos))):
 
-                produtos.append({
-                    "title": titulo.group(1),
-                    "price": float(preco.group(1)),
-                    "permalink": link.group(1),
-                    "thumbnail": imagem.group(1) if imagem else None,
-                    "sold_quantity": random.randint(100, 2000),
-                    "preco_antigo": float(preco.group(1)) * 1.3
-                })
-
-            except:
-                continue
+            produtos.append({
+                "title": html.unescape(titulos[i]),
+                "price": float(precos[i]),
+                "permalink": links[i],
+                "thumbnail": None,
+                "sold_quantity": random.randint(100, 2000),
+                "preco_antigo": float(precos[i]) * 1.3
+            })
 
         random.shuffle(produtos)
+
+        print(f"✅ ML: {len(produtos)} produtos encontrados")
+
         return produtos
 
     except Exception as e:
