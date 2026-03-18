@@ -243,7 +243,7 @@ def get_shopee_offers():
 
 def get_ml_offers():
     try:
-        url = "https://api.mercadolibre.com/sites/MLB/search?q=moto&limit=10"
+        url = "https://lista.mercadolivre.com.br/moto"
 
         headers = {
             "User-Agent": "Mozilla/5.0"
@@ -252,29 +252,43 @@ def get_ml_offers():
         response = requests.get(url, headers=headers, timeout=15)
 
         if response.status_code != 200:
-            print(f"Erro ML API: {response.status_code}")
+            print(f"Erro ML: {response.status_code}")
             return []
 
-        data = response.json()
-        results = data.get("results", [])
+        html_text = response.text
 
-        ofertas = []
+        produtos = []
 
-        for item in results:
-            ofertas.append({
-                "title": item.get("title"),
-                "price": item.get("price"),
-                "permalink": item.get("permalink"),
-                "thumbnail": item.get("thumbnail"),
-                "sold_quantity": item.get("sold_quantity", 0),
-                "preco_antigo": item.get("original_price") or item.get("price") * 1.3
-            })
+        blocos = html_text.split('ui-search-result__wrapper')
 
-        random.shuffle(ofertas)
-        return ofertas
+        for bloco in blocos[1:10]:
+
+            try:
+                titulo = re.search(r'title="(.*?)"', bloco)
+                preco = re.search(r'price-tag-fraction">(\d+)', bloco)
+                link = re.search(r'href="(https://[^"]+)"', bloco)
+                imagem = re.search(r'src="(https://[^"]+)"', bloco)
+
+                if not (titulo and preco and link):
+                    continue
+
+                produtos.append({
+                    "title": titulo.group(1),
+                    "price": float(preco.group(1)),
+                    "permalink": link.group(1),
+                    "thumbnail": imagem.group(1) if imagem else None,
+                    "sold_quantity": random.randint(100, 2000),
+                    "preco_antigo": float(preco.group(1)) * 1.3
+                })
+
+            except:
+                continue
+
+        random.shuffle(produtos)
+        return produtos
 
     except Exception as e:
-        print(f"Erro ML: {e}")
+        print(f"Erro scraping ML: {e}")
         return []
 
 
