@@ -8,10 +8,6 @@ import json
 import os
 import html
 import re
-# =========================
-# CONFIG PAUSA ML
-# =========================
-PAUSAR_ML = True  # Mude para False quando quiser reativar
 
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
@@ -24,7 +20,6 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
-ML_ACCESS_TOKEN = os.getenv("ML_ACCESS_TOKEN")
 
 CHAT_ID_DESTINO = -1003848415150
 
@@ -34,8 +29,6 @@ AFILIADO_ID = "18349740277"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 CHECK_INTERVAL_SHOPEE = 5400
-CHECK_INTERVAL_ML = 10
-
 MAX_PRODUTOS_POR_RODADA = 3
 
 logging.basicConfig(level=logging.INFO)
@@ -67,7 +60,7 @@ historico = carregar_historico()
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
     inicio = dt_time(5, 0)
-    fim = dt_time(23, 0)
+    fim = dt_time(21, 0)
     return inicio <= agora <= fim
 
 # =========================
@@ -238,59 +231,6 @@ def get_shopee_offers():
         return []
 
 # =========================
-# MERCADO LIVRE
-# =========================
-
-def get_ml_offers():
-    try:
-        url = "https://lista.mercadolivre.com.br/moto"
-
-        headers = {
-            "User-Agent": "Mozilla/5.0"
-        }
-
-        response = requests.get(url, headers=headers, timeout=15)
-
-        if response.status_code != 200:
-            print(f"Erro ML: {response.status_code}")
-            return []
-
-        html_text = response.text
-
-        produtos = []
-
-        # pega TODOS os links de produto válidos
-        links = re.findall(r'https://produto\.mercadolivre\.com\.br/MLB-\d+-[^"]+', html_text)
-
-        titulos = re.findall(r'class="poly-component__title">(.*?)</h2>', html_text)
-
-        precos = re.findall(r'andes-money-amount__fraction">(\d+)', html_text)
-
-        for i in range(min(len(links), len(titulos), len(precos))):
-
-            produtos.append({
-                "title": html.unescape(titulos[i]),
-                "price": float(precos[i]),
-                "permalink": links[i],
-                "thumbnail": None,
-                "sold_quantity": random.randint(100, 2000),
-                "preco_antigo": float(precos[i]) * 1.3
-            })
-
-        random.shuffle(produtos)
-
-        print(f"✅ ML: {len(produtos)} produtos encontrados")
-
-        return produtos
-
-    except Exception as e:
-        print(f"Erro scraping ML: {e}")
-        return []
-
-
-
-
-# =========================
 # ENVIO SHOPEE
 # =========================
 
@@ -368,80 +308,10 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
             enviados += 1
 
-            await asyncio.sleep(random.randint(5, 12))
+            await asyncio.sleep(random.randint(25, 35))
 
         except Exception as e:
             logging.error(f"Erro envio: {e}")
-
-# =========================
-# ENVIO MERCADO LIVRE
-# =========================
-
-async def send_ml_offers(context):
-    bot = context.bot
-    ofertas = get_ml_offers()
-    print(f"ML OFERTAS: {len(ofertas)} produtos")
-    
-    enviados = 0
-    for item in ofertas:
-        if enviados >= MAX_PRODUTOS_POR_RODADA:
-            break
-            
-        nome = html.escape(item["title"])
-        preco = item["price"]
-        link = item["permalink"]  # ✅ SEM aplicar_id_afiliado() pro ML
-        
-        # Calcula desconto
-        preco_antigo = item.get("preco_antigo", preco * 1.5)
-        desconto = round(((preco_antigo - preco) / preco_antigo) * 100)
-        vendas = item.get("sold_quantity", 0)
-        
-        zap_link = montar_texto_whatsapp(nome, f"R$ {preco:.2f}", link)
-        
-        mensagem = f"""
-🚨 <b>OFERTA MERCADO LIVRE</b>
-
-🔥 <b>{nome}</b>
-
-💸 De: <s>R$ {preco_antigo:.2f}</s>
-💰 Por: <b>R$ {preco:.2f}</b> 
-📉 Desconto: <b>{desconto}%</b>
-
-🛒 {vendas:,} vendidos
-
-👇 Aproveite:
-<a href="{link}">🛒 COMPRAR AGORA</a>
-
-📲 <a href="{zap_link}">Copiar WhatsApp</a>
-
-━━━━━━━━━━━━━━━
-📢 <b>Ofertas Secretas</b>
-"""
-        
-        try:
-            await bot.send_photo(
-                chat_id=CHAT_ID_DESTINO,
-                photo=item["thumbnail"],  # ✅ Foto Unsplash
-                caption=mensagem,
-                parse_mode="HTML"
-            )
-            print(f"✅ ML Enviado: {nome[:30]}...")
-            
-            # Histórico SEM o ID Shopee
-            historico["links"].append(link)
-            historico["titulos"][limpar_titulo(nome)] = time.time()
-            salvar_historico(historico)
-            
-            enviados += 1
-            await asyncio.sleep(random.randint(5, 12))
-            
-        except Exception as e:
-            logging.error(f"Erro ML: {e}")
-    
-    print(f"✅ ML: {enviados} enviados com sucesso!")
-
-
-
 
 # =========================
 # INICIALIZAÇÃO
@@ -455,13 +325,7 @@ async def post_init(app):
         first=10
     )
 
-    app.job_queue.run_repeating(
-        send_ml_offers,
-        interval=CHECK_INTERVAL_ML,
-        first=2700
-    )
-
-    logging.info("🤖 Bot Shopee + Mercado Livre Online!")
+    logging.info("🤖 Bot Shopee Online!")
 
 if __name__ == "__main__":
     app = (
@@ -471,10 +335,6 @@ if __name__ == "__main__":
         .build()
     )
 
-    # Teste ML imediato (5s)
-    app.job_queue.run_once(send_ml_offers, when=5)
-    
-    # Inicia bot
     app.run_polling(
         poll_interval=60,
         timeout=60,
