@@ -113,35 +113,145 @@ def produto_similar(nome_limpo):
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
 
-    headlines = [
-        "🚨 ISSO NÃO FICA NESSE PREÇO.",
-        "💣 OFERTA FORA DO PADRÃO.",
-        "⚡ ACHADO DO DIA.",
-        "🔥 PREÇO ABAIXO DO MERCADO."
-    ]
+    nome_lower = nome.lower()
 
-    pressao = [
+    # =========================
+    # DETECÇÃO DE CATEGORIA
+    # =========================
+
+    if any(p in nome_lower for p in ["tenis", "sapato", "camisa", "vestido", "blusa", "calça", "short"]):
+        categoria = "roupa"
+
+    elif any(p in nome_lower for p in ["fone", "bluetooth", "caixa", "carregador", "led", "smartwatch"]):
+        categoria = "eletronico"
+
+    elif any(p in nome_lower for p in ["panela", "pano", "cozinha", "organizador", "casa", "escova"]):
+        categoria = "casa"
+
+    else:
+        categoria = "geral"
+
+    # =========================
+    # COPYS POR CATEGORIA
+    # =========================
+
+    copys = {
+        "roupa": [
+            "🔥 Esse {produto} parece de marca cara",
+            "😮 Quem vê esse {produto} nem imagina o preço",
+            "💎 Esse {produto} tá com cara de premium",
+            "👀 Olha esse {produto}… sério",
+            "✨ Esse {produto} valoriza demais o visual",
+            "🖤 Simples e bonito demais esse {produto}"
+        ],
+        "eletronico": [
+            "⚠️ Esse {produto} tá surpreendendo muita gente",
+            "😳 Não esperava isso desse {produto}",
+            "🔌 Esse {produto} tá vendendo MUITO",
+            "🔥 Esse {produto} tá com avaliação alta demais",
+            "👀 Olha isso nesse {produto}",
+            "🚨 Esse {produto} virou achado"
+        ],
+        "casa": [
+            "🏠 Esse {produto} facilita muito o dia a dia",
+            "🧼 Esse {produto} tá salvando muita gente",
+            "✨ Organização com esse {produto}",
+            "🔥 Esse {produto} tá valendo muito a pena",
+            "👀 Olha isso pra casa",
+            "💥 Esse {produto} resolve fácil"
+        ],
+        "geral": [
+            "💣 Oferta fora do padrão nesse {produto}",
+            "⚡ Esse {produto} tá com preço absurdo",
+            "😳 Esse {produto} tá chamando atenção",
+            "🔥 Esse {produto} tá vendendo muito",
+            "👀 Olha esse {produto}",
+            "🚨 Esse {produto} pode subir a qualquer momento"
+        ]
+    }
+
+    beneficios = {
+        "roupa": [
+            "💥 deixa o visual mais arrumado",
+            "💥 combina com tudo",
+            "💥 estilo sem gastar muito",
+            "💥 aparência de produto caro",
+            "💥 veste bem demais",
+            "💥 destaque no visual"
+        ],
+        "eletronico": [
+            "💥 muito acima do preço",
+            "💥 tecnologia barata que funciona",
+            "💥 entrega mais do que promete",
+            "💥 qualidade surpreendente",
+            "💥 custo-benefício absurdo",
+            "💥 desempenho top pelo preço"
+        ],
+        "casa": [
+            "💥 ajuda muito no dia a dia",
+            "💥 deixa tudo mais organizado",
+            "💥 praticidade total",
+            "💥 facilita sua rotina",
+            "💥 solução simples e barata",
+            "💥 útil de verdade"
+        ],
+        "geral": [
+            "💥 custo-benefício absurdo",
+            "💥 barato demais pro que entrega",
+            "💥 vale cada centavo",
+            "💥 oportunidade real",
+            "💥 preço muito abaixo",
+            "💥 difícil achar nesse valor"
+        ]
+    }
+
+    pressoes = [
         "Preço baixo + venda alta não ficam juntos.",
         "Depois que sobe, não volta.",
-        "Se esperar, paga mais."
+        "Se esperar, paga mais.",
+        "Quem pegou barato, pegou.",
+        "Esse tipo de oferta some rápido.",
+        "Quando todo mundo descobre, já era."
     ]
 
-    headline = random.choice(headlines)
-    frase_pressao = random.choice(pressao)
+    ctas = [
+        "🛒 COMPRAR AGORA",
+        "🔥 GARANTIR DESCONTO",
+        "⚡ PEGAR OFERTA",
+        "👇 APROVEITAR AGORA",
+        "💥 VER PROMOÇÃO",
+        "🚀 IR PRA OFERTA"
+    ]
+
+    # =========================
+    # ESCOLHAS
+    # =========================
+
+    produto_curto = nome.split()[0].lower()
+
+    frase = random.choice(copys[categoria]).format(produto=produto_curto)
+    beneficio = random.choice(beneficios[categoria])
+    pressao = random.choice(pressoes)
+    cta = random.choice(ctas)
+
+    # =========================
+    # COPY FINAL
+    # =========================
 
     copy = f"""
-<b>{headline}</b>
+<b>{frase}</b>
 
 🔥 <b>{nome}</b>
+
+{beneficio}
 
 💰 <b>R$ {preco}</b>
 ⭐ {avaliacao} | 🛒 {vendas} vendas
 💸 Comissão: <b>{comissao}%</b>
 
-{frase_pressao}
+{pressao}
 
-👇 Clique antes que mude:
-<a href="{link}">🛒 COMPRAR AGORA</a>
+<a href="{link}">{cta}</a>
 
 📲 <a href="{zap}">Copiar para divulgar no WhatsApp</a>
 """
