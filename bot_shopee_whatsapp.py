@@ -125,82 +125,74 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
     elif any(p in nome_lower for p in ["fone", "bluetooth", "caixa", "carregador", "led", "smartwatch"]):
         categoria = "eletronico"
 
-    elif any(p in nome_lower for p in ["panela", "pano", "cozinha", "organizador", "casa", "escova"]):
+    elif any(p in nome_lower for p in ["panela", "pano", "cozinha", "organizador", "espelho"]):
         categoria = "casa"
 
     else:
         categoria = "geral"
 
     # =========================
-    # COPYS POR CATEGORIA
+    # INTELIGÊNCIA DE PREÇO
     # =========================
 
-    copys = {
-        "roupa": [
-            "🔥 Esse {produto} parece de marca cara",
-            "😮 Quem vê esse {produto} nem imagina o preço",
-            "💎 Esse {produto} tá com cara de premium",
-            "👀 Olha esse {produto}… sério",
-            "✨ Esse {produto} valoriza demais o visual",
-            "🖤 Simples e bonito demais esse {produto}"
-        ],
-        "eletronico": [
-            "⚠️ Esse {produto} tá surpreendendo muita gente",
-            "😳 Não esperava isso desse {produto}",
-            "🔌 Esse {produto} tá vendendo MUITO",
-            "🔥 Esse {produto} tá com avaliação alta demais",
-            "👀 Olha isso nesse {produto}",
-            "🚨 Esse {produto} virou achado"
-        ],
-        "casa": [
-            "🏠 Esse {produto} facilita muito o dia a dia",
-            "🧼 Esse {produto} tá salvando muita gente",
-            "✨ Organização com esse {produto}",
-            "🔥 Esse {produto} tá valendo muito a pena",
-            "👀 Olha isso pra casa",
-            "💥 Esse {produto} resolve fácil"
-        ],
-        "geral": [
-            "💣 Oferta fora do padrão nesse {produto}",
-            "⚡ Esse {produto} tá com preço absurdo",
-            "😳 Esse {produto} tá chamando atenção",
-            "🔥 Esse {produto} tá vendendo muito",
-            "👀 Olha esse {produto}",
-            "🚨 Esse {produto} pode subir a qualquer momento"
-        ]
-    }
+    preco_float = float(preco)
+
+    if preco_float < 50:
+        gatilho_preco = "barato"
+    elif preco_float > 150:
+        gatilho_preco = "valor"
+    else:
+        gatilho_preco = "normal"
+
+    # =========================
+    # INTELIGÊNCIA DE VENDAS
+    # =========================
+
+    vendas_int = int(vendas.replace(".", ""))
+
+    viral = vendas_int > 1000
+
+    # =========================
+    # COPYS BASE
+    # =========================
+
+    copys = [
+        "😳 Esse {produto} tá chamando atenção por um detalhe...",
+        "🚨 Esse {produto} pode subir a qualquer momento (e rápido)",
+        "🔥 Esse {produto} apareceu do nada e já tá vendendo muito",
+        "👀 Olha isso nesse {produto}… sério",
+        "💣 Esse {produto} aqui tá fora do padrão",
+        "🤔 Eu não dava nada por esse {produto}… até ver isso"
+    ]
+
+    experiencias = [
+        "😅 Comprei achando que seria ruim… mas me surpreendi",
+        "😳 Não esperava isso quando vi esse produto",
+        "👀 Vi muita gente falando e resolvi testar",
+        "🤯 Melhor do que eu imaginava",
+        "🔥 Todo mundo que compra fala bem",
+        ""
+    ]
 
     beneficios = {
         "roupa": [
             "💥 deixa o visual mais arrumado",
-            "💥 combina com tudo",
-            "💥 estilo sem gastar muito",
-            "💥 aparência de produto caro",
-            "💥 veste bem demais",
-            "💥 destaque no visual"
+            "💥 parece de marca cara",
+            "💥 estilo sem gastar muito"
         ],
         "eletronico": [
-            "💥 muito acima do preço",
-            "💥 tecnologia barata que funciona",
             "💥 entrega mais do que promete",
             "💥 qualidade surpreendente",
-            "💥 custo-benefício absurdo",
-            "💥 desempenho top pelo preço"
+            "💥 funciona muito bem pelo preço"
         ],
         "casa": [
-            "💥 ajuda muito no dia a dia",
-            "💥 deixa tudo mais organizado",
-            "💥 praticidade total",
-            "💥 facilita sua rotina",
-            "💥 solução simples e barata",
-            "💥 útil de verdade"
+            "💥 facilita muito o dia a dia",
+            "💥 útil de verdade",
+            "💥 ajuda muito na rotina"
         ],
         "geral": [
             "💥 custo-benefício absurdo",
-            "💥 barato demais pro que entrega",
             "💥 vale cada centavo",
-            "💥 oportunidade real",
-            "💥 preço muito abaixo",
             "💥 difícil achar nesse valor"
         ]
     }
@@ -208,31 +200,37 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
     pressoes = [
         "Preço baixo + venda alta não ficam juntos.",
         "Depois que sobe, não volta.",
-        "Se esperar, paga mais.",
         "Quem pegou barato, pegou.",
-        "Esse tipo de oferta some rápido.",
-        "Quando todo mundo descobre, já era."
+        "Esse tipo de oferta some rápido."
     ]
 
     ctas = [
         "🛒 COMPRAR AGORA",
         "🔥 GARANTIR DESCONTO",
         "⚡ PEGAR OFERTA",
-        "👇 APROVEITAR AGORA",
-        "💥 VER PROMOÇÃO",
-        "🚀 IR PRA OFERTA"
+        "👇 APROVEITAR AGORA"
     ]
-
-    # =========================
-    # ESCOLHAS
-    # =========================
 
     produto_curto = nome.split()[0].lower()
 
-    frase = random.choice(copys[categoria]).format(produto=produto_curto)
+    frase = random.choice(copys).format(produto=produto_curto)
+    experiencia = random.choice(experiencias)
     beneficio = random.choice(beneficios[categoria])
     pressao = random.choice(pressoes)
     cta = random.choice(ctas)
+
+    # =========================
+    # AJUSTES INTELIGENTES
+    # =========================
+
+    if gatilho_preco == "barato":
+        beneficio = "💥 barato demais pro que entrega"
+
+    if gatilho_preco == "valor":
+        beneficio = "💥 produto mais completo nessa faixa"
+
+    if viral:
+        experiencia = "🔥 Esse produto já passou de milhares de vendas"
 
     # =========================
     # COPY FINAL
@@ -242,6 +240,8 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
 <b>{frase}</b>
 
 🔥 <b>{nome}</b>
+
+{experiencia}
 
 {beneficio}
 
@@ -262,22 +262,9 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
 # AUXILIARES
 # =========================
 
-def aplicar_id_afiliado(link):
-    parsed = urlparse(link)
-    query = parse_qs(parsed.query)
-    query["af_siteid"] = AFILIADO_ID
-    nova_query = urlencode(query, doseq=True)
-    return urlunparse(parsed._replace(query=nova_query))
+def montar_texto_whatsapp(copy_formatada, link):
 
-def gerar_link_whatsapp(texto):
-    return f"https://wa.me/?text={quote(texto)}"
-
-def montar_texto_whatsapp(nome, preco, link):
-
-    texto = f"""🔥 OFERTA
-
-📦 {nome}
-💰 R$ {preco}
+    texto = f"""{copy_formatada}
 
 🛒 Comprar agora:
 {link}
@@ -384,10 +371,11 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         imagem_url = item.get("imageUrl")
 
         comissao_formatada = round(float(comissao) * 100, 2)
-
         vendas_formatadas = f"{int(vendas):,}".replace(",", ".")
 
-        zap_link = montar_texto_whatsapp(nome_produto, f"{preco:.2f}", link_final)
+        # =========================
+        # COPY + WHATSAPP (CORRETO)
+        # =========================
 
         mensagem = gerar_copy(
             nome_produto,
@@ -396,8 +384,13 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             avaliacao,
             comissao_formatada,
             link_final,
-            zap_link
+            ""  # vazio primeiro
         )
+
+        zap_link = montar_texto_whatsapp(mensagem, link_final)
+
+        # injeta link do WhatsApp dentro da mensagem
+        mensagem = mensagem.replace('href=""', f'href="{zap_link}"')
 
         mensagem += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
