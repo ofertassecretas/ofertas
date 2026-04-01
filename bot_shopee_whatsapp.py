@@ -262,6 +262,16 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
 # AUXILIARES
 # =========================
 
+def aplicar_id_afiliado(link):
+    parsed = urlparse(link)
+    query = parse_qs(parsed.query)
+    query["af_siteid"] = AFILIADO_ID
+    nova_query = urlencode(query, doseq=True)
+    return urlunparse(parsed._replace(query=nova_query))
+
+def gerar_link_whatsapp(texto):
+    return f"https://wa.me/?text={quote(texto)}"
+
 def montar_texto_whatsapp(copy_formatada, link):
 
     texto = f"""{copy_formatada}
