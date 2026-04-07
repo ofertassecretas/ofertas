@@ -87,7 +87,6 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
 
     nome_lower = nome.lower()
 
-    # 🔥 MATERNIDADE (PRIORIDADE)
     if any(p in nome_lower for p in [
         "bebe","bebê","infantil","criança","kids",
         "mamadeira","fralda","chupeta","babador",
@@ -96,25 +95,17 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
     ]):
         categoria = "maternidade"
 
-    # 🔥 MOTO (COMPLETO)
     elif any(p in nome_lower for p in [
         "moto","cg","fan","titan","bros","xre","yamaha","honda",
         "biz","cb300","twister","fazer","factor","lander",
-
-        "kit relação","kit embreagem","amortecedor","retentor",
-        "vela iridium","filtro ar","cabos","estator","carburador","tbi",
-        "guarnição","kit juntas","pneus","guidão","pastilha de freio",
-        "kit cilindro","pedal embreagem","pedal freio","burrinho",
-        "tubo interno","tubo externo","retentor bengala","biela",
-        "regulador","cdi","sensor","caixa direção","carenagem","bloco óptico"
+        "retrovisor","manete","guidão","escape","carenagem",
+        "pastilha","freio","embreagem","filtro","vela"
     ]):
         categoria = "moto"
 
-    # 🔥 MODA
     elif any(p in nome_lower for p in ["tenis","camisa","vestido","calça","short","blusa"]):
         categoria = "moda"
 
-    # 🔥 CASA
     else:
         categoria = "casa"
 
@@ -173,36 +164,48 @@ Eu achei que isso era ruim… mas vi as avaliações
     return gerar_link_whatsapp(texto)
 
 # =========================
-# API
+# API SHOPEE (AGORA COM KEYWORD)
 # =========================
 
-def aplicar_id_afiliado(link):
-    parsed = urlparse(link)
-    query = parse_qs(parsed.query)
-    query["af_siteid"] = AFILIADO_ID
-    return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
-
-def get_shopee_offers():
+def get_shopee_offers(keyword=None):
 
     timestamp = int(time.time())
 
-    query_body = """
-    query {
-        productOfferV2 {
-            nodes {
-                productName
-                priceMin
-                commissionRate
-                sales
-                ratingStar
-                productLink
-                imageUrl
+    if keyword:
+        query_body = f"""
+        query {{
+            productOfferV2(keyword: "{keyword}", sortType: 2, limit: 20) {{
+                nodes {{
+                    productName
+                    priceMin
+                    commissionRate
+                    sales
+                    ratingStar
+                    productLink
+                    imageUrl
+                }}
+            }}
+        }}
+        """
+    else:
+        query_body = """
+        query {
+            productOfferV2 {
+                nodes {
+                    productName
+                    priceMin
+                    commissionRate
+                    sales
+                    ratingStar
+                    productLink
+                    imageUrl
+                }
             }
         }
-    }
-    """
+        """
 
     payload = json.dumps({"query": query_body})
+
     base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
     signature = hashlib.sha256(base.encode()).hexdigest()
 
@@ -232,7 +235,16 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
     if not dentro_do_horario():
         return
 
-    ofertas = get_shopee_offers()
+    ofertas = []
+
+    # 🔥 geral
+    ofertas += get_shopee_offers()
+
+    # 🔥 moto FORÇADO
+    keywords_moto = ["moto", "cg 160", "fan 160", "retrovisor moto", "capacete"]
+
+    for k in keywords_moto:
+        ofertas += get_shopee_offers(k)
 
     categorias = {"casa": [], "moda": [], "maternidade": [], "moto": []}
 
@@ -284,7 +296,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
     selecionadas += categorias["maternidade"][:1]
     selecionadas += categorias["moto"][:1]
 
-    # 🔥 GARANTIR 5
+    # fallback
     todas = categorias["casa"] + categorias["moda"] + categorias["maternidade"] + categorias["moto"]
 
     for item in todas:
@@ -320,6 +332,16 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             logging.error(e)
 
 # =========================
+# AUX
+# =========================
+
+def aplicar_id_afiliado(link):
+    parsed = urlparse(link)
+    query = parse_qs(parsed.query)
+    query["af_siteid"] = AFILIADO_ID
+    return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
+
+# =========================
 # START
 # =========================
 
@@ -330,6 +352,5 @@ async def post_init(app):
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
     app.run_polling()
-
 
 
