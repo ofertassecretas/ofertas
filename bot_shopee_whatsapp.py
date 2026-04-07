@@ -29,7 +29,6 @@ AFILIADO_ID = "18349740277"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 CHECK_INTERVAL_SHOPEE = 5400
-MAX_PRODUTOS_POR_RODADA = 3
 
 logging.basicConfig(level=logging.INFO)
 
@@ -59,52 +58,25 @@ historico = carregar_historico()
 
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
-    inicio = dt_time(5, 0)
-    fim = dt_time(21, 0)
-    return inicio <= agora <= fim
+    return dt_time(5, 0) <= agora <= dt_time(21, 0)
 
 # =========================
-# LIMPAR TITULO
+# LIMPEZA
 # =========================
 
 def limpar_titulo(nome):
-
     nome = nome.lower()
-
     nome = re.sub(r'\d+', '', nome)
-    nome = re.sub(r'\b(ml|l|litro|litros|cm|mm|pcs|peças)\b', '', nome)
-
-    palavras_ruins = [
-        "kit", "original", "novo", "oficial", "promoção", "oferta"
-    ]
-
-    for p in palavras_ruins:
-        nome = nome.replace(p, "")
-
+    nome = re.sub(r'\b(ml|l|cm|mm|pcs|peças)\b', '', nome)
     nome = re.sub(r'\s+', ' ', nome).strip()
-
     return nome
 
-# =========================
-# VERIFICAR SIMILARIDADE
-# =========================
-
 def produto_similar(nome_limpo):
-
     agora = time.time()
-
     for titulo, timestamp in historico["titulos"].items():
-
         if agora - timestamp < 43200:
-
-            palavras_novas = set(nome_limpo.split())
-            palavras_antigas = set(titulo.split())
-
-            inter = palavras_novas & palavras_antigas
-
-            if len(inter) >= 2:
+            if len(set(nome_limpo.split()) & set(titulo.split())) >= 2:
                 return True
-
     return False
 
 # =========================
@@ -115,19 +87,15 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
 
     nome_lower = nome.lower()
 
-    if any(p in nome_lower for p in ["tenis", "camisa", "vestido", "calça", "short"]):
+    if any(p in nome_lower for p in ["tenis","camisa","vestido","calça","short"]):
         categoria = "moda"
-
-    elif any(p in nome_lower for p in ["bebe", "mamadeira", "fralda", "infantil"]):
+    elif any(p in nome_lower for p in ["bebe","mamadeira","fralda","infantil"]):
         categoria = "maternidade"
-
-    elif any(p in nome_lower for p in ["moto", "capacete", "carenagem"]):
+    elif any(p in nome_lower for p in ["moto","capacete","carenagem"]):
         categoria = "moto"
-
     else:
         categoria = "casa"
 
-    # COPY TELEGRAM (mantém comissão)
     frase = random.choice([
         "😳 Mano… olha isso aqui",
         "🚨 Esse aqui me surpreendeu",
@@ -158,15 +126,8 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
     return copy, categoria
 
 # =========================
-# AUXILIARES
+# WHATSAPP
 # =========================
-
-def aplicar_id_afiliado(link):
-    parsed = urlparse(link)
-    query = parse_qs(parsed.query)
-    query["af_siteid"] = AFILIADO_ID
-    nova_query = urlencode(query, doseq=True)
-    return urlunparse(parsed._replace(query=nova_query))
 
 def gerar_link_whatsapp(texto):
     return f"https://wa.me/?text={quote(texto)}"
@@ -187,12 +148,17 @@ Eu achei que isso era ruim… mas vi as avaliações
 👇 olha aqui:
 {link}
 """
-
     return gerar_link_whatsapp(texto)
 
 # =========================
-# SHOPEE API
+# API
 # =========================
+
+def aplicar_id_afiliado(link):
+    parsed = urlparse(link)
+    query = parse_qs(parsed.query)
+    query["af_siteid"] = AFILIADO_ID
+    return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
 
 def get_shopee_offers():
 
@@ -209,16 +175,14 @@ def get_shopee_offers():
                 ratingStar
                 productLink
                 imageUrl
-                itemId
             }
         }
     }
     """
 
     payload = json.dumps({"query": query_body})
-
-    base_str = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
-    signature = hashlib.sha256(base_str.encode("utf-8")).hexdigest()
+    base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
+    signature = hashlib.sha256(base.encode()).hexdigest()
 
     headers = {
         "Content-Type": "application/json",
@@ -226,27 +190,19 @@ def get_shopee_offers():
     }
 
     try:
-
-        resp = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=20)
-
-        if resp.status_code == 200:
-            data = resp.json()
+        r = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=20)
+        if r.status_code == 200:
+            data = r.json()
             produtos = data.get("data", {}).get("productOfferV2", {}).get("nodes", [])
-
             random.shuffle(produtos)
-
             return produtos
-
-        return []
-
     except Exception as e:
+        logging.error(e)
 
-        logging.error(f"Erro Shopee: {e}")
-
-        return []
+    return []
 
 # =========================
-# ENVIO SHOPEE
+# ENVIO
 # =========================
 
 async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
@@ -256,22 +212,17 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
     ofertas = get_shopee_offers()
 
-    categorias = {
-        "casa": [],
-        "moda": [],
-        "maternidade": [],
-        "moto": []
-    }
+    categorias = {"casa": [], "moda": [], "maternidade": [], "moto": []}
 
     for item in ofertas:
 
-        link_final = aplicar_id_afiliado(item["productLink"])
+        link = aplicar_id_afiliado(item["productLink"])
 
-        if link_final in historico["links"]:
+        if link in historico["links"]:
             continue
 
-        nome_produto = html.escape(item["productName"])
-        nome_limpo = limpar_titulo(nome_produto)
+        nome = html.escape(item["productName"])
+        nome_limpo = limpar_titulo(nome)
 
         if produto_similar(nome_limpo):
             continue
@@ -287,63 +238,46 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         vendas = item.get("sales", 0)
         avaliacao = item.get("ratingStar", 0)
         comissao = item.get("commissionRate", 0)
-        imagem_url = item.get("imageUrl")
+        img = item.get("imageUrl")
 
-        comissao_formatada = round(float(comissao) * 100, 2)
-        vendas_formatadas = f"{int(vendas):,}".replace(",", ".")
+        vendas_f = f"{int(vendas):,}".replace(",", ".")
+        comissao_f = round(float(comissao)*100,2)
 
-        mensagem, categoria = gerar_copy(
-            nome_produto,
-            f"{preco:.2f}",
-            vendas_formatadas,
-            avaliacao,
-            comissao_formatada,
-            link_final,
-            ""
-        )
+        msg, cat = gerar_copy(nome, f"{preco:.2f}", vendas_f, avaliacao, comissao_f, link, "")
 
-        zap_link = montar_texto_whatsapp(
-            nome_produto,
-            f"{preco:.2f}",
-            vendas_formatadas,
-            avaliacao,
-            link_final
-        )
+        zap = montar_texto_whatsapp(nome, f"{preco:.2f}", vendas_f, avaliacao, link)
 
-        mensagem = mensagem.replace('href=""', f'href="{zap_link}"')
+        msg = msg.replace('href=""', f'href="{zap}"')
+        msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
-        categorias[categoria].append({
-            "mensagem": mensagem,
-            "imagem": imagem_url,
-            "link": link_final,
+        categorias[cat].append({
+            "msg": msg,
+            "img": img,
+            "link": link,
             "nome_limpo": nome_limpo
         })
 
-    # =========================
-    # SELEÇÃO FINAL (5 OFERTAS)
-    # =========================
-
     selecionadas = []
+    selecionadas += categorias["casa"][:2]
+    selecionadas += categorias["moda"][:1]
+    selecionadas += categorias["maternidade"][:1]
+    selecionadas += categorias["moto"][:1]
 
-    if categorias["casa"]:
-        selecionadas += categorias["casa"][:2]
-
-    for cat in ["moda", "maternidade", "moto"]:
-        if categorias[cat]:
-            selecionadas.append(categorias[cat][0])
-
-    # =========================
-    # ENVIO COM DELAY
-    # =========================
+    # 🔥 AQUECIMENTO (aumenta CTR)
+    if selecionadas:
+        await context.bot.send_message(
+            chat_id=CHAT_ID_DESTINO,
+            text="🚨 OFERTAS LIBERADAS AGORA\nSeparei umas MUITO boas hoje 👇"
+        )
 
     for item in selecionadas:
 
         try:
-            if item["imagem"]:
+            if item["img"]:
                 await context.bot.send_photo(
                     chat_id=CHAT_ID_DESTINO,
-                    photo=item["imagem"],
-                    caption=item["mensagem"],
+                    photo=item["img"],
+                    caption=item["msg"],
                     parse_mode="HTML"
                 )
 
@@ -354,78 +288,19 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             await asyncio.sleep(60)
 
         except Exception as e:
-            logging.error(f"Erro envio: {e}")
-
-        # =========================
-        # COPY + WHATSAPP (CORRETO)
-        # =========================
-
-        mensagem = gerar_copy(
-            nome_produto,
-            f"{preco:.2f}",
-            vendas_formatadas,
-            avaliacao,
-            comissao_formatada,
-            link_final,
-            ""  # vazio primeiro
-        )
-
-        zap_link = montar_texto_whatsapp(mensagem, link_final)
-
-        # injeta link do WhatsApp dentro da mensagem
-        mensagem = mensagem.replace('href=""', f'href="{zap_link}"')
-
-        mensagem += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
-
-        try:
-
-            if imagem_url:
-                await context.bot.send_photo(
-                    chat_id=CHAT_ID_DESTINO,
-                    photo=imagem_url,
-                    caption=mensagem,
-                    parse_mode="HTML"
-                )
-
-            historico["links"].append(link_final)
-            historico["titulos"][nome_limpo] = time.time()
-
-            salvar_historico(historico)
-
-            enviados += 1
-
-            await asyncio.sleep(random.randint(25, 35))
-
-        except Exception as e:
-            logging.error(f"Erro envio: {e}")
+            logging.error(e)
 
 # =========================
-# INICIALIZAÇÃO
+# START
 # =========================
 
 async def post_init(app):
-
-    app.job_queue.run_repeating(
-        send_shopee_offers,
-        interval=CHECK_INTERVAL_SHOPEE,
-        first=10
-    )
-
-    logging.info("🤖 Bot Shopee Online!")
+    app.job_queue.run_repeating(send_shopee_offers, interval=CHECK_INTERVAL_SHOPEE, first=10)
+    logging.info("🤖 Bot rodando!")
 
 if __name__ == "__main__":
-    app = (
-        ApplicationBuilder()
-        .token(TELEGRAM_TOKEN)
-        .post_init(post_init)
-        .build()
-    )
-
-    app.run_polling(
-        poll_interval=60,
-        timeout=60,
-        drop_pending_updates=True
-    )
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
+    app.run_polling()
 
 
 
