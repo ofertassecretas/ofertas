@@ -15,7 +15,7 @@ from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
 # =========================
-# CONFIGURAÇÕES
+# CONFIG
 # =========================
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -80,19 +80,41 @@ def produto_similar(nome_limpo):
     return False
 
 # =========================
-# COPY
+# COPY + CATEGORIA
 # =========================
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
 
     nome_lower = nome.lower()
 
-    if any(p in nome_lower for p in ["tenis","camisa","vestido","calça","short"]):
-        categoria = "moda"
-    elif any(p in nome_lower for p in ["bebe","mamadeira","fralda","infantil"]):
+    # 🔥 MATERNIDADE (PRIORIDADE)
+    if any(p in nome_lower for p in [
+        "bebe","bebê","infantil","criança","kids",
+        "mamadeira","fralda","chupeta","babador",
+        "berço","carrinho","banheira","body",
+        "brinquedo","educativo"
+    ]):
         categoria = "maternidade"
-    elif any(p in nome_lower for p in ["moto","capacete","carenagem"]):
+
+    # 🔥 MOTO (COMPLETO)
+    elif any(p in nome_lower for p in [
+        "moto","cg","fan","titan","bros","xre","yamaha","honda",
+        "biz","cb300","twister","fazer","factor","lander",
+
+        "kit relação","kit embreagem","amortecedor","retentor",
+        "vela iridium","filtro ar","cabos","estator","carburador","tbi",
+        "guarnição","kit juntas","pneus","guidão","pastilha de freio",
+        "kit cilindro","pedal embreagem","pedal freio","burrinho",
+        "tubo interno","tubo externo","retentor bengala","biela",
+        "regulador","cdi","sensor","caixa direção","carenagem","bloco óptico"
+    ]):
         categoria = "moto"
+
+    # 🔥 MODA
+    elif any(p in nome_lower for p in ["tenis","camisa","vestido","calça","short","blusa"]):
+        categoria = "moda"
+
+    # 🔥 CASA
     else:
         categoria = "casa"
 
@@ -244,7 +266,6 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         comissao_f = round(float(comissao)*100,2)
 
         msg, cat = gerar_copy(nome, f"{preco:.2f}", vendas_f, avaliacao, comissao_f, link, "")
-
         zap = montar_texto_whatsapp(nome, f"{preco:.2f}", vendas_f, avaliacao, link)
 
         msg = msg.replace('href=""', f'href="{zap}"')
@@ -263,7 +284,15 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
     selecionadas += categorias["maternidade"][:1]
     selecionadas += categorias["moto"][:1]
 
-    # 🔥 AQUECIMENTO (aumenta CTR)
+    # 🔥 GARANTIR 5
+    todas = categorias["casa"] + categorias["moda"] + categorias["maternidade"] + categorias["moto"]
+
+    for item in todas:
+        if len(selecionadas) >= 5:
+            break
+        if item not in selecionadas:
+            selecionadas.append(item)
+
     if selecionadas:
         await context.bot.send_message(
             chat_id=CHAT_ID_DESTINO,
@@ -301,7 +330,6 @@ async def post_init(app):
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
     app.run_polling()
-
 
 
 
