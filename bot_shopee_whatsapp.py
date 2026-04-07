@@ -37,6 +37,40 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 ARQUIVO_HISTORICO = "historico_produtos.json"
 
 # =========================
+# KEYWORDS FORÇADAS
+# =========================
+
+keywords_moto = [
+    "kit relação cg 160",
+    "pastilha freio moto",
+    "retrovisor moto",
+    "carenagem cg 160",
+    "capacete moto",
+    "vela iridium moto",
+    "kit embreagem moto",
+    "amortecedor moto"
+]
+
+keywords_maternidade = [
+    "kit maternidade bebê",
+    "roupa bebê menina",
+    "roupa bebê menino",
+    "body bebê",
+    "saída maternidade",
+    "kit enxoval bebê",
+    "bolsa maternidade",
+    "carrinho bebê",
+    "banheira bebê dobrável"
+]
+
+keywords_moda = [
+    "vestido feminino",
+    "camisa masculina",
+    "tenis masculino",
+    "roupa feminina"
+]
+
+# =========================
 # HISTÓRICO
 # =========================
 
@@ -67,7 +101,6 @@ def dentro_do_horario():
 def limpar_titulo(nome):
     nome = nome.lower()
     nome = re.sub(r'\d+', '', nome)
-    nome = re.sub(r'\b(ml|l|cm|mm|pcs|peças)\b', '', nome)
     nome = re.sub(r'\s+', ' ', nome).strip()
     return nome
 
@@ -80,32 +113,19 @@ def produto_similar(nome_limpo):
     return False
 
 # =========================
-# COPY + CATEGORIA
+# COPY
 # =========================
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
 
     nome_lower = nome.lower()
 
-    if any(p in nome_lower for p in [
-        "bebe","bebê","infantil","criança","kids",
-        "mamadeira","fralda","chupeta","babador",
-        "berço","carrinho","banheira","body",
-        "brinquedo","educativo"
-    ]):
+    if any(p in nome_lower for p in ["bebe","bebê","body","enxoval","maternidade"]):
         categoria = "maternidade"
-
-    elif any(p in nome_lower for p in [
-        "moto","cg","fan","titan","bros","xre","yamaha","honda",
-        "biz","cb300","twister","fazer","factor","lander",
-        "retrovisor","manete","guidão","escape","carenagem",
-        "pastilha","freio","embreagem","filtro","vela"
-    ]):
+    elif any(p in nome_lower for p in ["moto","cg","fan","titan","capacete","freio","embreagem"]):
         categoria = "moto"
-
-    elif any(p in nome_lower for p in ["tenis","camisa","vestido","calça","short","blusa"]):
+    elif any(p in nome_lower for p in ["tenis","camisa","vestido","calça"]):
         categoria = "moda"
-
     else:
         categoria = "casa"
 
@@ -164,7 +184,7 @@ Eu achei que isso era ruim… mas vi as avaliações
     return gerar_link_whatsapp(texto)
 
 # =========================
-# API SHOPEE (AGORA COM KEYWORD)
+# API
 # =========================
 
 def get_shopee_offers(keyword=None):
@@ -174,7 +194,7 @@ def get_shopee_offers(keyword=None):
     if keyword:
         query_body = f"""
         query {{
-            productOfferV2(keyword: "{keyword}", sortType: 2, limit: 20) {{
+            productOfferV2(keyword: "{keyword}", sortType: 2, limit: 15) {{
                 nodes {{
                     productName
                     priceMin
@@ -237,13 +257,17 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
     ofertas = []
 
-    # 🔥 geral
+    # automático
     ofertas += get_shopee_offers()
 
-    # 🔥 moto FORÇADO
-    keywords_moto = ["moto", "cg 160", "fan 160", "retrovisor moto", "capacete"]
-
+    # forçados
     for k in keywords_moto:
+        ofertas += get_shopee_offers(k)
+
+    for k in keywords_maternidade:
+        ofertas += get_shopee_offers(k)
+
+    for k in keywords_moda:
         ofertas += get_shopee_offers(k)
 
     categorias = {"casa": [], "moda": [], "maternidade": [], "moto": []}
@@ -351,6 +375,5 @@ async def post_init(app):
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
-    app.run_polling()
-
+    app.run_polling(drop_pending_updates=True)
 
