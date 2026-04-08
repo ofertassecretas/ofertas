@@ -43,20 +43,20 @@ ARQUIVO_HISTORICO = "historico_produtos.json"
 keywords_moto = [
     "kit relação cg 160",
     "pastilha freio moto",
-    "carenagem cg 160",
-    "capacete moto",
-    "vela iridium moto",
+    "amortecedor moto",
     "kit embreagem moto",
-    "amortecedor moto"
+    "vela iridium moto",
+    "carenagem cg",
+    "retentor bengala",
+    "pneu moto"
 ]
 
 keywords_maternidade = [
     "kit maternidade bebê",
-    "roupa bebê menina",
     "body bebê",
     "saída maternidade",
-    "kit enxoval bebê",
-    "bolsa maternidade"
+    "bolsa maternidade",
+    "carrinho bebê"
 ]
 
 keywords_moda = [
@@ -64,6 +64,20 @@ keywords_moda = [
     "camisa masculina",
     "tenis masculino"
 ]
+
+# =========================
+# FILTRO MOTO (ANTI ERRO)
+# =========================
+
+palavras_moto = [
+    "moto","cg","fan","titan","biz","xre","lander","fazer","factor",
+    "freio","embreagem","amortecedor","vela","pneu","carenagem",
+    "guidão","pastilha","bengala","cilindro","motor"
+]
+
+def eh_produto_moto(nome):
+    nome = nome.lower()
+    return any(p in nome for p in palavras_moto)
 
 # =========================
 # HISTÓRICO
@@ -87,7 +101,7 @@ historico = carregar_historico()
 
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
-    return dt_time(5, 0) <= agora <= dt_time(21, 0)
+    return dt_time(5, 0) <= agora <= dt_time(23, 0)
 
 # =========================
 # LIMPEZA
@@ -99,56 +113,37 @@ def limpar_titulo(nome):
     nome = re.sub(r'\s+', ' ', nome).strip()
     return nome
 
-def produto_similar(nome_limpo):
-    agora = time.time()
-    for titulo, timestamp in historico["titulos"].items():
-        if agora - timestamp < 43200:
-            if len(set(nome_limpo.split()) & set(titulo.split())) >= 2:
-                return True
-    return False
-
 # =========================
-# COPY MELHORADA
+# COPY INTELIGENTE
 # =========================
 
-def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
+def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, categoria):
 
-    nome_lower = nome.lower()
+    if categoria == "moto":
+        frase = random.choice([
+            "🏍️ Peça com ótimo custo-benefício",
+            "🔧 Essa aqui vale a pena conferir",
+            "⚙️ Produto muito bem avaliado",
+            "🔥 Esse tá saindo bastante"
+        ])
 
-    if any(p in nome_lower for p in ["bebe","bebê","body","enxoval","maternidade"]):
-        categoria = "maternidade"
-    elif any(p in nome_lower for p in ["moto","cg","fan","titan","capacete","freio","embreagem"]):
-        categoria = "moto"
-    elif any(p in nome_lower for p in ["tenis","camisa","vestido"]):
-        categoria = "moda"
+    elif categoria == "maternidade":
+        frase = random.choice([
+            "👶 Muito procurado pelas mamães",
+            "🍼 Ideal pro dia a dia do bebê",
+            "💖 Produto bem avaliado",
+            "✨ Ótima escolha pro enxoval"
+        ])
+
     else:
-        categoria = "casa"
-
-    if categoria == "maternidade":
         frase = random.choice([
-            "💖 Olha isso aqui que gracinha",
-            "👶 Muito útil pra quem tem bebê",
-            "🍼 Esse aqui vale a pena"
-        ])
-    elif categoria == "moto":
-        frase = random.choice([
-            "🏍️ Olha essa peça aqui",
-            "🔥 Compensa demais isso aqui",
-            "⚙️ Muito procurado"
-        ])
-    elif categoria == "moda":
-        frase = random.choice([
+            "🔥 Vale a pena conferir",
             "👀 Olha esse achado",
-            "🔥 Estilo com preço baixo",
-            "✨ Vale conferir"
-        ])
-    else:
-        frase = random.choice([
-            "👀 Olha isso aqui",
-            "🔥 Esse aqui chamou atenção"
+            "💥 Bom e barato",
+            "🚨 Esse tá compensando"
         ])
 
-    copy = f"""
+    return f"""
 <b>{frase}</b>
 
 🔥 <b>{nome}</b>
@@ -157,14 +152,10 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
 ⭐ {avaliacao} | 🛒 {vendas} vendas
 💸 Comissão: <b>{comissao}%</b>
 
-⚠️ Pode acabar rápido
+⚠️ Oferta pode acabar a qualquer momento
 
 <a href="{link}">🛒 COMPRAR AGORA</a>
-
-📲 <a href="{zap}">Compartilhar no WhatsApp</a>
 """
-
-    return copy, categoria
 
 # =========================
 # WHATSAPP
@@ -174,15 +165,14 @@ def gerar_link_whatsapp(texto):
     return f"https://wa.me/?text={quote(texto)}"
 
 def montar_texto_whatsapp(nome, preco, vendas, avaliacao, link):
-
-    texto = f"""🔥 OFERTA
+    texto = f"""🔥 Oferta top
 
 {nome}
 
 💰 R$ {preco}
 ⭐ {avaliacao} | 🛒 {vendas} vendas
 
-👇 confira:
+👇 Link:
 {link}
 """
     return gerar_link_whatsapp(texto)
@@ -195,40 +185,23 @@ def get_shopee_offers(keyword=None):
 
     timestamp = int(time.time())
 
-    if keyword:
-        query_body = f"""
-        query {{
-            productOfferV2(keyword: "{keyword}", sortType: 2, limit: 10) {{
-                nodes {{
-                    productName
-                    priceMin
-                    commissionRate
-                    sales
-                    ratingStar
-                    productLink
-                    imageUrl
-                }}
+    query = f"""
+    query {{
+        productOfferV2(keyword: "{keyword}", sortType: 2, limit: 10) {{
+            nodes {{
+                productName
+                priceMin
+                commissionRate
+                sales
+                ratingStar
+                productLink
+                imageUrl
             }}
         }}
-        """
-    else:
-        query_body = """
-        query {
-            productOfferV2 {
-                nodes {
-                    productName
-                    priceMin
-                    commissionRate
-                    sales
-                    ratingStar
-                    productLink
-                    imageUrl
-                }
-            }
-        }
-        """
+    }}
+    """
 
-    payload = json.dumps({"query": query_body})
+    payload = json.dumps({"query": query})
 
     base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
     signature = hashlib.sha256(base.encode()).hexdigest()
@@ -242,11 +215,9 @@ def get_shopee_offers(keyword=None):
         r = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=20)
         if r.status_code == 200:
             data = r.json()
-            produtos = data.get("data", {}).get("productOfferV2", {}).get("nodes", [])
-            random.shuffle(produtos)
-            return produtos
-    except Exception as e:
-        logging.error(e)
+            return data.get("data", {}).get("productOfferV2", {}).get("nodes", [])
+    except:
+        return []
 
     return []
 
@@ -261,20 +232,28 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
     ofertas = []
 
-    ofertas += get_shopee_offers()
-
     for k in keywords_moto:
-        ofertas += get_shopee_offers(k)
+        produtos = get_shopee_offers(k)
+        for p in produtos:
+            if eh_produto_moto(p["productName"]):
+                ofertas.append((p, "moto"))
 
     for k in keywords_maternidade:
-        ofertas += get_shopee_offers(k)
+        produtos = get_shopee_offers(k)
+        for p in produtos:
+            ofertas.append((p, "maternidade"))
 
     for k in keywords_moda:
-        ofertas += get_shopee_offers(k)
+        produtos = get_shopee_offers(k)
+        for p in produtos:
+            ofertas.append((p, "moda"))
 
-    categorias = {"casa": [], "moda": [], "maternidade": [], "moto": []}
+    enviados = 0
 
-    for item in ofertas:
+    for item, categoria in ofertas:
+
+        if enviados >= 5:
+            break
 
         link = aplicar_id_afiliado(item["productLink"])
 
@@ -282,10 +261,6 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             continue
 
         nome = html.escape(item["productName"])
-        nome_limpo = limpar_titulo(nome)
-
-        if produto_similar(nome_limpo):
-            continue
 
         try:
             preco = float(item["priceMin"])
@@ -295,55 +270,30 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         if preco > 250:
             continue
 
-        vendas = item.get("sales", 0)
+        vendas = str(item.get("sales", 0))
         avaliacao = item.get("ratingStar", 0)
-        comissao = item.get("commissionRate", 0)
-        img = item.get("imageUrl")
+        comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
 
-        vendas_f = f"{int(vendas):,}".replace(",", ".")
-        comissao_f = round(float(comissao)*100,2)
+        msg = gerar_copy(nome, f"{preco:.2f}", vendas, avaliacao, comissao, link, categoria)
 
-        msg, cat = gerar_copy(nome, f"{preco:.2f}", vendas_f, avaliacao, comissao_f, link, "")
-        zap = montar_texto_whatsapp(nome, f"{preco:.2f}", vendas_f, avaliacao, link)
+        zap = montar_texto_whatsapp(nome, f"{preco:.2f}", vendas, avaliacao, link)
 
-        msg = msg.replace('href=""', f'href="{zap}"')
+        msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
         msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
-        categorias[cat].append({
-            "msg": msg,
-            "img": img,
-            "link": link,
-            "nome_limpo": nome_limpo
-        })
-
-    selecionadas = []
-    selecionadas += categorias["casa"][:2]
-    selecionadas += categorias["moda"][:1]
-    selecionadas += categorias["maternidade"][:1]
-    selecionadas += categorias["moto"][:1]
-
-    if selecionadas:
-        await context.bot.send_message(
-            chat_id=CHAT_ID_DESTINO,
-            text="🚨 OFERTAS LIBERADAS AGORA 👇"
-        )
-
-    for item in selecionadas:
-
         try:
-            if item["img"]:
-                await context.bot.send_photo(
-                    chat_id=CHAT_ID_DESTINO,
-                    photo=item["img"],
-                    caption=item["msg"],
-                    parse_mode="HTML"
-                )
+            await context.bot.send_photo(
+                chat_id=CHAT_ID_DESTINO,
+                photo=item["imageUrl"],
+                caption=msg,
+                parse_mode="HTML"
+            )
 
-            historico["links"].append(item["link"])
-            historico["titulos"][item["nome_limpo"]] = time.time()
+            historico["links"].append(link)
             salvar_historico(historico)
 
-            await asyncio.sleep(60)
+            enviados += 1
+            await asyncio.sleep(40)
 
         except Exception as e:
             logging.error(e)
