@@ -13,6 +13,7 @@ from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
+from telegram.error import Conflict  # IMPORTANDO O ERRO
 
 # =========================
 # CONFIG
@@ -326,16 +327,25 @@ def aplicar_id_afiliado(link):
     return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
 
 # =========================
+# TRATAMENTO DE ERRO CONFLICT
+# =========================
+
+async def error_handler(update, context):
+    if isinstance(context.error, Conflict):
+        logging.warning("⚠️ Conflito detectado, mas o bot continuará rodando.")
+    else:
+        logging.error(f"Erro não tratado: {context.error}")
+
+# =========================
 # START
 # =========================
 
 async def post_init(app):
-    # CORREÇÃO: Garante que fecha conexões antigas
     await app.bot.delete_webhook(drop_pending_updates=True)
-    
     app.job_queue.run_repeating(send_shopee_offers, interval=CHECK_INTERVAL_SHOPEE, first=10)
     logging.info("✅ Bot rodando e pronto!")
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
+    app.add_error_handler(error_handler)  # ADICIONANDO O TRATADOR DE ERRO
     app.run_polling(drop_pending_updates=True)
