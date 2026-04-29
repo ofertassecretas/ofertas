@@ -268,8 +268,10 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         corpo_msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, avaliacao, comissao, link)
         
         # Cria o link do WhatsApp usando o MESMO texto
-        texto_para_zap = corpo_msg.replace('<b>', '').replace('</b>', '').replace(f'<a href="{link}">🛒 PEGAR O MEU</a>', f'🛒 Link: {link}')
-        zap = gerar_link_whatsapp(texto_para_zap)
+        texto_limpo_zap = corpo_msg.replace('<b>', '').replace('</b>', '')
+        texto_limpo_zap = texto_limpo_zap.replace(f'<a href="{link}">🛒 PEGAR O MEU</a>', f'🛒 Link: {link}')
+        
+        zap = gerar_link_whatsapp(texto_limpo_zap)
 
         # Monta a mensagem final
         msg_final = corpo_msg
@@ -296,7 +298,8 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         try:
             if item["img"]:
-                await context.bot_send_photo(
+                # CORRIGIDO AQUI!
+                await context.bot.send_photo(
                     chat_id=CHAT_ID_DESTINO,
                     photo=item["img"],
                     caption=item["msg"],
