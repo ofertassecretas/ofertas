@@ -117,7 +117,7 @@ def produto_similar(nome_limpo):
     return False
 
 # =========================
-# COPY TELEGRAM (NOVO MODELO HUMANIZADO)
+# COPY TELEGRAM
 # =========================
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
@@ -159,11 +159,10 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 """
 
 # =========================
-# COPY WHATSAPP (AGORA IGUAL AO TELEGRAM)
+# COPY WHATSAPP
 # =========================
 
 def gerar_texto_whatsapp(texto_completo):
-    # Agora usa o texto exato do Telegram
     return texto_completo
 
 def gerar_link_whatsapp(texto):
@@ -211,7 +210,7 @@ def get_shopee_offers(keyword=None):
             random.shuffle(produtos)
             return produtos
     except Exception as e:
-        logging.error(e)
+        logging.error(f"Erro API: {e}")
 
     return []
 
@@ -221,12 +220,17 @@ def get_shopee_offers(keyword=None):
 
 async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
+    logging.info("🔍 Buscando ofertas novas...")
+
     if not dentro_do_horario():
+        logging.info("⏰ Fora do horário de funcionamento.")
         return
 
     ofertas = []
     for k in keywords_por_epoca():
         ofertas += get_shopee_offers(k)
+
+    logging.info(f"Total de ofertas encontradas: {len(ofertas)}")
 
     selecionadas = []
 
@@ -264,16 +268,13 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         vendas_f = f"{int(vendas):,}".replace(",", ".")
 
-        # Gera a mensagem principal
         corpo_msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, avaliacao, comissao, link)
         
-        # Cria o link do WhatsApp usando o MESMO texto
         texto_limpo_zap = corpo_msg.replace('<b>', '').replace('</b>', '')
         texto_limpo_zap = texto_limpo_zap.replace(f'<a href="{link}">🛒 PEGAR O MEU</a>', f'🛒 Link: {link}')
         
         zap = gerar_link_whatsapp(texto_limpo_zap)
 
-        # Monta a mensagem final
         msg_final = corpo_msg
         msg_final += f'\n\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
         msg_final += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
@@ -295,10 +296,8 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         )
 
     for item in selecionadas:
-
         try:
             if item["img"]:
-                # CORRIGIDO AQUI!
                 await context.bot.send_photo(
                     chat_id=CHAT_ID_DESTINO,
                     photo=item["img"],
@@ -313,7 +312,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             await asyncio.sleep(60)
 
         except Exception as e:
-            logging.error(e)
+            logging.error(f"Erro ao enviar: {e}")
 
 # =========================
 # AUX
@@ -331,7 +330,7 @@ def aplicar_id_afiliado(link):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_shopee_offers, interval=CHECK_INTERVAL_SHOPEE, first=10)
-    logging.info("🤖 Bot rodando!")
+    logging.info("✅ Bot rodando e pronto!")
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
