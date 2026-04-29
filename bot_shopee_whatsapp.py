@@ -117,27 +117,29 @@ def produto_similar(nome_limpo):
     return False
 
 # =========================
-# COPY TELEGRAM
+# COPY TELEGRAM (NOVO MODELO HUMANIZADO)
 # =========================
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 
     ganchos = [
-        "🚨 Isso aqui me chamou atenção",
-        "😳 Mano… olha isso",
-        "👀 Olha isso aqui",
-        "💥 Isso aqui vale muito a pena"
+        "😳 Nossa, que pechincha!",
+        "🚨 Olha que legal isso aqui!",
+        "💥 Vale muito a pena viu?",
+        "👀 Olha que descoberta boa..."
     ]
 
     reacoes = [
-        "Não dava nada por isso… até ver as avaliações",
-        "Isso aqui me surpreendeu",
-        "Fui olhar só por curiosidade…"
+        "Achei que não ia ser tudo isso… mas olha a qualidade e o preço 😍",
+        "Eu fui olhar só por curiosidade e acabei me surpreendendo! 🤩",
+        "Gente, isso aqui tá muito barato comparado ao que entrega ✨",
+        "Confesso que não esperava por esse preço 👇"
     ]
 
     urgencia = [
-        "⚠️ Não sei até quando fica nesse preço",
-        "⚠️ Isso aqui costuma subir rápido"
+        "⚠️ Corre que deve acabar logo!",
+        "⚠️ Não sei até quando fica nesse valor",
+        "⚠️ Aproveita enquanto tá valendo!"
     ]
 
     return f"""
@@ -149,42 +151,20 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 
 💰 <b>R$ {preco}</b>
 ⭐ {avaliacao} | 🛒 {vendas} vendas
-💸 Comissão: <b>{comissao}%</b>
+💸 Ganhe: <b>{comissao}%</b> de comissão
 
 {random.choice(urgencia)}
 
-<a href="{link}">🛒 COMPRAR AGORA</a>
+<a href="{link}">🛒 PEGAR O MEU</a>
 """
 
 # =========================
-# COPY WHATSAPP (CORRIGIDO)
+# COPY WHATSAPP (AGORA IGUAL AO TELEGRAM)
 # =========================
 
-def gerar_texto_whatsapp(nome, preco, vendas, avaliacao, link):
-
-    ganchos = [
-        "😳 Mano... olha isso",
-        "🚨 Olha isso aqui",
-        "👀 Para tudo e vê isso"
-    ]
-
-    urgencia = [
-        "⚠️ Não sei até quando fica nesse preço",
-        "⚠️ Isso aqui tá muito barato"
-    ]
-
-    return f"""{random.choice(ganchos)}
-
-🔥 {nome}
-
-💰 R$ {preco}
-⭐ {avaliacao} | 🛒 {vendas} vendas
-
-{random.choice(urgencia)}
-
-👇 olha aqui:
-{link}
-"""
+def gerar_texto_whatsapp(texto_completo):
+    # Agora usa o texto exato do Telegram
+    return texto_completo
 
 def gerar_link_whatsapp(texto):
     return f"https://wa.me/?text={quote(texto)}"
@@ -284,17 +264,20 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         vendas_f = f"{int(vendas):,}".replace(",", ".")
 
-        msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, avaliacao, comissao, link)
+        # Gera a mensagem principal
+        corpo_msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, avaliacao, comissao, link)
+        
+        # Cria o link do WhatsApp usando o MESMO texto
+        texto_para_zap = corpo_msg.replace('<b>', '').replace('</b>', '').replace(f'<a href="{link}">🛒 PEGAR O MEU</a>', f'🛒 Link: {link}')
+        zap = gerar_link_whatsapp(texto_para_zap)
 
-        # WHATSAPP CORRETO
-        texto_zap = gerar_texto_whatsapp(nome, f"{preco:.2f}", vendas_f, avaliacao, link)
-        zap = gerar_link_whatsapp(texto_zap)
-
-        msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
-        msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
+        # Monta a mensagem final
+        msg_final = corpo_msg
+        msg_final += f'\n\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
+        msg_final += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
         selecionadas.append({
-            "msg": msg,
+            "msg": msg_final,
             "img": img,
             "link": link,
             "nome_limpo": nome_limpo
@@ -306,14 +289,14 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
     if selecionadas:
         await context.bot.send_message(
             chat_id=CHAT_ID_DESTINO,
-            text="🚨 OFERTAS LIBERADAS AGORA\nSeparei umas MUITO boas hoje 👇"
+            text="🚨 OFERTAS SEPARADAS PRA VOCÊ!\nOlha que legal essas que encontrei hoje 👇"
         )
 
     for item in selecionadas:
 
         try:
             if item["img"]:
-                await context.bot.send_photo(
+                await context.bot_send_photo(
                     chat_id=CHAT_ID_DESTINO,
                     photo=item["img"],
                     caption=item["msg"],
