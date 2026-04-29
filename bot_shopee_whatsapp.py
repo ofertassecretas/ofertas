@@ -159,11 +159,8 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 """
 
 # =========================
-# COPY WHATSAPP
+# LINK WHATSAPP
 # =========================
-
-def gerar_texto_whatsapp(texto_completo):
-    return texto_completo
 
 def gerar_link_whatsapp(texto):
     return f"https://wa.me/?text={quote(texto)}"
@@ -268,15 +265,19 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         vendas_f = f"{int(vendas):,}".replace(",", ".")
 
-        corpo_msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, avaliacao, comissao, link)
-        
-        texto_limpo_zap = corpo_msg.replace('<b>', '').replace('</b>', '')
-        texto_limpo_zap = texto_limpo_zap.replace(f'<a href="{link}">🛒 PEGAR O MEU</a>', f'🛒 Link: {link}')
-        
-        zap = gerar_link_whatsapp(texto_limpo_zap)
+        # 1. GERAR A MENSAGEM PRINCIPAL (HTML)
+        msg_html = gerar_copy(nome, f"{preco:.2f}", vendas_f, avaliacao, comissao, link)
 
-        msg_final = corpo_msg
-        msg_final += f'\n\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
+        # 2. CRIAR VERSAO LIMPA PARA O WHATSAPP
+        msg_texto_puro = msg_html.replace('<b>', '').replace('</b>', '')
+        msg_texto_puro = msg_texto_puro.replace(f'<a href="{link}">🛒 PEGAR O MEU</a>', f'🛒 Link: {link}')
+
+        # 3. CRIAR O LINK DO BOTÃO
+        link_zap = gerar_link_whatsapp(msg_texto_puro)
+
+        # 4. MONTAR A MENSAGEM FINAL DO TELEGRAM
+        msg_final = msg_html
+        msg_final += f'\n\n📲 <a href="{link_zap}">Compartilhar no WhatsApp</a>'
         msg_final += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
         selecionadas.append({
@@ -329,6 +330,9 @@ def aplicar_id_afiliado(link):
 # =========================
 
 async def post_init(app):
+    # CORREÇÃO: Garante que fecha conexões antigas
+    await app.bot.delete_webhook(drop_pending_updates=True)
+    
     app.job_queue.run_repeating(send_shopee_offers, interval=CHECK_INTERVAL_SHOPEE, first=10)
     logging.info("✅ Bot rodando e pronto!")
 
