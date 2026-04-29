@@ -39,42 +39,24 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 ARQUIVO_HISTORICO = "historico_produtos.json"
 
 # =========================
-# CONTEXTO
+# CONTEXTO (SAZONAL)
 # =========================
 
-def obter_contexto():
+def keywords_inteligentes():
     mes = datetime.now().month
+
+    base = ["organizador", "promoção", "oferta"]
+
     if mes in [6,7,8]:
-        return "inverno"
+        base += ["jaqueta", "moletom", "cobertor", "aquecedor"]
     elif mes in [12,1,2]:
-        return "verao"
-    elif mes in [3,4,5]:
-        return "outono"
-    return "primavera"
+        base += ["ventilador", "camiseta", "chinelo"]
+    elif mes == 5:
+        base += ["presente dia das mães", "perfume feminino", "kit beleza"]
+    elif mes == 6:
+        base += ["festa junina", "decoração junina"]
 
-def eventos_atuais():
-    hoje = datetime.now()
-    if hoje.month == 5:
-        return ["presente dia das mães", "perfume feminino", "kit beleza"]
-    if hoje.month == 6:
-        return ["roupa festa junina", "decoração festa junina"]
-    if hoje.month == 11:
-        return ["black friday ofertas"]
-    return []
-
-def keywords_por_epoca():
-    contexto = obter_contexto()
-
-    if contexto == "inverno":
-        base = ["jaqueta", "moletom", "cobertor", "aquecedor"]
-    elif contexto == "verao":
-        base = ["camiseta", "ventilador", "chinelo"]
-    elif contexto == "outono":
-        base = ["calça jeans", "organizador casa"]
-    else:
-        base = ["decoração casa"]
-
-    return base + eventos_atuais()
+    return base
 
 # =========================
 # HISTÓRICO
@@ -119,62 +101,60 @@ def produto_similar(nome_limpo):
     return False
 
 # =========================
-# COPY TELEGRAM
+# COPY INTELIGENTE
 # =========================
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 
-    nome_lower = nome.lower()
+    frases_inicio = [
+        "🚨 Isso aqui tá chamando atenção",
+        "👀 Olha isso aqui",
+        "🔥 Achei isso e fui ver as avaliações",
+        "💥 Esse aqui vale a pena olhar"
+    ]
 
-    if "bebê" in nome_lower or "bebe" in nome_lower:
-        intro = "👶 Quem tem bebê sabe como isso facilita MUITO o dia a dia"
-        detalhe = "Evita trabalho e ainda ajuda na rotina"
-    elif "cozinha" in nome_lower or "panela" in nome_lower:
-        intro = "🍳 Isso aqui na cozinha ajuda demais"
-        detalhe = "Simples, mas resolve muito no dia a dia"
-    elif "camisa" in nome_lower or "vestido" in nome_lower:
-        intro = "🧥 Olha isso aqui"
-        detalhe = "Bonito, versátil e preço bem abaixo"
-    elif "eletr" in nome_lower or "fone" in nome_lower:
-        intro = "⚡ Esse aqui vale atenção"
-        detalhe = "Entrega mais do que parece pelo preço"
-    else:
-        intro = "👀 Olha isso aqui"
-        detalhe = "Produto simples mas que surpreende"
+    gatilhos = [
+        "Preço muito abaixo do que entrega",
+        "Tá vendendo bem e a galera tá avaliando alto",
+        "Simples mas resolve muito no dia a dia",
+        "Não é à toa que tá saindo bastante"
+    ]
+
+    inicio = random.choice(frases_inicio)
+    gatilho = random.choice(gatilhos)
 
     return f"""
-<b>{intro}</b>
+<b>{inicio}</b>
 
 🔥 <b>{nome}</b>
 
-{detalhe}
+{gatilho}
 
 💰 <b>R$ {preco}</b>
 ⭐ {avaliacao} | 🛒 {vendas} vendas
 💸 Comissão: <b>{comissao}%</b>
 
-⚠️ Não sei até quando fica nesse preço
+⚠️ Pode subir de preço a qualquer momento
 
 <a href="{link}">🛒 COMPRAR AGORA</a>
 """
 
 # =========================
-# COPY WHATSAPP
+# WHATSAPP (CORRIGIDO)
 # =========================
 
 def gerar_texto_whatsapp(nome, preco, vendas, avaliacao, link):
 
-    return f"""👀 Olha isso aqui
+    return f"""🔥 OLHA ISSO
 
-🔥 {nome}
+{nome}
 
 💰 R$ {preco}
 ⭐ {avaliacao} | 🛒 {vendas} vendas
 
-⚠️ Não sei até quando fica nesse preço
+⚠️ Pode subir de preço a qualquer momento
 
-👇 olha aqui:
-{link}
+👉 {link}
 """
 
 def gerar_link_whatsapp(texto):
@@ -190,7 +170,7 @@ def get_shopee_offers(keyword=None):
 
     query_body = f"""
     query {{
-        productOfferV2(keyword: "{keyword or ''}", sortType: 2, limit: 15) {{
+        productOfferV2(keyword: "{keyword or ''}", sortType: 2, limit: 20) {{
             nodes {{
                 productName
                 priceMin
@@ -236,7 +216,8 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         return
 
     ofertas = []
-    for k in keywords_por_epoca():
+
+    for k in keywords_inteligentes():
         ofertas += get_shopee_offers(k)
 
     selecionadas = []
@@ -271,7 +252,10 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         if rating < 4.5:
             continue
 
-        vendas = int(item.get("sales", 0))
+        try:
+            vendas = int(item.get("sales", 0))
+        except:
+            vendas = 0
 
         if vendas < 50:
             continue
@@ -281,9 +265,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         except:
             comissao = 0
 
-        img = item.get("imageUrl")
-
-        vendas_f = f"{int(vendas):,}".replace(",", ".")
+        vendas_f = f"{vendas:,}".replace(",", ".")
 
         msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, rating, comissao, link)
 
@@ -295,7 +277,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         selecionadas.append({
             "msg": msg,
-            "img": img,
+            "img": item.get("imageUrl"),
             "link": link,
             "nome_limpo": nome_limpo
         })
@@ -306,11 +288,10 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
     if selecionadas:
         await context.bot.send_message(
             chat_id=CHAT_ID_DESTINO,
-            text="🚨 OFERTAS LIBERADAS AGORA\nSeparei umas MUITO boas hoje 👇"
+            text="🚨 OFERTAS LIBERADAS AGORA\nSeparei as melhores 👇"
         )
 
     for item in selecionadas:
-
         try:
             if item["img"]:
                 await context.bot.send_photo(
