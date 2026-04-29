@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO NOVA ATIVA")
+print("VERSAO FINAL ATIVA")
 
 # =========================
 # CONFIG
@@ -39,22 +39,19 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 ARQUIVO_HISTORICO = "historico_produtos.json"
 
 # =========================
-# CONTEXTO (SAZONAL)
+# KEYWORDS INTELIGENTES
 # =========================
 
 def keywords_inteligentes():
     mes = datetime.now().month
-
-    base = ["organizador", "promoção", "oferta"]
+    base = ["promoção", "oferta", "barato"]
 
     if mes in [6,7,8]:
-        base += ["jaqueta", "moletom", "cobertor", "aquecedor"]
+        base += ["jaqueta", "moletom", "cobertor"]
     elif mes in [12,1,2]:
-        base += ["ventilador", "camiseta", "chinelo"]
+        base += ["ventilador", "chinelo"]
     elif mes == 5:
-        base += ["presente dia das mães", "perfume feminino", "kit beleza"]
-    elif mes == 6:
-        base += ["festa junina", "decoração junina"]
+        base += ["dia das mães", "presente feminino"]
 
     return base
 
@@ -101,27 +98,24 @@ def produto_similar(nome_limpo):
     return False
 
 # =========================
-# COPY INTELIGENTE
+# COPY
 # =========================
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 
-    frases_inicio = [
+    inicio = random.choice([
         "🚨 Isso aqui tá chamando atenção",
         "👀 Olha isso aqui",
         "🔥 Achei isso e fui ver as avaliações",
         "💥 Esse aqui vale a pena olhar"
-    ]
+    ])
 
-    gatilhos = [
+    gatilho = random.choice([
         "Preço muito abaixo do que entrega",
         "Tá vendendo bem e a galera tá avaliando alto",
         "Simples mas resolve muito no dia a dia",
         "Não é à toa que tá saindo bastante"
-    ]
-
-    inicio = random.choice(frases_inicio)
-    gatilho = random.choice(gatilhos)
+    ])
 
     return f"""
 <b>{inicio}</b>
@@ -140,24 +134,11 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 """
 
 # =========================
-# WHATSAPP (CORRIGIDO)
+# WHATSAPP (MESMA COPY)
 # =========================
 
-def gerar_texto_whatsapp(nome, preco, vendas, avaliacao, link):
-
-    return f"""🔥 OLHA ISSO
-
-{nome}
-
-💰 R$ {preco}
-⭐ {avaliacao} | 🛒 {vendas} vendas
-
-⚠️ Pode subir de preço a qualquer momento
-
-👉 {link}
-"""
-
-def gerar_link_whatsapp(texto):
+def gerar_link_whatsapp_from_html(msg_html):
+    texto = re.sub('<[^<]+?>', '', msg_html)
     return f"https://wa.me/?text={quote(texto)}"
 
 # =========================
@@ -216,11 +197,11 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         return
 
     ofertas = []
-
     for k in keywords_inteligentes():
         ofertas += get_shopee_offers(k)
 
     selecionadas = []
+    ids_usados = set()
 
     for item in ofertas:
 
@@ -228,6 +209,11 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         if link in historico["links"]:
             continue
+
+        if link in ids_usados:
+            continue
+
+        ids_usados.add(link)
 
         nome = html.escape(item["productName"])
         nome_limpo = limpar_titulo(nome)
@@ -243,7 +229,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         if preco > 250:
             continue
 
-        # 🔥 CORREÇÃO DO ERRO
+        # CORREÇÃO RATING
         try:
             rating = float(item.get("ratingStar", 0))
         except:
@@ -269,8 +255,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, rating, comissao, link)
 
-        texto_zap = gerar_texto_whatsapp(nome, f"{preco:.2f}", vendas_f, rating, link)
-        zap = gerar_link_whatsapp(texto_zap)
+        zap = gerar_link_whatsapp_from_html(msg)
 
         msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
         msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
