@@ -13,7 +13,8 @@ from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
-from telegram.error import Conflict  # IMPORTANDO O ERRO
+
+print("VERSAO NOVA ATIVA")
 
 # =========================
 # CONFIG
@@ -118,50 +119,60 @@ def produto_similar(nome_limpo):
     return False
 
 # =========================
-# COPY TELEGRAM
+# COPY TELEGRAM (INTELIGENTE)
 # =========================
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 
-    ganchos = [
-        "😳 Nossa, que pechincha!",
-        "🚨 Olha que legal isso aqui!",
-        "💥 Vale muito a pena viu?",
-        "👀 Olha que descoberta boa..."
-    ]
+    nome_lower = nome.lower()
 
-    reacoes = [
-        "Achei que não ia ser tudo isso… mas olha a qualidade e o preço 😍",
-        "Eu fui olhar só por curiosidade e acabei me surpreendendo! 🤩",
-        "Gente, isso aqui tá muito barato comparado ao que entrega ✨",
-        "Confesso que não esperava por esse preço 👇"
-    ]
-
-    urgencia = [
-        "⚠️ Corre que deve acabar logo!",
-        "⚠️ Não sei até quando fica nesse valor",
-        "⚠️ Aproveita enquanto tá valendo!"
-    ]
+    if "bebê" in nome_lower or "bebe" in nome_lower:
+        intro = "👶 Quem tem bebê sabe como isso ajuda MUITO no dia a dia"
+        detalhe = "Facilita a rotina e evita dor de cabeça"
+    elif "cozinha" in nome_lower or "panela" in nome_lower:
+        intro = "🍳 Isso aqui na cozinha ajuda demais"
+        detalhe = "Coisa simples, mas que no uso diário faz diferença"
+    elif "camisa" in nome_lower or "vestido" in nome_lower:
+        intro = "🧥 Olha isso aqui"
+        detalhe = "Bonito, versátil e preço bem abaixo do normal"
+    else:
+        intro = "👀 Olha isso aqui"
+        detalhe = "Não parece grande coisa, mas surpreende quando vê melhor"
 
     return f"""
-<b>{random.choice(ganchos)}</b>
-
-{random.choice(reacoes)}
+<b>{intro}</b>
 
 🔥 <b>{nome}</b>
 
+{detalhe}
+
 💰 <b>R$ {preco}</b>
 ⭐ {avaliacao} | 🛒 {vendas} vendas
-💸 Ganhe: <b>{comissao}%</b> de comissão
+💸 Comissão: <b>{comissao}%</b>
 
-{random.choice(urgencia)}
+⚠️ Não sei até quando fica nesse preço
 
-<a href="{link}">🛒 PEGAR O MEU</a>
+<a href="{link}">🛒 COMPRAR AGORA</a>
 """
 
 # =========================
-# LINK WHATSAPP
+# COPY WHATSAPP (SEPARADO)
 # =========================
+
+def gerar_texto_whatsapp(nome, preco, vendas, avaliacao, link):
+
+    return f"""👀 Olha isso aqui
+
+🔥 {nome}
+
+💰 R$ {preco}
+⭐ {avaliacao} | 🛒 {vendas} vendas
+
+⚠️ Não sei até quando fica nesse preço
+
+👇 olha aqui:
+{link}
+"""
 
 def gerar_link_whatsapp(texto):
     return f"https://wa.me/?text={quote(texto)}"
@@ -208,7 +219,7 @@ def get_shopee_offers(keyword=None):
             random.shuffle(produtos)
             return produtos
     except Exception as e:
-        logging.error(f"Erro API: {e}")
+        logging.error(e)
 
     return []
 
@@ -218,17 +229,12 @@ def get_shopee_offers(keyword=None):
 
 async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
-    logging.info("🔍 Buscando ofertas novas...")
-
     if not dentro_do_horario():
-        logging.info("⏰ Fora do horário de funcionamento.")
         return
 
     ofertas = []
     for k in keywords_por_epoca():
         ofertas += get_shopee_offers(k)
-
-    logging.info(f"Total de ofertas encontradas: {len(ofertas)}")
 
     selecionadas = []
 
@@ -266,23 +272,16 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         vendas_f = f"{int(vendas):,}".replace(",", ".")
 
-        # 1. GERAR A MENSAGEM PRINCIPAL (HTML)
-        msg_html = gerar_copy(nome, f"{preco:.2f}", vendas_f, avaliacao, comissao, link)
+        msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, avaliacao, comissao, link)
 
-        # 2. CRIAR VERSAO LIMPA PARA O WHATSAPP
-        msg_texto_puro = msg_html.replace('<b>', '').replace('</b>', '')
-        msg_texto_puro = msg_texto_puro.replace(f'<a href="{link}">🛒 PEGAR O MEU</a>', f'🛒 Link: {link}')
+        texto_zap = gerar_texto_whatsapp(nome, f"{preco:.2f}", vendas_f, avaliacao, link)
+        zap = gerar_link_whatsapp(texto_zap)
 
-        # 3. CRIAR O LINK DO BOTÃO
-        link_zap = gerar_link_whatsapp(msg_texto_puro)
-
-        # 4. MONTAR A MENSAGEM FINAL DO TELEGRAM
-        msg_final = msg_html
-        msg_final += f'\n\n📲 <a href="{link_zap}">Compartilhar no WhatsApp</a>'
-        msg_final += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
+        msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
+        msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
         selecionadas.append({
-            "msg": msg_final,
+            "msg": msg,
             "img": img,
             "link": link,
             "nome_limpo": nome_limpo
@@ -294,10 +293,11 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
     if selecionadas:
         await context.bot.send_message(
             chat_id=CHAT_ID_DESTINO,
-            text="🚨 OFERTAS SEPARADAS PRA VOCÊ!\nOlha que legal essas que encontrei hoje 👇"
+            text="🚨 OFERTAS LIBERADAS AGORA\nSeparei umas MUITO boas hoje 👇"
         )
 
     for item in selecionadas:
+
         try:
             if item["img"]:
                 await context.bot.send_photo(
@@ -314,7 +314,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             await asyncio.sleep(60)
 
         except Exception as e:
-            logging.error(f"Erro ao enviar: {e}")
+            logging.error(e)
 
 # =========================
 # AUX
@@ -327,25 +327,13 @@ def aplicar_id_afiliado(link):
     return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
 
 # =========================
-# TRATAMENTO DE ERRO CONFLICT
-# =========================
-
-async def error_handler(update, context):
-    if isinstance(context.error, Conflict):
-        logging.warning("⚠️ Conflito detectado, mas o bot continuará rodando.")
-    else:
-        logging.error(f"Erro não tratado: {context.error}")
-
-# =========================
 # START
 # =========================
 
 async def post_init(app):
-    await app.bot.delete_webhook(drop_pending_updates=True)
     app.job_queue.run_repeating(send_shopee_offers, interval=CHECK_INTERVAL_SHOPEE, first=10)
-    logging.info("✅ Bot rodando e pronto!")
+    logging.info("🤖 Bot rodando!")
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
-    app.add_error_handler(error_handler)  # ADICIONANDO O TRATADOR DE ERRO
     app.run_polling(drop_pending_updates=True)
