@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO FINAL ATIVA")
+print("VERSAO FINAL V2 ATIVA")
 
 # =========================
 # CONFIG
@@ -98,27 +98,48 @@ def produto_similar(nome_limpo):
     return False
 
 # =========================
-# COPY
+# COPY (SEM REPETIÇÃO)
 # =========================
+
+usadas_abertura = set()
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 
-    inicio = random.choice([
+    aberturas = [
         "🚨 Isso aqui tá chamando atenção",
         "👀 Olha isso aqui",
-        "🔥 Achei isso e fui ver as avaliações",
-        "💥 Esse aqui vale a pena olhar"
-    ])
+        "🔥 Fui ver esse aqui e me surpreendi",
+        "💥 Esse produto aqui tá diferente",
+        "🤯 Esse aqui não é comum de ver nesse preço",
+        "🛑 Para um segundo e olha isso",
+        "⚠️ Isso aqui pode sumir rápido",
+        "👁️ Esse aqui passou batido mas é bom"
+    ]
 
-    gatilho = random.choice([
-        "Preço muito abaixo do que entrega",
-        "Tá vendendo bem e a galera tá avaliando alto",
-        "Simples mas resolve muito no dia a dia",
-        "Não é à toa que tá saindo bastante"
-    ])
+    gatilhos = [
+        "Preço muito abaixo do normal",
+        "Avaliações muito acima da média",
+        "Tá vendendo muito esses dias",
+        "Simples mas resolve bem",
+        "Custo benefício muito forte",
+        "Quem compra costuma voltar",
+        "Não é modinha, é utilidade",
+        "Produto direto ao ponto"
+    ]
+
+    abertura = random.choice(aberturas)
+    tentativas = 0
+
+    while abertura in usadas_abertura and tentativas < 10:
+        abertura = random.choice(aberturas)
+        tentativas += 1
+
+    usadas_abertura.add(abertura)
+
+    gatilho = random.choice(gatilhos)
 
     return f"""
-<b>{inicio}</b>
+<b>{abertura}</b>
 
 🔥 <b>{nome}</b>
 
@@ -134,11 +155,15 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 """
 
 # =========================
-# WHATSAPP (MESMA COPY)
+# WHATSAPP (LINK CLICÁVEL)
 # =========================
 
-def gerar_link_whatsapp_from_html(msg_html):
+def gerar_link_whatsapp_from_html(msg_html, link):
+
     texto = re.sub('<[^<]+?>', '', msg_html)
+
+    texto += f"\n\n🛒 Compre aqui:\n{link}"
+
     return f"https://wa.me/?text={quote(texto)}"
 
 # =========================
@@ -196,6 +221,9 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
     if not dentro_do_horario():
         return
 
+    global usadas_abertura
+    usadas_abertura.clear()
+
     ofertas = []
     for k in keywords_inteligentes():
         ofertas += get_shopee_offers(k)
@@ -229,7 +257,6 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         if preco > 250:
             continue
 
-        # CORREÇÃO RATING
         try:
             rating = float(item.get("ratingStar", 0))
         except:
@@ -255,7 +282,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, rating, comissao, link)
 
-        zap = gerar_link_whatsapp_from_html(msg)
+        zap = gerar_link_whatsapp_from_html(msg, link)
 
         msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
         msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
