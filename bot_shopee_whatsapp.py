@@ -119,7 +119,7 @@ def produto_similar(nome_limpo):
     return False
 
 # =========================
-# COPY TELEGRAM (INTELIGENTE)
+# COPY TELEGRAM
 # =========================
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
@@ -127,17 +127,20 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
     nome_lower = nome.lower()
 
     if "bebê" in nome_lower or "bebe" in nome_lower:
-        intro = "👶 Quem tem bebê sabe como isso ajuda MUITO no dia a dia"
-        detalhe = "Facilita a rotina e evita dor de cabeça"
+        intro = "👶 Quem tem bebê sabe como isso facilita MUITO o dia a dia"
+        detalhe = "Evita trabalho e ainda ajuda na rotina"
     elif "cozinha" in nome_lower or "panela" in nome_lower:
         intro = "🍳 Isso aqui na cozinha ajuda demais"
-        detalhe = "Coisa simples, mas que no uso diário faz diferença"
+        detalhe = "Simples, mas resolve muito no dia a dia"
     elif "camisa" in nome_lower or "vestido" in nome_lower:
         intro = "🧥 Olha isso aqui"
-        detalhe = "Bonito, versátil e preço bem abaixo do normal"
+        detalhe = "Bonito, versátil e preço bem abaixo"
+    elif "eletr" in nome_lower or "fone" in nome_lower:
+        intro = "⚡ Esse aqui vale atenção"
+        detalhe = "Entrega mais do que parece pelo preço"
     else:
         intro = "👀 Olha isso aqui"
-        detalhe = "Não parece grande coisa, mas surpreende quando vê melhor"
+        detalhe = "Produto simples mas que surpreende"
 
     return f"""
 <b>{intro}</b>
@@ -156,7 +159,7 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 """
 
 # =========================
-# COPY WHATSAPP (SEPARADO)
+# COPY WHATSAPP
 # =========================
 
 def gerar_texto_whatsapp(nome, preco, vendas, avaliacao, link):
@@ -259,22 +262,32 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         if preco > 250:
             continue
 
-        if item.get("ratingStar", 0) < 4.5:
+        # 🔥 CORREÇÃO DO ERRO
+        try:
+            rating = float(item.get("ratingStar", 0))
+        except:
+            rating = 0
+
+        if rating < 4.5:
             continue
 
-        if item.get("sales", 0) < 50:
+        vendas = int(item.get("sales", 0))
+
+        if vendas < 50:
             continue
 
-        vendas = item.get("sales", 0)
-        avaliacao = item.get("ratingStar", 0)
-        comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
+        try:
+            comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
+        except:
+            comissao = 0
+
         img = item.get("imageUrl")
 
         vendas_f = f"{int(vendas):,}".replace(",", ".")
 
-        msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, avaliacao, comissao, link)
+        msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, rating, comissao, link)
 
-        texto_zap = gerar_texto_whatsapp(nome, f"{preco:.2f}", vendas_f, avaliacao, link)
+        texto_zap = gerar_texto_whatsapp(nome, f"{preco:.2f}", vendas_f, rating, link)
         zap = gerar_link_whatsapp(texto_zap)
 
         msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
