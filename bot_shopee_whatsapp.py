@@ -37,69 +37,40 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 ARQUIVO_HISTORICO = "historico_produtos.json"
 
 # =========================
-# CONTEXTO (ESTAÇÃO + EVENTOS)
+# CONTEXTO
 # =========================
 
 def obter_contexto():
     mes = datetime.now().month
-
     if mes in [6,7,8]:
         return "inverno"
     elif mes in [12,1,2]:
         return "verao"
     elif mes in [3,4,5]:
         return "outono"
-    else:
-        return "primavera"
+    return "primavera"
 
 def eventos_atuais():
     hoje = datetime.now()
-
     if hoje.month == 5:
-        return ["presente dia das mães", "kit beleza feminino", "perfume feminino"]
-
+        return ["presente dia das mães", "perfume feminino", "kit beleza"]
     if hoje.month == 6:
         return ["roupa festa junina", "decoração festa junina"]
-
     if hoje.month == 11:
-        return ["black friday eletrônicos", "promoção geral"]
-
+        return ["black friday ofertas"]
     return []
 
 def keywords_por_epoca():
     contexto = obter_contexto()
 
     if contexto == "inverno":
-        base = [
-            "jaqueta masculina",
-            "moletom feminino",
-            "cobertor casal",
-            "aquecedor elétrico",
-            "meia térmica",
-            "bota feminina"
-        ]
-
+        base = ["jaqueta", "moletom", "cobertor", "aquecedor"]
     elif contexto == "verao":
-        base = [
-            "camiseta masculina",
-            "short feminino",
-            "ventilador",
-            "chinelo",
-        ]
-
+        base = ["camiseta", "ventilador", "chinelo"]
     elif contexto == "outono":
-        base = [
-            "calça jeans",
-            "blusa feminina",
-            "organizador casa",
-            "lençol casal"
-        ]
-
+        base = ["calça jeans", "organizador casa"]
     else:
-        base = [
-            "decoração casa",
-            "produtos gerais"
-        ]
+        base = ["decoração casa"]
 
     return base + eventos_atuais()
 
@@ -146,35 +117,31 @@ def produto_similar(nome_limpo):
     return False
 
 # =========================
-# COPY INTELIGENTE
+# COPY TELEGRAM
 # =========================
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 
-    contexto = obter_contexto()
-
-    if contexto == "inverno":
-        gancho = "🥶 Frio chegando… olha isso aqui"
-    elif contexto == "verao":
-        gancho = "☀️ Isso aqui no calor salva demais"
-    elif contexto == "outono":
-        gancho = "🍂 Achei isso aqui agora pouco"
-    else:
-        gancho = "🌸 Olha isso aqui"
+    ganchos = [
+        "🚨 Isso aqui me chamou atenção",
+        "😳 Mano… olha isso",
+        "👀 Olha isso aqui",
+        "💥 Isso aqui vale muito a pena"
+    ]
 
     reacoes = [
         "Não dava nada por isso… até ver as avaliações",
         "Isso aqui me surpreendeu",
-        "Fui olhar por curiosidade…",
+        "Fui olhar só por curiosidade…"
     ]
 
     urgencia = [
         "⚠️ Não sei até quando fica nesse preço",
-        "⚠️ Isso aqui costuma subir rápido",
+        "⚠️ Isso aqui costuma subir rápido"
     ]
 
-    mensagem = f"""
-<b>{gancho}</b>
+    return f"""
+<b>{random.choice(ganchos)}</b>
 
 {random.choice(reacoes)}
 
@@ -189,14 +156,38 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 <a href="{link}">🛒 COMPRAR AGORA</a>
 """
 
-    return mensagem
-
 # =========================
-# WHATSAPP
+# COPY WHATSAPP (CORRIGIDO)
 # =========================
 
-def gerar_link_whatsapp(mensagem):
-    return f"https://wa.me/?text={quote(mensagem)}"
+def gerar_texto_whatsapp(nome, preco, vendas, avaliacao, link):
+
+    ganchos = [
+        "😳 Mano... olha isso",
+        "🚨 Olha isso aqui",
+        "👀 Para tudo e vê isso"
+    ]
+
+    urgencia = [
+        "⚠️ Não sei até quando fica nesse preço",
+        "⚠️ Isso aqui tá muito barato"
+    ]
+
+    return f"""{random.choice(ganchos)}
+
+🔥 {nome}
+
+💰 R$ {preco}
+⭐ {avaliacao} | 🛒 {vendas} vendas
+
+{random.choice(urgencia)}
+
+👇 olha aqui:
+{link}
+"""
+
+def gerar_link_whatsapp(texto):
+    return f"https://wa.me/?text={quote(texto)}"
 
 # =========================
 # API
@@ -254,9 +245,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         return
 
     ofertas = []
-    keywords = keywords_por_epoca()
-
-    for k in keywords:
+    for k in keywords_por_epoca():
         ofertas += get_shopee_offers(k)
 
     selecionadas = []
@@ -297,7 +286,8 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, avaliacao, comissao, link)
 
-        texto_zap = re.sub('<[^<]+?>', '', msg)
+        # WHATSAPP CORRETO
+        texto_zap = gerar_texto_whatsapp(nome, f"{preco:.2f}", vendas_f, avaliacao, link)
         zap = gerar_link_whatsapp(texto_zap)
 
         msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
@@ -360,4 +350,3 @@ async def post_init(app):
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
     app.run_polling(drop_pending_updates=True)
-
