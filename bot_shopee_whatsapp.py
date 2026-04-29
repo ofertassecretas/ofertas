@@ -37,38 +37,71 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 ARQUIVO_HISTORICO = "historico_produtos.json"
 
 # =========================
-# KEYWORDS FORÇADAS
+# CONTEXTO (ESTAÇÃO + EVENTOS)
 # =========================
 
-keywords_moto = [
-    "kit relação cg 160",
-    "pastilha freio moto",
-    "retrovisor moto",
-    "carenagem cg 160",
-    "capacete moto",
-    "vela iridium moto",
-    "kit embreagem moto",
-    "amortecedor moto"
-]
+def obter_contexto():
+    mes = datetime.now().month
 
-keywords_maternidade = [
-    "kit maternidade bebê",
-    "roupa bebê menina",
-    "roupa bebê menino",
-    "body bebê",
-    "saída maternidade",
-    "kit enxoval bebê",
-    "bolsa maternidade",
-    "carrinho bebê",
-    "banheira bebê dobrável"
-]
+    if mes in [6,7,8]:
+        return "inverno"
+    elif mes in [12,1,2]:
+        return "verao"
+    elif mes in [3,4,5]:
+        return "outono"
+    else:
+        return "primavera"
 
-keywords_moda = [
-    "vestido feminino",
-    "camisa masculina",
-    "tenis masculino",
-    "roupa feminina"
-]
+def eventos_atuais():
+    hoje = datetime.now()
+
+    if hoje.month == 5:
+        return ["presente dia das mães", "kit beleza feminino", "perfume feminino"]
+
+    if hoje.month == 6:
+        return ["roupa festa junina", "decoração festa junina"]
+
+    if hoje.month == 11:
+        return ["black friday eletrônicos", "promoção geral"]
+
+    return []
+
+def keywords_por_epoca():
+    contexto = obter_contexto()
+
+    if contexto == "inverno":
+        base = [
+            "jaqueta masculina",
+            "moletom feminino",
+            "cobertor casal",
+            "aquecedor elétrico",
+            "meia térmica",
+            "bota feminina"
+        ]
+
+    elif contexto == "verao":
+        base = [
+            "camiseta masculina",
+            "short feminino",
+            "ventilador",
+            "chinelo",
+        ]
+
+    elif contexto == "outono":
+        base = [
+            "calça jeans",
+            "blusa feminina",
+            "organizador casa",
+            "lençol casal"
+        ]
+
+    else:
+        base = [
+            "decoração casa",
+            "produtos gerais"
+        ]
+
+    return base + eventos_atuais()
 
 # =========================
 # HISTÓRICO
@@ -113,75 +146,57 @@ def produto_similar(nome_limpo):
     return False
 
 # =========================
-# COPY
+# COPY INTELIGENTE
 # =========================
 
-def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, zap):
+def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 
-    nome_lower = nome.lower()
+    contexto = obter_contexto()
 
-    if any(p in nome_lower for p in ["bebe","bebê","body","enxoval","maternidade"]):
-        categoria = "maternidade"
-    elif any(p in nome_lower for p in ["moto","cg","fan","titan","capacete","freio","embreagem"]):
-        categoria = "moto"
-    elif any(p in nome_lower for p in ["tenis","camisa","vestido","calça"]):
-        categoria = "moda"
+    if contexto == "inverno":
+        gancho = "🥶 Frio chegando… olha isso aqui"
+    elif contexto == "verao":
+        gancho = "☀️ Isso aqui no calor salva demais"
+    elif contexto == "outono":
+        gancho = "🍂 Achei isso aqui agora pouco"
     else:
-        categoria = "casa"
+        gancho = "🌸 Olha isso aqui"
 
-    frase = random.choice([
-        "😳 Mano… olha isso aqui",
-        "🚨 Esse aqui me surpreendeu",
-        "👀 Olha isso… sério",
-        "🤔 Eu não dava nada por isso… até ver isso"
-    ])
+    reacoes = [
+        "Não dava nada por isso… até ver as avaliações",
+        "Isso aqui me surpreendeu",
+        "Fui olhar por curiosidade…",
+    ]
 
-    copy = f"""
-<b>{frase}</b>
+    urgencia = [
+        "⚠️ Não sei até quando fica nesse preço",
+        "⚠️ Isso aqui costuma subir rápido",
+    ]
+
+    mensagem = f"""
+<b>{gancho}</b>
+
+{random.choice(reacoes)}
 
 🔥 <b>{nome}</b>
-
-😳 Não esperava essa qualidade
-
-💥 barato demais pro que entrega
 
 💰 <b>R$ {preco}</b>
 ⭐ {avaliacao} | 🛒 {vendas} vendas
 💸 Comissão: <b>{comissao}%</b>
 
-⚠️ Não sei até quando vai ficar nesse preço
+{random.choice(urgencia)}
 
 <a href="{link}">🛒 COMPRAR AGORA</a>
-
-📲 <a href="{zap}">Copiar para divulgar no WhatsApp</a>
 """
 
-    return copy, categoria
+    return mensagem
 
 # =========================
 # WHATSAPP
 # =========================
 
-def gerar_link_whatsapp(texto):
-    return f"https://wa.me/?text={quote(texto)}"
-
-def montar_texto_whatsapp(nome, preco, vendas, avaliacao, link):
-
-    texto = f"""😳 Mano… olha isso aqui
-
-Eu achei que isso era ruim… mas vi as avaliações
-
-🔥 {nome}
-
-💰 R$ {preco}
-⭐ {avaliacao} | 🛒 {vendas} vendas
-
-⚠️ Não sei até quando fica nesse preço
-
-👇 olha aqui:
-{link}
-"""
-    return gerar_link_whatsapp(texto)
+def gerar_link_whatsapp(mensagem):
+    return f"https://wa.me/?text={quote(mensagem)}"
 
 # =========================
 # API
@@ -191,38 +206,21 @@ def get_shopee_offers(keyword=None):
 
     timestamp = int(time.time())
 
-    if keyword:
-        query_body = f"""
-        query {{
-            productOfferV2(keyword: "{keyword}", sortType: 2, limit: 15) {{
-                nodes {{
-                    productName
-                    priceMin
-                    commissionRate
-                    sales
-                    ratingStar
-                    productLink
-                    imageUrl
-                }}
+    query_body = f"""
+    query {{
+        productOfferV2(keyword: "{keyword or ''}", sortType: 2, limit: 15) {{
+            nodes {{
+                productName
+                priceMin
+                commissionRate
+                sales
+                ratingStar
+                productLink
+                imageUrl
             }}
         }}
-        """
-    else:
-        query_body = """
-        query {
-            productOfferV2 {
-                nodes {
-                    productName
-                    priceMin
-                    commissionRate
-                    sales
-                    ratingStar
-                    productLink
-                    imageUrl
-                }
-            }
-        }
-        """
+    }}
+    """
 
     payload = json.dumps({"query": query_body})
 
@@ -256,21 +254,12 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         return
 
     ofertas = []
+    keywords = keywords_por_epoca()
 
-    # automático
-    ofertas += get_shopee_offers()
-
-    # forçados
-    for k in keywords_moto:
+    for k in keywords:
         ofertas += get_shopee_offers(k)
 
-    for k in keywords_maternidade:
-        ofertas += get_shopee_offers(k)
-
-    for k in keywords_moda:
-        ofertas += get_shopee_offers(k)
-
-    categorias = {"casa": [], "moda": [], "maternidade": [], "moto": []}
+    selecionadas = []
 
     for item in ofertas:
 
@@ -293,41 +282,36 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         if preco > 250:
             continue
 
+        if item.get("ratingStar", 0) < 4.5:
+            continue
+
+        if item.get("sales", 0) < 50:
+            continue
+
         vendas = item.get("sales", 0)
         avaliacao = item.get("ratingStar", 0)
-        comissao = item.get("commissionRate", 0)
+        comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
         img = item.get("imageUrl")
 
         vendas_f = f"{int(vendas):,}".replace(",", ".")
-        comissao_f = round(float(comissao)*100,2)
 
-        msg, cat = gerar_copy(nome, f"{preco:.2f}", vendas_f, avaliacao, comissao_f, link, "")
-        zap = montar_texto_whatsapp(nome, f"{preco:.2f}", vendas_f, avaliacao, link)
+        msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, avaliacao, comissao, link)
 
-        msg = msg.replace('href=""', f'href="{zap}"')
+        texto_zap = re.sub('<[^<]+?>', '', msg)
+        zap = gerar_link_whatsapp(texto_zap)
+
+        msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
         msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
-        categorias[cat].append({
+        selecionadas.append({
             "msg": msg,
             "img": img,
             "link": link,
             "nome_limpo": nome_limpo
         })
 
-    selecionadas = []
-    selecionadas += categorias["casa"][:2]
-    selecionadas += categorias["moda"][:1]
-    selecionadas += categorias["maternidade"][:1]
-    selecionadas += categorias["moto"][:1]
-
-    # fallback
-    todas = categorias["casa"] + categorias["moda"] + categorias["maternidade"] + categorias["moto"]
-
-    for item in todas:
         if len(selecionadas) >= 5:
             break
-        if item not in selecionadas:
-            selecionadas.append(item)
 
     if selecionadas:
         await context.bot.send_message(
