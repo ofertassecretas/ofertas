@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO ESTAVEL V3 AJUSTADA")
+print("VERSAO PROFISSIONAL ANTIREPETICAO ATIVA")
 
 # =========================
 # CONFIG
@@ -38,42 +38,24 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 ARQUIVO_HISTORICO = "historico_produtos.json"
 
-# =========================
-# CONTROLE DIÁRIO
-# =========================
-
-ultimo_envio_dia = None
+ULTIMO_ALERTA_DIA = None
 
 # =========================
-# KEYWORDS INTELIGENTES (VARIEDADE REAL)
+# KEYWORDS
 # =========================
 
 def keywords_inteligentes():
-    return [
-        "fone bluetooth",
-        "caixa de som",
-        "smartwatch",
-        "notebook",
-        "air fryer",
-        "liquidificador",
-        "panela elétrica",
-        "kit ferramentas",
-        "parafusadeira",
-        "acessorios moto",
-        "capacete moto",
-        "tenis masculino",
-        "tenis feminino",
-        "mochila",
-        "bolsa feminina",
-        "perfume",
-        "relógio masculino",
-        "cadeira gamer",
-        "mesa escritorio",
-        "organizador casa",
-        "produto cozinha",
-        "eletronicos",
-        "utilidades domesticas"
-    ]
+    mes = datetime.now().month
+    base = ["promoção", "oferta", "barato"]
+
+    if mes in [6,7,8]:
+        base += ["jaqueta", "moletom"]
+    elif mes in [12,1,2]:
+        base += ["ventilador", "chinelo"]
+    elif mes == 5:
+        base += ["dia das mães"]
+
+    return base
 
 # =========================
 # HISTÓRICO
@@ -112,10 +94,34 @@ def limpar_titulo(nome):
 def produto_similar(nome_limpo):
     agora = time.time()
     for titulo, timestamp in historico["titulos"].items():
-        if agora - timestamp < 21600:  # 6 horas
-            if len(set(nome_limpo.split()) & set(titulo.split())) >= 3:
+        if agora - timestamp < 43200:
+            if len(set(nome_limpo.split()) & set(titulo.split())) >= 2:
                 return True
     return False
+
+# =========================
+# CATEGORIA (ANTI REPETIÇÃO)
+# =========================
+
+def classificar_categoria(nome):
+    nome = nome.lower()
+
+    if any(p in nome for p in ["fone", "airpods", "earbud"]):
+        return "fone"
+
+    if any(p in nome for p in ["caixa de som", "speaker", "bluetooth portátil"]):
+        return "som"
+
+    if any(p in nome for p in ["calça", "camiseta", "blusa", "legging"]):
+        return "roupa"
+
+    if any(p in nome for p in ["tenis", "chinelo", "sapato"]):
+        return "calcado"
+
+    if any(p in nome for p in ["suporte", "organizador", "cozinha", "casa"]):
+        return "casa"
+
+    return "outros"
 
 # =========================
 # COPY
@@ -233,48 +239,52 @@ def get_shopee_offers(keyword=None):
 
 async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
-    global ultimo_envio_dia
+    global ULTIMO_ALERTA_DIA
 
     if not dentro_do_horario():
         return
 
+    global usadas_abertura
+    usadas_abertura.clear()
+
     hoje = datetime.now(FUSO_BR).date()
 
-    # mensagem 1x por dia
-    if ultimo_envio_dia != hoje:
+    if ULTIMO_ALERTA_DIA != hoje:
         await context.bot.send_message(
             chat_id=CHAT_ID_DESTINO,
-            text="🚨 OFERTAS LIBERADAS AGORA\nSeparei as melhores do dia 👇"
+            text="🚨 OFERTAS LIBERADAS AGORA\nSeparei as melhores 👇"
         )
-        ultimo_envio_dia = hoje
+        ULTIMO_ALERTA_DIA = hoje
     else:
-        # alerta antes (ciclos seguintes)
         await context.bot.send_message(
             chat_id=CHAT_ID_DESTINO,
-            text="⚠️ ALERTA: novas ofertas chegando..."
+            text="⚠️ Alerta! Novas ofertas chegando..."
         )
-        await asyncio.sleep(10)
-
-    usadas_abertura.clear()
 
     ofertas = []
     for k in keywords_inteligentes():
         ofertas += get_shopee_offers(k)
 
     selecionadas = []
-    contagem = {"barato": 0, "medio": 0, "alto": 0}
+    contagem_preco = {"barato": 0, "medio": 0, "alto": 0}
+    contagem_categoria = {}
 
     for item in ofertas:
 
         link = aplicar_id_afiliado(item["productLink"])
 
-        if link in historico["links"][-50:]:
+        if link in historico["links"]:
             continue
 
         nome = html.escape(item["productName"])
         nome_limpo = limpar_titulo(nome)
 
         if produto_similar(nome_limpo):
+            continue
+
+        categoria = classificar_categoria(nome)
+
+        if contagem_categoria.get(categoria, 0) >= 1:
             continue
 
         try:
@@ -291,11 +301,11 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         else:
             continue
 
-        if faixa == "barato" and contagem["barato"] >= 2:
+        if faixa == "barato" and contagem_preco["barato"] >= 2:
             continue
-        if faixa == "medio" and contagem["medio"] >= 2:
+        if faixa == "medio" and contagem_preco["medio"] >= 2:
             continue
-        if faixa == "alto" and contagem["alto"] >= 1:
+        if faixa == "alto" and contagem_preco["alto"] >= 1:
             continue
 
         rating = float(item.get("ratingStar", 0))
@@ -305,6 +315,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             continue
 
         comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
+
         vendas_f = f"{vendas:,}".replace(",", ".")
 
         msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, rating, comissao, link)
@@ -320,14 +331,11 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             "nome_limpo": nome_limpo
         })
 
-        contagem[faixa] += 1
+        contagem_preco[faixa] += 1
+        contagem_categoria[categoria] = contagem_categoria.get(categoria, 0) + 1
 
         if len(selecionadas) >= 5:
             break
-
-    if not selecionadas:
-        logging.warning("⚠️ Nenhuma oferta encontrada")
-        return
 
     for item in selecionadas:
         try:
