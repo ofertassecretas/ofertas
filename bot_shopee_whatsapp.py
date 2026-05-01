@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO FINAL V2 ATIVA")
+print("VERSAO ESTAVEL COM COPY INTELIGENTE")
 
 # =========================
 # CONFIG
@@ -39,7 +39,7 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 ARQUIVO_HISTORICO = "historico_produtos.json"
 
 # =========================
-# KEYWORDS INTELIGENTES
+# KEYWORDS
 # =========================
 
 def keywords_inteligentes():
@@ -47,11 +47,11 @@ def keywords_inteligentes():
     base = ["promoção", "oferta", "barato"]
 
     if mes in [6,7,8]:
-        base += ["jaqueta", "moletom", "cobertor"]
+        base += ["jaqueta", "moletom"]
     elif mes in [12,1,2]:
         base += ["ventilador", "chinelo"]
     elif mes == 5:
-        base += ["dia das mães", "presente feminino"]
+        base += ["dia das mães"]
 
     return base
 
@@ -98,7 +98,7 @@ def produto_similar(nome_limpo):
     return False
 
 # =========================
-# COPY (SEM REPETIÇÃO)
+# COPY MELHORADA
 # =========================
 
 usadas_abertura = set()
@@ -106,34 +106,32 @@ usadas_abertura = set()
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 
     aberturas = [
-        "🚨 Isso aqui tá chamando atenção",
-        "👀 Olha isso aqui",
-        "🔥 Fui ver esse aqui e me surpreendi",
-        "💥 Esse produto aqui tá diferente",
-        "🤯 Esse aqui não é comum de ver nesse preço",
-        "🛑 Para um segundo e olha isso",
-        "⚠️ Isso aqui pode sumir rápido",
-        "👁️ Esse aqui passou batido mas é bom"
+        "🚨 Isso aqui não é comum aparecer assim",
+        "👀 Achei isso aqui e fui conferir…",
+        "🔥 Isso aqui tá com cara de oportunidade",
+        "💥 Esse aqui tá chamando atenção de quem compra",
+        "🛑 Para tudo e olha isso aqui",
+        "🤯 Sério… olha esse achado",
+        "⚠️ Isso aqui pode desaparecer rápido",
+        "👁️ Pouca gente viu isso ainda",
+        "📉 Esse preço aqui não costuma durar",
+        "🚀 Esse aqui tá começando a rodar forte"
     ]
 
     gatilhos = [
-        "Preço muito abaixo do normal",
-        "Avaliações muito acima da média",
-        "Tá vendendo muito esses dias",
-        "Simples mas resolve bem",
-        "Custo benefício muito forte",
-        "Quem compra costuma voltar",
-        "Não é modinha, é utilidade",
-        "Produto direto ao ponto"
+        "Preço muito abaixo do que costuma aparecer",
+        "Avaliações acima da média (produto confiável)",
+        "Volume de vendas alto nos últimos dias",
+        "Simples, útil e direto ao ponto",
+        "Custo-benefício difícil de bater",
+        "Quem compra normalmente recomenda",
+        "Produto funcional, sem frescura",
+        "Tá girando bem dentro da plataforma",
+        "Boa margem pra quem trabalha com afiliado",
+        "Não é hype, é produto que resolve"
     ]
 
-    abertura = random.choice(aberturas)
-    tentativas = 0
-
-    while abertura in usadas_abertura and tentativas < 10:
-        abertura = random.choice(aberturas)
-        tentativas += 1
-
+    abertura = random.choice([a for a in aberturas if a not in usadas_abertura] or aberturas)
     usadas_abertura.add(abertura)
 
     gatilho = random.choice(gatilhos)
@@ -155,15 +153,12 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 """
 
 # =========================
-# WHATSAPP (LINK CLICÁVEL)
+# WHATSAPP
 # =========================
 
 def gerar_link_whatsapp_from_html(msg_html, link):
-
     texto = re.sub('<[^<]+?>', '', msg_html)
-
     texto += f"\n\n🛒 Compre aqui:\n{link}"
-
     return f"https://wa.me/?text={quote(texto)}"
 
 # =========================
@@ -213,7 +208,7 @@ def get_shopee_offers(keyword=None):
     return []
 
 # =========================
-# ENVIO
+# ENVIO (ESTÁVEL)
 # =========================
 
 async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
@@ -225,11 +220,12 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
     usadas_abertura.clear()
 
     ofertas = []
+
     for k in keywords_inteligentes():
         ofertas += get_shopee_offers(k)
 
     selecionadas = []
-    ids_usados = set()
+    contagem = {"barato": 0, "medio": 0, "alto": 0}
 
     for item in ofertas:
 
@@ -237,11 +233,6 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         if link in historico["links"]:
             continue
-
-        if link in ids_usados:
-            continue
-
-        ids_usados.add(link)
 
         nome = html.escape(item["productName"])
         nome_limpo = limpar_titulo(nome)
@@ -254,7 +245,24 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         except:
             continue
 
-        if preco > 250:
+        # =========================
+        # FAIXA DE PREÇO (ORIGINAL)
+        # =========================
+
+        if preco <= 80:
+            faixa = "barato"
+        elif preco <= 250:
+            faixa = "medio"
+        elif preco <= 800:
+            faixa = "alto"
+        else:
+            continue
+
+        if faixa == "barato" and contagem["barato"] >= 2:
+            continue
+        if faixa == "medio" and contagem["medio"] >= 2:
+            continue
+        if faixa == "alto" and contagem["alto"] >= 1:
             continue
 
         try:
@@ -262,7 +270,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         except:
             rating = 0
 
-        if rating < 4.5:
+        if rating < 4.2:
             continue
 
         try:
@@ -270,7 +278,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         except:
             vendas = 0
 
-        if vendas < 50:
+        if vendas < 20:
             continue
 
         try:
@@ -281,7 +289,6 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         vendas_f = f"{vendas:,}".replace(",", ".")
 
         msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, rating, comissao, link)
-
         zap = gerar_link_whatsapp_from_html(msg, link)
 
         msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
@@ -294,14 +301,19 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             "nome_limpo": nome_limpo
         })
 
+        contagem[faixa] += 1
+
         if len(selecionadas) >= 5:
             break
 
-    if selecionadas:
-        await context.bot.send_message(
-            chat_id=CHAT_ID_DESTINO,
-            text="🚨 OFERTAS LIBERADAS AGORA\nSeparei as melhores 👇"
-        )
+    if not selecionadas:
+        logging.warning("⚠️ Nenhuma oferta encontrada nessa rodada")
+        return
+
+    await context.bot.send_message(
+        chat_id=CHAT_ID_DESTINO,
+        text="🚨 OFERTAS LIBERADAS AGORA\nSeparei as melhores 👇"
+    )
 
     for item in selecionadas:
         try:
@@ -315,6 +327,12 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
             historico["links"].append(item["link"])
             historico["titulos"][item["nome_limpo"]] = time.time()
+
+            # LIMITADOR IMPORTANTE
+            historico["links"] = historico["links"][-200:]
+            if len(historico["titulos"]) > 200:
+                historico["titulos"] = dict(list(historico["titulos"].items())[-200:])
+
             salvar_historico(historico)
 
             await asyncio.sleep(60)
