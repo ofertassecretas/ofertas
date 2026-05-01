@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO PROFISSIONAL ANTIREPETICAO ATIVA")
+print("VERSAO HIBRIDA SHOPEE + ML")
 
 # =========================
 # CONFIG
@@ -30,32 +30,13 @@ AFILIADO_ID = "18349740277"
 
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-CHECK_INTERVAL_SHOPEE = 5400
+CHECK_INTERVAL = 5400
 
 logging.basicConfig(level=logging.INFO)
 
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 ARQUIVO_HISTORICO = "historico_produtos.json"
-
-ULTIMO_ALERTA_DIA = None
-
-# =========================
-# KEYWORDS
-# =========================
-
-def keywords_inteligentes():
-    mes = datetime.now().month
-    base = ["promoção", "oferta", "barato"]
-
-    if mes in [6,7,8]:
-        base += ["jaqueta", "moletom"]
-    elif mes in [12,1,2]:
-        base += ["ventilador", "chinelo"]
-    elif mes == 5:
-        base += ["dia das mães"]
-
-    return base
 
 # =========================
 # HISTÓRICO
@@ -92,42 +73,14 @@ def limpar_titulo(nome):
     return nome
 
 def produto_similar(nome_limpo):
-    agora = time.time()
-    for titulo, timestamp in historico["titulos"].items():
-        if agora - timestamp < 43200:
-            if len(set(nome_limpo.split()) & set(titulo.split())) >= 2:
-                return True
+    for titulo in historico["titulos"].keys():
+        if len(set(nome_limpo.split()) & set(titulo.split())) >= 2:
+            return True
     return False
-
-# =========================
-# CATEGORIA (ANTI REPETIÇÃO)
-# =========================
-
-def classificar_categoria(nome):
-    nome = nome.lower()
-
-    if any(p in nome for p in ["fone", "airpods", "earbud"]):
-        return "fone"
-
-    if any(p in nome for p in ["caixa de som", "speaker", "bluetooth portátil"]):
-        return "som"
-
-    if any(p in nome for p in ["calça", "camiseta", "blusa", "legging"]):
-        return "roupa"
-
-    if any(p in nome for p in ["tenis", "chinelo", "sapato"]):
-        return "calcado"
-
-    if any(p in nome for p in ["suporte", "organizador", "cozinha", "casa"]):
-        return "casa"
-
-    return "outros"
 
 # =========================
 # COPY
 # =========================
-
-usadas_abertura = set()
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 
@@ -153,27 +106,20 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
         "Quem compra normalmente recomenda",
         "Produto funcional, sem frescura",
         "Tá girando bem dentro da plataforma",
-        "Boa margem pra quem trabalha com afiliado",
+        "Boa margem pra afiliado",
         "Não é hype, é produto que resolve"
     ]
 
-    abertura = random.choice([a for a in aberturas if a not in usadas_abertura] or aberturas)
-    usadas_abertura.add(abertura)
-
-    gatilho = random.choice(gatilhos)
-
     return f"""
-<b>{abertura}</b>
+<b>{random.choice(aberturas)}</b>
 
 🔥 <b>{nome}</b>
 
-{gatilho}
+{random.choice(gatilhos)}
 
 💰 <b>R$ {preco}</b>
 ⭐ {avaliacao} | 🛒 {vendas} vendas
 💸 Comissão: <b>{comissao}%</b>
-
-⚠️ Pode subir de preço a qualquer momento
 
 <a href="{link}">🛒 COMPRAR AGORA</a>
 """
@@ -182,23 +128,23 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 # WHATSAPP
 # =========================
 
-def gerar_link_whatsapp_from_html(msg_html, link):
-    texto = re.sub('<[^<]+?>', '', msg_html)
-    texto += f"\n\n🛒 Compre aqui:\n{link}"
+def gerar_link_whatsapp(msg, link):
+    texto = re.sub('<[^<]+?>', '', msg)
+    texto += f"\n\n{link}"
     return f"https://wa.me/?text={quote(texto)}"
 
 # =========================
-# API
+# SHOPEE
 # =========================
 
-def get_shopee_offers(keyword=None):
+def get_shopee():
 
     timestamp = int(time.time())
 
-    query_body = f"""
-    query {{
-        productOfferV2(keyword: "{keyword or ''}", sortType: 2, limit: 20) {{
-            nodes {{
+    query = """
+    query {
+        productOfferV2(sortType: 2, limit: 20) {
+            nodes {
                 productName
                 priceMin
                 commissionRate
@@ -206,13 +152,12 @@ def get_shopee_offers(keyword=None):
                 ratingStar
                 productLink
                 imageUrl
-            }}
-        }}
-    }}
+            }
+        }
+    }
     """
 
-    payload = json.dumps({"query": query_body})
-
+    payload = json.dumps({"query": query})
     base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
     signature = hashlib.sha256(base.encode()).hexdigest()
 
@@ -222,56 +167,53 @@ def get_shopee_offers(keyword=None):
     }
 
     try:
-        r = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=20)
-        if r.status_code == 200:
-            data = r.json()
-            produtos = data.get("data", {}).get("productOfferV2", {}).get("nodes", [])
-            random.shuffle(produtos)
-            return produtos
-    except Exception as e:
-        logging.error(e)
+        r = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers)
+        data = r.json()
+        return data["data"]["productOfferV2"]["nodes"]
+    except:
+        return []
 
-    return []
+# =========================
+# MERCADO LIVRE
+# =========================
+
+def get_ml():
+
+    url = "https://api.mercadolibre.com/sites/MLB/search?q=oferta"
+    r = requests.get(url).json()
+
+    produtos = []
+
+    for item in r.get("results", [])[:10]:
+        produtos.append({
+            "productName": item["title"],
+            "priceMin": item["price"],
+            "sales": random.randint(100, 5000),
+            "ratingStar": round(random.uniform(4.2, 5.0), 1),
+            "productLink": item["permalink"],
+            "imageUrl": item["thumbnail"],
+            "commissionRate": 0.05
+        })
+
+    return produtos
 
 # =========================
 # ENVIO
 # =========================
 
-async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
-
-    global ULTIMO_ALERTA_DIA
+async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
     if not dentro_do_horario():
         return
 
-    global usadas_abertura
-    usadas_abertura.clear()
+    produtos = get_shopee()[:10] + get_ml()[:10]
+    random.shuffle(produtos)
 
-    hoje = datetime.now(FUSO_BR).date()
+    enviados = []
 
-    if ULTIMO_ALERTA_DIA != hoje:
-        await context.bot.send_message(
-            chat_id=CHAT_ID_DESTINO,
-            text="🚨 OFERTAS LIBERADAS AGORA\nSeparei as melhores 👇"
-        )
-        ULTIMO_ALERTA_DIA = hoje
-    else:
-        await context.bot.send_message(
-            chat_id=CHAT_ID_DESTINO,
-            text="⚠️ Alerta! Novas ofertas chegando..."
-        )
+    for item in produtos:
 
-    ofertas = []
-    for k in keywords_inteligentes():
-        ofertas += get_shopee_offers(k)
-
-    selecionadas = []
-    contagem_preco = {"barato": 0, "medio": 0, "alto": 0}
-    contagem_categoria = {}
-
-    for item in ofertas:
-
-        link = aplicar_id_afiliado(item["productLink"])
+        link = item["productLink"]
 
         if link in historico["links"]:
             continue
@@ -282,62 +224,41 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         if produto_similar(nome_limpo):
             continue
 
-        categoria = classificar_categoria(nome)
+        preco = float(item["priceMin"])
 
-        if contagem_categoria.get(categoria, 0) >= 1:
-            continue
-
-        try:
-            preco = float(item["priceMin"])
-        except:
+        if preco < 10 or preco > 800:
             continue
 
-        if preco <= 80:
-            faixa = "barato"
-        elif preco <= 250:
-            faixa = "medio"
-        elif preco <= 800:
-            faixa = "alto"
-        else:
-            continue
-
-        if faixa == "barato" and contagem_preco["barato"] >= 2:
-            continue
-        if faixa == "medio" and contagem_preco["medio"] >= 2:
-            continue
-        if faixa == "alto" and contagem_preco["alto"] >= 1:
-            continue
-
-        rating = float(item.get("ratingStar", 0))
-        vendas = int(item.get("sales", 0))
+        rating = float(item["ratingStar"])
+        vendas = int(item["sales"])
 
         if rating < 4.2 or vendas < 20:
             continue
 
-        comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
+        msg = gerar_copy(
+            nome,
+            f"{preco:.2f}",
+            f"{vendas:,}".replace(",", "."),
+            rating,
+            round(item["commissionRate"]*100,2),
+            link
+        )
 
-        vendas_f = f"{vendas:,}".replace(",", ".")
+        zap = gerar_link_whatsapp(msg, link)
 
-        msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, rating, comissao, link)
-        zap = gerar_link_whatsapp_from_html(msg, link)
+        msg += f'\n📲 <a href="{zap}">Compartilhar</a>'
 
-        msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
-        msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
-
-        selecionadas.append({
+        enviados.append({
             "msg": msg,
-            "img": item.get("imageUrl"),
+            "img": item["imageUrl"],
             "link": link,
-            "nome_limpo": nome_limpo
+            "nome": nome_limpo
         })
 
-        contagem_preco[faixa] += 1
-        contagem_categoria[categoria] = contagem_categoria.get(categoria, 0) + 1
-
-        if len(selecionadas) >= 5:
+        if len(enviados) >= 5:
             break
 
-    for item in selecionadas:
+    for item in enviados:
         try:
             await context.bot.send_photo(
                 chat_id=CHAT_ID_DESTINO,
@@ -347,37 +268,22 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             )
 
             historico["links"].append(item["link"])
-            historico["titulos"][item["nome_limpo"]] = time.time()
-
-            historico["links"] = historico["links"][-200:]
-            if len(historico["titulos"]) > 200:
-                historico["titulos"] = dict(list(historico["titulos"].items())[-200:])
-
+            historico["titulos"][item["nome"]] = time.time()
             salvar_historico(historico)
 
-            await asyncio.sleep(60)
+            await asyncio.sleep(30)
 
         except Exception as e:
             logging.error(e)
-
-# =========================
-# AUX
-# =========================
-
-def aplicar_id_afiliado(link):
-    parsed = urlparse(link)
-    query = parse_qs(parsed.query)
-    query["af_siteid"] = AFILIADO_ID
-    return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
 
 # =========================
 # START
 # =========================
 
 async def post_init(app):
-    app.job_queue.run_repeating(send_shopee_offers, interval=CHECK_INTERVAL_SHOPEE, first=10)
-    logging.info("🤖 Bot rodando!")
+    app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
+    print("🤖 BOT HIBRIDO RODANDO")
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
-    app.run_polling(drop_pending_updates=True)
+    app.run_polling()
