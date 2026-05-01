@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO ESTAVEL COM COPY INTELIGENTE")
+print("VERSAO ESTAVEL V3 AJUSTADA")
 
 # =========================
 # CONFIG
@@ -39,21 +39,41 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 ARQUIVO_HISTORICO = "historico_produtos.json"
 
 # =========================
-# KEYWORDS
+# CONTROLE DIÁRIO
+# =========================
+
+ultimo_envio_dia = None
+
+# =========================
+# KEYWORDS INTELIGENTES (VARIEDADE REAL)
 # =========================
 
 def keywords_inteligentes():
-    mes = datetime.now().month
-    base = ["promoção", "oferta", "barato"]
-
-    if mes in [6,7,8]:
-        base += ["jaqueta", "moletom"]
-    elif mes in [12,1,2]:
-        base += ["ventilador", "chinelo"]
-    elif mes == 5:
-        base += ["dia das mães"]
-
-    return base
+    return [
+        "fone bluetooth",
+        "caixa de som",
+        "smartwatch",
+        "notebook",
+        "air fryer",
+        "liquidificador",
+        "panela elétrica",
+        "kit ferramentas",
+        "parafusadeira",
+        "acessorios moto",
+        "capacete moto",
+        "tenis masculino",
+        "tenis feminino",
+        "mochila",
+        "bolsa feminina",
+        "perfume",
+        "relógio masculino",
+        "cadeira gamer",
+        "mesa escritorio",
+        "organizador casa",
+        "produto cozinha",
+        "eletronicos",
+        "utilidades domesticas"
+    ]
 
 # =========================
 # HISTÓRICO
@@ -92,13 +112,13 @@ def limpar_titulo(nome):
 def produto_similar(nome_limpo):
     agora = time.time()
     for titulo, timestamp in historico["titulos"].items():
-        if agora - timestamp < 43200:
-            if len(set(nome_limpo.split()) & set(titulo.split())) >= 2:
+        if agora - timestamp < 21600:  # 6 horas
+            if len(set(nome_limpo.split()) & set(titulo.split())) >= 3:
                 return True
     return False
 
 # =========================
-# COPY MELHORADA
+# COPY
 # =========================
 
 usadas_abertura = set()
@@ -208,19 +228,36 @@ def get_shopee_offers(keyword=None):
     return []
 
 # =========================
-# ENVIO (ESTÁVEL)
+# ENVIO
 # =========================
 
 async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
+    global ultimo_envio_dia
+
     if not dentro_do_horario():
         return
 
-    global usadas_abertura
+    hoje = datetime.now(FUSO_BR).date()
+
+    # mensagem 1x por dia
+    if ultimo_envio_dia != hoje:
+        await context.bot.send_message(
+            chat_id=CHAT_ID_DESTINO,
+            text="🚨 OFERTAS LIBERADAS AGORA\nSeparei as melhores do dia 👇"
+        )
+        ultimo_envio_dia = hoje
+    else:
+        # alerta antes (ciclos seguintes)
+        await context.bot.send_message(
+            chat_id=CHAT_ID_DESTINO,
+            text="⚠️ ALERTA: novas ofertas chegando..."
+        )
+        await asyncio.sleep(10)
+
     usadas_abertura.clear()
 
     ofertas = []
-
     for k in keywords_inteligentes():
         ofertas += get_shopee_offers(k)
 
@@ -231,7 +268,7 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
 
         link = aplicar_id_afiliado(item["productLink"])
 
-        if link in historico["links"]:
+        if link in historico["links"][-50:]:
             continue
 
         nome = html.escape(item["productName"])
@@ -244,10 +281,6 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             preco = float(item["priceMin"])
         except:
             continue
-
-        # =========================
-        # FAIXA DE PREÇO (ORIGINAL)
-        # =========================
 
         if preco <= 80:
             faixa = "barato"
@@ -265,27 +298,13 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
         if faixa == "alto" and contagem["alto"] >= 1:
             continue
 
-        try:
-            rating = float(item.get("ratingStar", 0))
-        except:
-            rating = 0
+        rating = float(item.get("ratingStar", 0))
+        vendas = int(item.get("sales", 0))
 
-        if rating < 4.2:
+        if rating < 4.2 or vendas < 20:
             continue
 
-        try:
-            vendas = int(item.get("sales", 0))
-        except:
-            vendas = 0
-
-        if vendas < 20:
-            continue
-
-        try:
-            comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
-        except:
-            comissao = 0
-
+        comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
         vendas_f = f"{vendas:,}".replace(",", ".")
 
         msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, rating, comissao, link)
@@ -307,28 +326,21 @@ async def send_shopee_offers(context: ContextTypes.DEFAULT_TYPE):
             break
 
     if not selecionadas:
-        logging.warning("⚠️ Nenhuma oferta encontrada nessa rodada")
+        logging.warning("⚠️ Nenhuma oferta encontrada")
         return
-
-    await context.bot.send_message(
-        chat_id=CHAT_ID_DESTINO,
-        text="🚨 OFERTAS LIBERADAS AGORA\nSeparei as melhores 👇"
-    )
 
     for item in selecionadas:
         try:
-            if item["img"]:
-                await context.bot.send_photo(
-                    chat_id=CHAT_ID_DESTINO,
-                    photo=item["img"],
-                    caption=item["msg"],
-                    parse_mode="HTML"
-                )
+            await context.bot.send_photo(
+                chat_id=CHAT_ID_DESTINO,
+                photo=item["img"],
+                caption=item["msg"],
+                parse_mode="HTML"
+            )
 
             historico["links"].append(item["link"])
             historico["titulos"][item["nome_limpo"]] = time.time()
 
-            # LIMITADOR IMPORTANTE
             historico["links"] = historico["links"][-200:]
             if len(historico["titulos"]) > 200:
                 historico["titulos"] = dict(list(historico["titulos"].items())[-200:])
