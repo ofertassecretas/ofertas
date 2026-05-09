@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO FINAL HIBRIDA CORRIGIDA")
+print("VERSAO FINAL HIBRIDA ESTAVEL V2")
 
 # =========================
 # CONFIG
@@ -32,27 +32,12 @@ SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 CHECK_INTERVAL = 5400
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
-
-ARQUIVO_HISTORICO = "historico_produtos.json"
-
-# =========================
-# HISTÓRICO
-# =========================
-
-def carregar_historico():
-    if os.path.exists(ARQUIVO_HISTORICO):
-        with open(ARQUIVO_HISTORICO, "r") as f:
-            return json.load(f)
-    return {"links": [], "titulos": {}}
-
-def salvar_historico(data):
-    with open(ARQUIVO_HISTORICO, "w") as f:
-        json.dump(data, f)
-
-historico = carregar_historico()
 
 # =========================
 # HORÁRIO
@@ -72,7 +57,7 @@ def limpar_titulo(nome):
     return nome.strip()
 
 # =========================
-# CATEGORIA (ANTI REPETIÇÃO)
+# CATEGORIA
 # =========================
 
 def identificar_categoria(nome):
@@ -126,7 +111,10 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
         "Resolve de verdade"
     ]
 
-    abertura = random.choice([a for a in aberturas if a not in usadas_abertura] or aberturas)
+    abertura = random.choice(
+        [a for a in aberturas if a not in usadas_abertura] or aberturas
+    )
+
     usadas_abertura.add(abertura)
 
     gatilho = random.choice(gatilhos)
@@ -164,9 +152,14 @@ def aplicar_id_afiliado(link):
     parsed = urlparse(link)
     query = parse_qs(parsed.query)
     query["af_siteid"] = AFILIADO_ID
-    return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
+
+    return urlunparse(
+        parsed._replace(query=urlencode(query, doseq=True))
+    )
 
 def get_shopee_offers():
+
+    logging.info("Buscando ofertas Shopee")
 
     timestamp = int(time.time())
 
@@ -197,35 +190,70 @@ def get_shopee_offers():
     }
 
     try:
-        r = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers)
+
+        r = requests.post(
+            SHOPEE_GRAPHQL_URL,
+            data=payload,
+            headers=headers,
+            timeout=20
+        )
+
         data = r.json()
-        return data["data"]["productOfferV2"]["nodes"]
-    except:
+
+        produtos = data["data"]["productOfferV2"]["nodes"]
+
+        logging.info(f"Shopee OK: {len(produtos)} produtos")
+
+        return produtos
+
+    except Exception as e:
+
+        logging.error(f"Erro Shopee: {e}")
+
         return []
 
 # =========================
 # MERCADO LIVRE
 # =========================
 
+def limpar_link_ml(link):
+    return link.split("?")[0]
+
 def get_ml_offers():
 
-    url = "https://api.mercadolibre.com/sites/MLB/search?q=oferta"
-    r = requests.get(url).json()
+    logging.info("Buscando ofertas ML")
 
-    produtos = []
+    try:
 
-    for item in r.get("results", [])[:15]:
-        produtos.append({
-            "nome": item["title"],
-            "preco": item["price"],
-            "link": item["permalink"],
-            "img": item["thumbnail"],
-            "vendas": random.randint(100, 5000),
-            "avaliacao": round(random.uniform(4.2, 5.0), 1),
-            "origem": "ml"
-        })
+        url = "https://api.mercadolibre.com/sites/MLB/search?q=oferta"
 
-    return produtos
+        r = requests.get(url, timeout=20)
+
+        data = r.json()
+
+        produtos = []
+
+        for item in data.get("results", [])[:15]:
+
+            produtos.append({
+                "nome": item["title"],
+                "preco": item["price"],
+                "link": limpar_link_ml(item["permalink"]),
+                "img": item["thumbnail"],
+                "vendas": random.randint(100, 5000),
+                "avaliacao": round(random.uniform(4.2, 5.0), 1),
+                "origem": "ml"
+            })
+
+        logging.info(f"ML OK: {len(produtos)} produtos")
+
+        return produtos
+
+    except Exception as e:
+
+        logging.error(f"Erro ML: {e}")
+
+        return []
 
 # =========================
 # ENVIO
@@ -233,105 +261,180 @@ def get_ml_offers():
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
-    if not dentro_do_horario():
-        return
+    try:
 
-    usadas_abertura.clear()
+        logging.info("Loop de ofertas iniciado")
 
-    ofertas = []
+        if not dentro_do_horario():
+            logging.info("Fora do horario")
+            return
 
-    # mistura controlada
-    ofertas += get_shopee_offers()
-    ofertas += get_ml_offers()
+        usadas_abertura.clear()
 
-    random.shuffle(ofertas)
+        ofertas = []
 
-    selecionadas = []
-    categorias_usadas = set()
+        ofertas += get_shopee_offers()
+        ofertas += get_ml_offers()
 
-    for item in ofertas:
+        logging.info(f"Total ofertas: {len(ofertas)}")
 
-        # =========================
-        # IDENTIFICA LINK CERTO
-        # =========================
+        random.shuffle(ofertas)
 
-        if "productLink" in item:
-            link = aplicar_id_afiliado(item["productLink"])
-            nome = html.escape(item["productName"])
-            preco = float(item["priceMin"])
-            img = item["imageUrl"]
-            rating = float(item.get("ratingStar", 4.5))
-            vendas = int(item.get("sales", 100))
-            comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
+        selecionadas = []
+        categorias_usadas = set()
 
-        else:
-            link = item["link"]
-            nome = html.escape(item["nome"])
-            preco = float(item["preco"])
-            img = item["img"]
-            rating = item["avaliacao"]
-            vendas = item["vendas"]
-            comissao = 10
+        for item in ofertas:
 
-        categoria = identificar_categoria(nome)
+            try:
 
-        if categoria in categorias_usadas:
-            continue
+                if "productLink" in item:
 
-        if rating < 4.2 or vendas < 20:
-            continue
+                    link = aplicar_id_afiliado(item["productLink"])
 
-        vendas_f = f"{vendas:,}".replace(",", ".")
+                    nome = html.escape(item["productName"])
+                    preco = float(item["priceMin"])
+                    img = item["imageUrl"]
 
-        msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, rating, comissao, link)
+                    rating = float(item.get("ratingStar", 4.5))
+                    vendas = int(item.get("sales", 100))
 
-        zap = gerar_link_whatsapp_from_html(msg, link)
+                    comissao = round(
+                        float(item.get("commissionRate", 0)) * 100,
+                        2
+                    )
 
-        msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
-        msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
+                else:
 
-        selecionadas.append({
-            "msg": msg,
-            "img": img
-        })
+                    link = item["link"]
 
-        categorias_usadas.add(categoria)
+                    nome = html.escape(item["nome"])
+                    preco = float(item["preco"])
+                    img = item["img"]
 
-        if len(selecionadas) >= 5:
-            break
+                    rating = item["avaliacao"]
+                    vendas = item["vendas"]
 
-    if len(selecionadas) < 3:
-        logging.warning("Poucos produtos encontrados")
-        return
+                    comissao = 10
 
-    await context.bot.send_message(
-        chat_id=CHAT_ID_DESTINO,
-        text="🚨 OFERTAS NOVAS CHEGANDO..."
-    )
+                categoria = identificar_categoria(nome)
 
-    await asyncio.sleep(5)
+                if categoria in categorias_usadas:
+                    continue
 
-    for item in selecionadas:
-        try:
-            await context.bot.send_photo(
-                chat_id=CHAT_ID_DESTINO,
-                photo=item["img"],
-                caption=item["msg"],
-                parse_mode="HTML"
-            )
-            await asyncio.sleep(40)
+                if rating < 4.2 or vendas < 20:
+                    continue
 
-        except Exception as e:
-            logging.error(e)
+                vendas_f = f"{vendas:,}".replace(",", ".")
+
+                msg = gerar_copy(
+                    nome,
+                    f"{preco:.2f}",
+                    vendas_f,
+                    rating,
+                    comissao,
+                    link
+                )
+
+                zap = gerar_link_whatsapp_from_html(msg, link)
+
+                msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
+                msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
+
+                selecionadas.append({
+                    "msg": msg,
+                    "img": img
+                })
+
+                categorias_usadas.add(categoria)
+
+                if len(selecionadas) >= 5:
+                    break
+
+            except Exception as e:
+                logging.error(f"Erro produto: {e}")
+
+        logging.info(f"Selecionadas: {len(selecionadas)}")
+
+        if len(selecionadas) < 3:
+            logging.warning("Poucos produtos encontrados")
+            return
+
+        await context.bot.send_message(
+            chat_id=CHAT_ID_DESTINO,
+            text="🚨 OFERTAS NOVAS CHEGANDO..."
+        )
+
+        await asyncio.sleep(5)
+
+        for item in selecionadas:
+
+            try:
+
+                logging.info("Enviando produto")
+
+                await context.bot.send_photo(
+                    chat_id=CHAT_ID_DESTINO,
+                    photo=item["img"],
+                    caption=item["msg"],
+                    parse_mode="HTML"
+                )
+
+                await asyncio.sleep(40)
+
+            except Exception as e:
+                logging.error(f"Erro Telegram: {e}")
+
+        logging.info("Loop finalizado")
+
+    except Exception as e:
+
+        logging.error(f"ERRO CRITICO: {e}")
+
+# =========================
+# KEEP ALIVE
+# =========================
+
+async def keep_alive():
+
+    while True:
+
+        logging.info("BOT VIVO")
+
+        await asyncio.sleep(300)
 
 # =========================
 # START
 # =========================
 
 async def post_init(app):
-    app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
+
+    app.job_queue.run_repeating(
+        send_ofertas,
+        interval=CHECK_INTERVAL,
+        first=10
+    )
+
+    asyncio.create_task(keep_alive())
+
     logging.info("🤖 BOT RODANDO ESTAVEL")
 
 if __name__ == "__main__":
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
-    app.run_polling()
+
+    while True:
+
+        try:
+
+            app = (
+                ApplicationBuilder()
+                .token(TELEGRAM_TOKEN)
+                .post_init(post_init)
+                .build()
+            )
+
+            app.run_polling()
+
+        except Exception as e:
+
+            logging.error(f"BOT REINICIANDO: {e}")
+
+            time.sleep(15)
