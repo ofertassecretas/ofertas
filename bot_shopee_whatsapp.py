@@ -45,7 +45,7 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
-    return dt_time(5, 0) <= agora <= dt_time(22, 0)
+    return dt_time(5, 0) <= agora <= dt_time(21, 0)
 
 # =========================
 # COPY
@@ -191,21 +191,17 @@ def get_shopee_offers():
 
 def get_ml_offers():
 
-    logging.info("Buscando ofertas ML")
-
     headers = {
         "User-Agent": "Mozilla/5.0"
     }
 
     buscas = [
-        "iphone",
-        "smart tv",
-        "notebook",
-        "air fryer",
+        "smartphone",
+        "tv",
         "fone bluetooth",
-        "caixa de som",
-        "video game",
-        "relogio smart"
+        "notebook",
+        "promoção",
+        "ofertas"
     ]
 
     produtos = []
@@ -214,15 +210,14 @@ def get_ml_offers():
 
         termo = random.choice(buscas)
 
-        url = f"https://api.mercadolibre.com/sites/MLB/search?q={quote(termo)}&limit=10"
+        url = f"https://api.mercadolibre.com/sites/MLB/search?q={termo}"
 
-        r = requests.get(
-            url,
-            headers=headers,
-            timeout=20
-        )
+        r = requests.get(url, headers=headers, timeout=20)
 
         logging.info(f"Status ML: {r.status_code}")
+
+        if r.status_code != 200:
+            return []
 
         data = r.json()
 
@@ -230,44 +225,29 @@ def get_ml_offers():
 
         logging.info(f"Resultados ML: {len(resultados)}")
 
-        for item in resultados:
+        for item in resultados[:10]:
 
-            try:
+            thumb = item.get("thumbnail")
 
-                if not item.get("permalink"):
-                    continue
+            if not thumb:
+                continue
 
-                if not item.get("thumbnail"):
-                    continue
-
-                preco = item.get("price")
-
-                if not preco:
-                    continue
-
-                produtos.append({
-                    "nome": item["title"],
-                    "preco": preco,
-                    "link": item["permalink"].split("?")[0],
-                    "img": item["thumbnail"].replace("I.jpg", "O.jpg"),
-                    "vendas": random.randint(100, 5000),
-                    "avaliacao": round(random.uniform(4.3, 5.0), 1),
-                    "origem": "ml"
-                })
-
-            except Exception as e:
-                logging.error(f"Erro item ML: {e}")
-
-        logging.info(f"ML OK: {len(produtos)} produtos")
-
-        return produtos
+            produtos.append({
+                "nome": item["title"],
+                "preco": item["price"],
+                "link": item["permalink"],
+                "img": thumb.replace("http://", "https://"),
+                "vendas": random.randint(100, 5000),
+                "avaliacao": round(random.uniform(4.4, 5.0), 1),
+                "origem": "ml"
+            })
 
     except Exception as e:
+        logging.error(f"ERRO ML: {e}")
 
-        logging.error(f"Erro ML GERAL: {e}")
+    logging.info(f"ML OK: {len(produtos)} produtos")
 
-        return []
-
+    return produtos
 # =========================
 # ENVIO
 # =========================
