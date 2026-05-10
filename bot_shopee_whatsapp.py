@@ -45,7 +45,7 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
-    return dt_time(5, 0) <= agora <= dt_time(21, 0)
+    return dt_time(5, 0) <= agora <= dt_time(22, 0)
 
 # =========================
 # LIMPEZA
