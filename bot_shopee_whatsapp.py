@@ -223,21 +223,41 @@ def get_ml_offers():
 
     logging.info("Buscando ofertas ML")
 
+    buscas = [
+        "smart tv",
+        "iphone",
+        "caixa de som",
+        "fone bluetooth",
+        "notebook",
+        "air fryer",
+        "ventilador",
+        "microfone",
+        "tenis nike",
+        "relogio smart"
+    ]
+
+    produtos = []
+
     try:
 
-        url = "https://api.mercadolibre.com/sites/MLB/search?q=oferta"
+        termo = random.choice(buscas)
+
+        url = f"https://api.mercadolibre.com/sites/MLB/search?q={quote(termo)}"
 
         r = requests.get(url, timeout=20)
 
         data = r.json()
 
-        produtos = []
+        for item in data.get("results", [])[:20]:
 
-        for item in data.get("results", [])[:15]:
+            preco = item.get("price")
+
+            if not preco:
+                continue
 
             produtos.append({
                 "nome": item["title"],
-                "preco": item["price"],
+                "preco": preco,
                 "link": limpar_link_ml(item["permalink"]),
                 "img": item["thumbnail"],
                 "vendas": random.randint(100, 5000),
