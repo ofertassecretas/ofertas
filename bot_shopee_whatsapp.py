@@ -2,33 +2,25 @@ import asyncio
 import requests
 import logging
 import random
-import hashlib
 import time
-import json
 import os
 import html
 import re
 
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
+from urllib.parse import quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO FINAL HIBRIDA ESTAVEL V3")
+print("VERSAO TESTE ML V1")
 
 # =========================
 # CONFIG
 # =========================
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
 
 CHAT_ID_DESTINO = -1003848415150
-
-SHOPEE_APP_ID = "18349740277"
-AFILIADO_ID = "18349740277"
-
-SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 CHECK_INTERVAL = 5400
 
@@ -53,32 +45,26 @@ def dentro_do_horario():
 
 usadas_abertura = set()
 
-def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
+def gerar_copy(nome, preco, vendas, avaliacao, link):
 
     aberturas = [
-        "🚨 Isso aqui não é comum aparecer assim",
-        "👀 Achei isso aqui e fui conferir…",
-        "🔥 Isso aqui tá com cara de oportunidade",
-        "💥 Esse aqui tá chamando atenção de quem compra",
-        "🛑 Para tudo e olha isso aqui",
-        "🤯 Sério… olha esse achado",
-        "⚠️ Isso aqui pode desaparecer rápido",
-        "👁️ Pouca gente viu isso ainda",
-        "📉 Esse preço aqui não costuma durar",
-        "🚀 Esse aqui tá começando a rodar forte"
+        "🚨 Oferta encontrada agora",
+        "🔥 Isso aqui tá chamando atenção",
+        "👀 Achei isso aqui no ML",
+        "💥 Preço interessante aparecendo",
+        "🛑 Olha isso aqui",
+        "⚠️ Pode acabar rápido",
+        "🚀 Produto rodando forte",
+        "📉 Esse preço não costuma durar"
     ]
 
     gatilhos = [
-        "Preço muito abaixo do que costuma aparecer",
-        "Avaliações acima da média",
-        "Volume de vendas alto",
-        "Simples e funcional",
+        "Preço abaixo da média",
+        "Produto muito procurado",
+        "Boa oportunidade",
         "Custo-benefício forte",
-        "Quem compra recomenda",
-        "Produto direto ao ponto",
-        "Tá vendendo bem",
-        "Boa margem pra afiliado",
-        "Resolve de verdade"
+        "Produto com bastante saída",
+        "Quem compra recomenda"
     ]
 
     abertura = random.choice(
@@ -98,11 +84,10 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 
 💰 <b>R$ {preco}</b>
 ⭐ {avaliacao} | 🛒 {vendas} vendas
-💸 Comissão: <b>{comissao}%</b>
 
 ⚠️ Pode subir de preço
 
-<a href="{link}">🛒 COMPRAR AGORA</a>
+<a href="{link}">🛒 VER PRODUTO</a>
 """
 
 # =========================
@@ -110,80 +95,12 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 # =========================
 
 def gerar_link_whatsapp_from_html(msg_html, link):
+
     texto = re.sub('<[^<]+?>', '', msg_html)
+
     texto += f"\n\n🛒 {link}"
+
     return f"https://wa.me/?text={quote(texto)}"
-
-# =========================
-# SHOPEE
-# =========================
-
-def aplicar_id_afiliado(link):
-
-    parsed = urlparse(link)
-    query = parse_qs(parsed.query)
-
-    query["af_siteid"] = AFILIADO_ID
-
-    return urlunparse(
-        parsed._replace(query=urlencode(query, doseq=True))
-    )
-
-def get_shopee_offers():
-
-    logging.info("Buscando ofertas Shopee")
-
-    timestamp = int(time.time())
-
-    query_body = """
-    query {
-        productOfferV2(sortType: 2, limit: 20) {
-            nodes {
-                productName
-                priceMin
-                commissionRate
-                sales
-                ratingStar
-                productLink
-                imageUrl
-            }
-        }
-    }
-    """
-
-    payload = json.dumps({"query": query_body})
-
-    base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
-
-    signature = hashlib.sha256(base.encode()).hexdigest()
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
-    }
-
-    try:
-
-        r = requests.post(
-            SHOPEE_GRAPHQL_URL,
-            data=payload,
-            headers=headers,
-            timeout=20
-        )
-
-        data = r.json()
-
-        produtos = data["data"]["productOfferV2"]["nodes"]
-
-        logging.info(f"Shopee OK: {len(produtos)} produtos")
-
-        return produtos
-
-    except Exception as e:
-
-        logging.error(f"Erro Shopee: {e}")
-
-        return []
 
 # =========================
 # MERCADO LIVRE
@@ -191,17 +108,28 @@ def get_shopee_offers():
 
 def get_ml_offers():
 
+    logging.info("Buscando ofertas ML")
+
     headers = {
-        "User-Agent": "Mozilla/5.0"
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/json",
+        "Accept-Language": "pt-BR,pt;q=0.9",
+        "Connection": "keep-alive"
     }
 
     buscas = [
-        "smartphone",
-        "tv",
-        "fone bluetooth",
+        "smart tv",
+        "iphone",
         "notebook",
+        "fone bluetooth",
+        "caixa de som",
+        "video game",
         "promoção",
-        "ofertas"
+        "oferta"
     ]
 
     produtos = []
@@ -210,44 +138,86 @@ def get_ml_offers():
 
         termo = random.choice(buscas)
 
-        url = f"https://api.mercadolibre.com/sites/MLB/search?q={termo}"
+        logging.info(f"Busca escolhida: {termo}")
 
-        r = requests.get(url, headers=headers, timeout=20)
+        url = (
+            "https://api.mercadolibre.com/sites/MLB/search"
+            f"?q={quote(termo)}&limit=10"
+        )
+
+        r = requests.get(
+            url,
+            headers=headers,
+            timeout=30
+        )
 
         logging.info(f"Status ML: {r.status_code}")
 
         if r.status_code != 200:
+
+            logging.error(f"Erro ML: {r.text}")
+
             return []
 
         data = r.json()
 
         resultados = data.get("results", [])
 
-        logging.info(f"Resultados ML: {len(resultados)}")
+        logging.info(f"Resultados encontrados: {len(resultados)}")
 
-        for item in resultados[:10]:
+        for item in resultados:
 
-            thumb = item.get("thumbnail")
+            try:
 
-            if not thumb:
-                continue
+                thumb = item.get("thumbnail")
 
-            produtos.append({
-                "nome": item["title"],
-                "preco": item["price"],
-                "link": item["permalink"],
-                "img": thumb.replace("http://", "https://"),
-                "vendas": random.randint(100, 5000),
-                "avaliacao": round(random.uniform(4.4, 5.0), 1),
-                "origem": "ml"
-            })
+                if not thumb:
+                    continue
+
+                preco = item.get("price")
+
+                if not preco:
+                    continue
+
+                link = item.get("permalink")
+
+                if not link:
+                    continue
+
+                produtos.append({
+
+                    "nome": item["title"],
+
+                    "preco": preco,
+
+                    "link": link,
+
+                    "img": thumb.replace(
+                        "http://",
+                        "https://"
+                    ),
+
+                    "vendas": random.randint(100, 5000),
+
+                    "avaliacao": round(
+                        random.uniform(4.4, 5.0),
+                        1
+                    )
+
+                })
+
+            except Exception as e:
+
+                logging.error(f"Erro item ML: {e}")
 
     except Exception as e:
-        logging.error(f"ERRO ML: {e}")
+
+        logging.error(f"ERRO ML GERAL: {e}")
 
     logging.info(f"ML OK: {len(produtos)} produtos")
 
     return produtos
+
 # =========================
 # ENVIO
 # =========================
@@ -256,117 +226,29 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
     try:
 
-        logging.info("Loop de ofertas iniciado")
+        logging.info("Loop iniciado")
 
         if not dentro_do_horario():
+
             logging.info("Fora do horario")
+
             return
 
         usadas_abertura.clear()
 
-        shopee_ofertas = get_shopee_offers()
-        ml_ofertas = get_ml_offers()
+        ofertas = get_ml_offers()
 
-        selecionadas = []
+        if len(ofertas) == 0:
 
-        # =========================
-        # SHOPEE (3)
-        # =========================
+            logging.warning("Nenhuma oferta ML encontrada")
 
-        for item in shopee_ofertas[:3]:
-
-            try:
-
-                link = aplicar_id_afiliado(item["productLink"])
-
-                nome = html.escape(item["productName"])
-                preco = float(item["priceMin"])
-                img = item["imageUrl"]
-
-                rating = float(item.get("ratingStar", 4.5))
-                vendas = int(item.get("sales", 100))
-
-                comissao = round(
-                    float(item.get("commissionRate", 0)) * 100,
-                    2
-                )
-
-                vendas_f = f"{vendas:,}".replace(",", ".")
-
-                msg = gerar_copy(
-                    nome,
-                    f"{preco:.2f}",
-                    vendas_f,
-                    rating,
-                    comissao,
-                    link
-                )
-
-                zap = gerar_link_whatsapp_from_html(msg, link)
-
-                msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
-                msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
-
-                selecionadas.append({
-                    "msg": msg,
-                    "img": img
-                })
-
-            except Exception as e:
-                logging.error(f"Erro Shopee item: {e}")
-
-        # =========================
-        # ML (2)
-        # =========================
-
-        for item in ml_ofertas[:2]:
-
-            try:
-
-                link = item["link"]
-
-                nome = html.escape(item["nome"])
-                preco = float(item["preco"])
-                img = item["img"]
-
-                rating = item["avaliacao"]
-                vendas = item["vendas"]
-
-                comissao = 10
-
-                vendas_f = f"{vendas:,}".replace(",", ".")
-
-                msg = gerar_copy(
-                    nome,
-                    f"{preco:.2f}",
-                    vendas_f,
-                    rating,
-                    comissao,
-                    link
-                )
-
-                zap = gerar_link_whatsapp_from_html(msg, link)
-
-                msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
-                msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
-
-                selecionadas.append({
-                    "msg": msg,
-                    "img": img
-                })
-
-            except Exception as e:
-                logging.error(f"Erro ML item: {e}")
-
-        logging.info(f"Selecionadas: {len(selecionadas)}")
-
-        if len(selecionadas) == 0:
-            logging.warning("Nenhuma oferta encontrada")
             return
+
+        selecionadas = ofertas[:5]
 
         await context.bot.send_message(
             chat_id=CHAT_ID_DESTINO,
-            text="🚨 OFERTAS NOVAS CHEGANDO..."
+            text="🚨 OFERTAS ML CHEGANDO..."
         )
 
         await asyncio.sleep(5)
@@ -375,19 +257,53 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
             try:
 
-                logging.info("Enviando produto")
+                nome = html.escape(item["nome"])
+
+                preco = f"{float(item['preco']):.2f}"
+
+                rating = item["avaliacao"]
+
+                vendas = f"{item['vendas']:,}".replace(",", ".")
+
+                link = item["link"]
+
+                msg = gerar_copy(
+                    nome,
+                    preco,
+                    vendas,
+                    rating,
+                    link
+                )
+
+                zap = gerar_link_whatsapp_from_html(
+                    msg,
+                    link
+                )
+
+                msg += (
+                    f'\n📲 <a href="{zap}">'
+                    'Compartilhar no WhatsApp</a>'
+                )
+
+                msg += (
+                    "\n━━━━━━━━━━━━━━━"
+                    "\n📢 <b>Ofertas Mercado Livre</b>"
+                )
+
+                logging.info("Enviando produto ML")
 
                 await context.bot.send_photo(
                     chat_id=CHAT_ID_DESTINO,
                     photo=item["img"],
-                    caption=item["msg"],
+                    caption=msg,
                     parse_mode="HTML"
                 )
 
                 await asyncio.sleep(40)
 
             except Exception as e:
-                logging.error(f"Erro Telegram: {e}")
+
+                logging.error(f"Erro envio ML: {e}")
 
         logging.info("Loop finalizado")
 
@@ -403,7 +319,7 @@ async def keep_alive():
 
     while True:
 
-        logging.info("BOT VIVO")
+        logging.info("BOT ML VIVO")
 
         await asyncio.sleep(300)
 
@@ -421,7 +337,7 @@ async def post_init(app):
 
     asyncio.create_task(keep_alive())
 
-    logging.info("🤖 BOT RODANDO ESTAVEL")
+    logging.info("🤖 BOT ML RODANDO")
 
 if __name__ == "__main__":
 
