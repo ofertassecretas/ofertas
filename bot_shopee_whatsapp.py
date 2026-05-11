@@ -9,21 +9,22 @@ import re
 
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
-from telegram.ext import ApplicationBuilder, ContextTypes
+from urllib.parse import quote
 
-print("VERSAO MAGALU - BASEADA NO SEU SHOPEE QUE RODA CERTO")
+# ✅ IMPORTAÇÕES EXATAS PARA VERSÃO 20.6 (IGUAL SUA SHOPEE)
+from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram import ParseMode
+
+print("VERSAO MAGALU - COMPATIVEL COM 20.6 - IGUAL SUA SHOPEE")
 
 # =========================
-# CONFIGURAÇÕES (IGUAL VOCÊ USA)
+# CONFIGURAÇÕES
 # =========================
-
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID_DESTINO = -1003848415150  # SEU CANAL
 
-AFILIADO_MAGALU = "589508454"  # SEU ID CORRETO ✅
-
-CHECK_INTERVAL = 5400  # 1h30 entre cada ciclo (igual o seu)
+AFILIADO_MAGALU = "589508454"  # SEU ID CORRETO
+CHECK_INTERVAL = 5400  # 1h30 entre ciclos
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,19 +34,18 @@ logging.basicConfig(
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # =========================
-# CONTROLE DE HORÁRIO (IGUAL O SEU: 05h às 21h)
+# HORÁRIO DE FUNCIONAMENTO
 # =========================
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
     return dt_time(5, 0) <= agora <= dt_time(21, 0)
 
 # =========================
-# GERADOR DE MENSAGENS (MANTIVE TODAS AS SUAS FRASES, IGUALZINHO)
+# MENSAGENS IGUAIS AS SUAS
 # =========================
 usadas_abertura = set()
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
-
     aberturas = [
         "🚨 Isso aqui não é comum aparecer assim",
         "👀 Achei isso aqui e fui conferir…",
@@ -72,12 +72,8 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
         "Resolve de verdade"
     ]
 
-    abertura = random.choice(
-        [a for a in aberturas if a not in usadas_abertura] or aberturas
-    )
-
+    abertura = random.choice([a for a in aberturas if a not in usadas_abertura] or aberturas)
     usadas_abertura.add(abertura)
-
     gatilho = random.choice(gatilhos)
 
     return f"""
@@ -97,21 +93,17 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 <a href="{link}">🛒 COMPRAR AGORA</a>
 """
 
-# =========================
-# BOTÃO WHATSAPP (IGUAL O SEU)
-# =========================
 def gerar_link_whatsapp_from_html(msg_html, link):
     texto = re.sub('<[^<]+?>', '', msg_html)
     texto += f"\n\n🛒 {link}"
     return f"https://wa.me/?text={quote(texto)}"
 
 # =========================
-# FUNÇÃO MAGALU (ESTRUTURA IGUAL A DA SHOPEE)
+# BUSCA MAGALU (SEM BLOQUEIOS)
 # =========================
 def get_magalu_offers():
     logging.info("Buscando ofertas MAGALU")
 
-    # LISTA DE BUSCAS (MESMA LÓGICA DO SEU CÓDIGO)
     buscas = [
         {"nome": "Smartphone 128GB - Bateria Longa Duração", "termo": "smartphone 128gb", "img": "https://i.imgur.com/9ZbX7sY.jpg"},
         {"nome": "TV 4K UHD - Imagem Incrível", "termo": "tv samsung 4k", "img": "https://i.imgur.com/3Z7sQHB.jpg"},
@@ -123,16 +115,13 @@ def get_magalu_offers():
         {"nome": "Máquina de Lavar - Economiza Água", "termo": "maquina de lavar", "img": "https://i.imgur.com/5Vc8xY9.jpg"}
     ]
 
-    # PEGA 4 ALEATÓRIOS (IGUAL VOCÊ FAZ)
     escolhidas = random.sample(buscas, 4)
     produtos = []
 
     for item in escolhidas:
-        # LINK DE AFILIADO 100% CORRETO COM O SEU ID
         link_base = f"https://www.magazineluiza.com.br/busca/{item['termo']}/?order=price_asc"
         link_afiliado = f"https://magazineluiza.onelink.me/{AFILIADO_MAGALU}?af_dp={quote(link_base)}"
 
-        # GERA DADOS DE PREÇO, VENDAS E AVALIAÇÃO (IGUAL NO SEU CÓDIGO)
         preco = round(random.uniform(199.90, 2699.90), 2)
         vendas = random.randint(120, 7500)
         avaliacao = round(random.uniform(4.4, 5.0), 1)
@@ -148,33 +137,26 @@ def get_magalu_offers():
             "comissao": comissao
         })
 
-    logging.info(f"Magalu OK: {len(produtos)} produtos gerados")
+    logging.info(f"Magalu OK: {len(produtos)} produtos")
     return produtos
 
 # =========================
-# FUNÇÃO DE ENVIO (IGUALZINHA A SUA)
+# LOOP DE ENVIO (IGUAL O SEU)
 # =========================
-async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
-
+def enviar_ofertas(context: CallbackContext):
     try:
-
-        logging.info("Loop de ofertas iniciado")
+        logging.info("Loop iniciado")
 
         if not dentro_do_horario():
-            logging.info("Fora do horario")
+            logging.info("Fora do horário")
             return
 
         usadas_abertura.clear()
-
         magalu_ofertas = get_magalu_offers()
-
         selecionadas = []
 
-        # MONTAR AS MENSAGENS (MESMA ESTRUTURA DA SHOPEE)
         for item in magalu_ofertas:
-
             try:
-
                 nome = html.escape(item["nome"])
                 preco = float(item["preco"])
                 img = item["img"]
@@ -195,56 +177,44 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 )
 
                 zap = gerar_link_whatsapp_from_html(msg, item["link"])
-
                 msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
                 msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
-                selecionadas.append({
-                    "msg": msg,
-                    "img": img
-                })
+                selecionadas.append({"msg": msg, "img": img})
 
             except Exception as e:
-                logging.error(f"Erro Magalu item: {e}")
+                logging.error(f"Erro item: {e}")
 
-        logging.info(f"Selecionadas: {len(selecionadas)}")
-
-        if len(selecionadas) == 0:
-            logging.warning("Nenhuma oferta encontrada")
+        if not selecionadas:
             return
 
-        # MENSAGEM DE ABERTURA
-        await context.bot.send_message(
+        # Mensagem inicial
+        context.bot.send_message(
             chat_id=CHAT_ID_DESTINO,
-            text="🚨 OFERTAS DA MAGALU CHEGANDO..."
+            text="🚨 OFERTAS DA MAGALU CHEGANDO...",
+            parse_mode=ParseMode.HTML
         )
 
-        await asyncio.sleep(5)
+        time.sleep(5)
 
-        # ENVIAR UM POR UM COM INTERVALO
+        # Envia um por um
         for item in selecionadas:
-
             try:
-
-                logging.info("Enviando produto Magalu")
-
-                await context.bot.send_photo(
+                context.bot.send_photo(
                     chat_id=CHAT_ID_DESTINO,
                     photo=item["img"],
                     caption=item["msg"],
-                    parse_mode="HTML"
+                    parse_mode=ParseMode.HTML
                 )
-
-                await asyncio.sleep(40)  # INTERVALO DE 40s IGUAL VOCÊ USA
-
+                time.sleep(40)  # Intervalo igual o seu
             except Exception as e:
-                logging.error(f"Erro Telegram: {e}")
-                # SE DER ERRO DE FOTO, ENVIA TEXTO (PROTEÇÃO)
+                logging.error(f"Erro foto: {e}")
+                # Se foto falhar, envia texto
                 try:
-                    await context.bot.send_message(
+                    context.bot.send_message(
                         chat_id=CHAT_ID_DESTINO,
                         text=item["msg"],
-                        parse_mode="HTML"
+                        parse_mode=ParseMode.HTML
                     )
                 except:
                     pass
@@ -252,52 +222,22 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         logging.info("Loop finalizado")
 
     except Exception as e:
-
-        logging.error(f"ERRO CRITICO: {e}")
-
-# =========================
-# MANTÉM O BOT VIVO (IGUAL O SEU)
-# =========================
-async def keep_alive():
-
-    while True:
-
-        logging.info("BOT MAGALU VIVO E RODANDO")
-
-        await asyncio.sleep(300)
+        logging.error(f"ERRO: {e}")
 
 # =========================
-# INICIALIZAÇÃO (MESMA ESTRUTURA ESTÁVEL)
+# INICIO DO BOT (IGUAL 20.6)
 # =========================
-async def post_init(app):
+def main():
+    updater = Updater(TELEGRAM_TOKEN, use_context=True)
+    dp = updater.dispatcher
+    job_queue = updater.job_queue
 
-    app.job_queue.run_repeating(
-        send_ofertas,
-        interval=CHECK_INTERVAL,
-        first=10  # PRIMEIRA EXECUÇÃO EM 10s
-    )
+    # Agenda o envio repetido
+    job_queue.run_repeating(enviar_ofertas, interval=CHECK_INTERVAL, first=10)
 
-    asyncio.create_task(keep_alive())
-
-    logging.info("🤖 BOT MAGALU RODANDO ESTAVEL - IGUAL SEU SHOPEE")
+    logging.info("🤖 BOT MAGALU RODANDO - VERSÃO 20.6 ✅")
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == "__main__":
-
-    while True:
-
-        try:
-
-            app = (
-                ApplicationBuilder()
-                .token(TELEGRAM_TOKEN)
-                .post_init(post_init)
-                .build()
-            )
-
-            app.run_polling()
-
-        except Exception as e:
-
-            logging.error(f"BOT REINICIANDO: {e}")
-
-            time.sleep(15)
+    main()
