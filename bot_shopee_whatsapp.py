@@ -306,7 +306,7 @@ if __name__ == "__main__":
                 .build()
             )
 
-            logging.info("INICIANDO POLLING...")
+            logging.info("INICIANDO BOT...")
 
             app.run_polling(
                 allowed_updates=[]
