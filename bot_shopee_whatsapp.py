@@ -87,11 +87,14 @@ def get_ml_offers():
     logging.info("Buscando ofertas ML")
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
         "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Referer": "https://www.mercadolivre.com.br/",
-        "Connection": "keep-alive"
+        "Sec-Ch-Ua": '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Upgrade-Insecure-Requests": "1"
     }
 
     buscas = [
@@ -108,49 +111,76 @@ def get_ml_offers():
 
     try:
         url = f"https://lista.mercadolivre.com.br/{termo.replace(' ', '-')}"
-        response = requests.get(url, headers=headers, timeout=20)
+        response = requests.get(url, headers=headers, timeout=25)
         logging.info(f"Status ML: {response.status_code}")
 
         if response.status_code != 200:
-            logging.error("Página indisponível ou bloqueada")
+            logging.error("Página com erro ou bloqueada")
             return []
 
         soup = BeautifulSoup(response.text, "html.parser")
         produtos = []
 
-        # SELETORES ATUALIZADOS E MAIS AMPLOS
-        cards = soup.find_all("li", class_="ui-search-layout__item")
-        logging.info(f"Cartões encontrados: {len(cards)}")
+        # 🟡 TODOS OS SELETORES POSSÍVEIS DO MERCADO LIVRE (versões antigas e novas)
+        seletores_cards = [
+            "li.ui-search-layout__item",
+            "div.ui-search-result",
+            "div.poly-card",
+            "div.andes-card",
+            "section.ui-search-card"
+        ]
 
+        cards = []
+        for sel in seletores_cards:
+            cards = soup.select(sel)
+            if cards:
+                logging.info(f"Usando seletor: {sel} | Encontrados: {len(cards)}")
+                break
+
+        if not cards:
+            logging.warning("Nenhum seletor encontrou produtos — estrutura mudou completamente")
+            return []
+
+        # Pegamos só os 5 primeiros
         for card in cards[:5]:
             try:
-                # Título
-                titulo = card.find("h2") or card.find("div", class_="poly-component__title-wrapper")
+                # 🔹 TÍTULO
+                titulo = card.select_one("h2") or \
+                         card.select_one(".poly-component__title") or \
+                         card.select_one(".ui-search-item__title")
                 if not titulo:
                     continue
                 nome_prod = titulo.get_text(strip=True)
+                if not nome_prod:
+                    continue
 
-                # Preço
-                preco = card.find("span", class_="andes-money-amount__fraction")
+                # 🔹 PREÇO
+                preco = card.select_one(".andes-money-amount__fraction") or \
+                        card.select_one(".price-tag-fraction") or \
+                        card.select_one(".ui-search-price__part--medium")
                 if not preco:
                     continue
                 preco_prod = preco.get_text(strip=True)
+                if not preco_prod:
+                    continue
 
-                # Link
-                link_tag = card.find("a")
+                # 🔹 LINK
+                link_tag = card.select_one("a")
                 if not link_tag or not link_tag.get("href"):
                     continue
                 link_prod = link_tag["href"]
+                if link_prod.startswith("/"):
+                    link_prod = "https://lista.mercadolivre.com.br" + link_prod
 
-                # Imagem
-                imagem = card.find("img")
+                # 🔹 IMAGEM
+                imagem = card.select_one("img")
                 if not imagem:
                     continue
-                img_prod = imagem.get("src") or imagem.get("data-src", "")
-
-                if not nome_prod or not preco_prod or not link_prod or not img_prod:
+                img_prod = imagem.get("src") or imagem.get("data-src") or ""
+                if not img_prod or img_prod.startswith("data:image"):
                     continue
 
+                # Se passou por tudo, adiciona
                 produtos.append({
                     "nome": nome_prod,
                     "preco": preco_prod,
@@ -159,11 +189,12 @@ def get_ml_offers():
                     "vendas": random.randint(100, 5000),
                     "avaliacao": round(random.uniform(4.4, 5.0), 1)
                 })
+                logging.info(f"✅ Produto capturado: {nome_prod} - R$ {preco_prod}")
 
             except Exception as e:
-                logging.error(f"Erro produto: {e}")
+                logging.error(f"Erro ao extrair dados do produto: {e}")
 
-        logging.info(f"ML OK: {len(produtos)} produtos")
+        logging.info(f"ML OK: {len(produtos)} produtos válidos")
         return produtos
 
     except Exception as e:
