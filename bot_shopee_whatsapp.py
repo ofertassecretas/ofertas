@@ -12,12 +12,9 @@ import re
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
-
-# ✅ IMPORTAÇÕES CORRETAS PARA VERSÃO 20.6
 from telegram.ext import ApplicationBuilder, ContextTypes
-from telegram.constants import ParseMode
 
-print("VERSAO FINAL HIBRIDA ESTAVEL V3 - CORRIGIDO PARA 20.6")
+print("VERSAO FINAL HIBRIDA ESTAVEL V3")
 
 # =========================
 # CONFIG
@@ -45,6 +42,7 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 # =========================
 # HORÁRIO
 # =========================
+
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
     return dt_time(5, 0) <= agora <= dt_time(21, 0)
@@ -52,9 +50,11 @@ def dentro_do_horario():
 # =========================
 # COPY
 # =========================
+
 usadas_abertura = set()
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
+
     aberturas = [
         "🚨 Isso aqui não é comum aparecer assim",
         "👀 Achei isso aqui e fui conferir…",
@@ -84,7 +84,9 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
     abertura = random.choice(
         [a for a in aberturas if a not in usadas_abertura] or aberturas
     )
+
     usadas_abertura.add(abertura)
+
     gatilho = random.choice(gatilhos)
 
     return f"""
@@ -106,6 +108,7 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link):
 # =========================
 # WHATSAPP
 # =========================
+
 def gerar_link_whatsapp_from_html(msg_html, link):
     texto = re.sub('<[^<]+?>', '', msg_html)
     texto += f"\n\n🛒 {link}"
@@ -114,14 +117,22 @@ def gerar_link_whatsapp_from_html(msg_html, link):
 # =========================
 # SHOPEE
 # =========================
+
 def aplicar_id_afiliado(link):
+
     parsed = urlparse(link)
     query = parse_qs(parsed.query)
+
     query["af_siteid"] = AFILIADO_ID
-    return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
+
+    return urlunparse(
+        parsed._replace(query=urlencode(query, doseq=True))
+    )
 
 def get_shopee_offers():
+
     logging.info("Buscando ofertas Shopee")
+
     timestamp = int(time.time())
 
     query_body = """
@@ -141,7 +152,9 @@ def get_shopee_offers():
     """
 
     payload = json.dumps({"query": query_body})
+
     base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
+
     signature = hashlib.sha256(base.encode()).hexdigest()
 
     headers = {
@@ -150,44 +163,75 @@ def get_shopee_offers():
     }
 
     try:
+
         r = requests.post(
             SHOPEE_GRAPHQL_URL,
             data=payload,
             headers=headers,
             timeout=20
         )
+
         data = r.json()
+
         produtos = data["data"]["productOfferV2"]["nodes"]
+
         logging.info(f"Shopee OK: {len(produtos)} produtos")
+
         return produtos
+
     except Exception as e:
+
         logging.error(f"Erro Shopee: {e}")
+
         return []
 
 # =========================
 # MERCADO LIVRE
 # =========================
+
 def get_ml_offers():
-    headers = {"User-Agent": "Mozilla/5.0"}
-    buscas = ["smartphone", "tv", "fone bluetooth", "notebook", "promoção", "ofertas"]
+
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    buscas = [
+        "smartphone",
+        "tv",
+        "fone bluetooth",
+        "notebook",
+        "promoção",
+        "ofertas"
+    ]
+
     produtos = []
 
     try:
+
         termo = random.choice(buscas)
+
         url = f"https://api.mercadolibre.com/sites/MLB/search?q={termo}"
+
         r = requests.get(url, headers=headers, timeout=20)
+
+        logging.info(f"Status ML: {r.status_code}")
 
         if r.status_code != 200:
             return []
 
         data = r.json()
+
         resultados = data.get("results", [])
 
         logging.info(f"Resultados ML: {len(resultados)}")
+
         for item in resultados[:10]:
+
             thumb = item.get("thumbnail")
+
             if not thumb:
                 continue
+
             produtos.append({
                 "nome": item["title"],
                 "preco": item["price"],
@@ -197,17 +241,21 @@ def get_ml_offers():
                 "avaliacao": round(random.uniform(4.4, 5.0), 1),
                 "origem": "ml"
             })
+
     except Exception as e:
         logging.error(f"ERRO ML: {e}")
 
     logging.info(f"ML OK: {len(produtos)} produtos")
-    return produtos
 
+    return produtos
 # =========================
 # ENVIO
 # =========================
+
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
+
     try:
+
         logging.info("Loop de ofertas iniciado")
 
         if not dentro_do_horario():
@@ -215,149 +263,183 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             return
 
         usadas_abertura.clear()
+
         shopee_ofertas = get_shopee_offers()
         ml_ofertas = get_ml_offers()
+
         selecionadas = []
 
+        # =========================
         # SHOPEE (3)
+        # =========================
+
         for item in shopee_ofertas[:3]:
+
             try:
+
                 link = aplicar_id_afiliado(item["productLink"])
+
                 nome = html.escape(item["productName"])
                 preco = float(item["priceMin"])
                 img = item["imageUrl"]
+
                 rating = float(item.get("ratingStar", 4.5))
                 vendas = int(item.get("sales", 100))
-                comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
+
+                comissao = round(
+                    float(item.get("commissionRate", 0)) * 100,
+                    2
+                )
+
                 vendas_f = f"{vendas:,}".replace(",", ".")
 
-                msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, rating, comissao, link)
+                msg = gerar_copy(
+                    nome,
+                    f"{preco:.2f}",
+                    vendas_f,
+                    rating,
+                    comissao,
+                    link
+                )
+
                 zap = gerar_link_whatsapp_from_html(msg, link)
+
                 msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
                 msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
-                selecionadas.append({"msg": msg, "img": img})
+                selecionadas.append({
+                    "msg": msg,
+                    "img": img
+                })
+
             except Exception as e:
                 logging.error(f"Erro Shopee item: {e}")
 
+        # =========================
         # ML (2)
+        # =========================
+
         for item in ml_ofertas[:2]:
+
             try:
+
                 link = item["link"]
+
                 nome = html.escape(item["nome"])
                 preco = float(item["preco"])
                 img = item["img"]
+
                 rating = item["avaliacao"]
                 vendas = item["vendas"]
+
                 comissao = 10
+
                 vendas_f = f"{vendas:,}".replace(",", ".")
 
-                msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, rating, comissao, link)
+                msg = gerar_copy(
+                    nome,
+                    f"{preco:.2f}",
+                    vendas_f,
+                    rating,
+                    comissao,
+                    link
+                )
+
                 zap = gerar_link_whatsapp_from_html(msg, link)
+
                 msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
                 msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
-                selecionadas.append({"msg": msg, "img": img})
+                selecionadas.append({
+                    "msg": msg,
+                    "img": img
+                })
+
             except Exception as e:
                 logging.error(f"Erro ML item: {e}")
 
         logging.info(f"Selecionadas: {len(selecionadas)}")
+
         if len(selecionadas) == 0:
             logging.warning("Nenhuma oferta encontrada")
             return
 
         await context.bot.send_message(
             chat_id=CHAT_ID_DESTINO,
-            text="🚨 OFERTAS NOVAS CHEGANDO...",
-            parse_mode=ParseMode.HTML
+            text="🚨 OFERTAS NOVAS CHEGANDO..."
         )
+
         await asyncio.sleep(5)
 
         for item in selecionadas:
+
             try:
+
                 logging.info("Enviando produto")
+
                 await context.bot.send_photo(
                     chat_id=CHAT_ID_DESTINO,
                     photo=item["img"],
                     caption=item["msg"],
-                    parse_mode=ParseMode.HTML
+                    parse_mode="HTML"
                 )
+
                 await asyncio.sleep(40)
+
             except Exception as e:
                 logging.error(f"Erro Telegram: {e}")
-                try:
-                    await context.bot.send_message(
-                        chat_id=CHAT_ID_DESTINO,
-                        text=item["msg"],
-                        parse_mode=ParseMode.HTML
-                    )
-                except:
-                    pass
 
         logging.info("Loop finalizado")
 
     except Exception as e:
+
         logging.error(f"ERRO CRITICO: {e}")
 
 # =========================
 # KEEP ALIVE
 # =========================
+
 async def keep_alive():
+
     while True:
+
         logging.info("BOT VIVO")
+
         await asyncio.sleep(300)
-
-# =========================
-# LOOP MANUAL
-# =========================
-
-async def loop_ofertas(app):
-
-    while True:
-
-        try:
-
-            await send_ofertas(app)
-
-        except Exception as e:
-
-            logging.error(f"ERRO LOOP: {e}")
-
-        await asyncio.sleep(CHECK_INTERVAL)
-
-# =========================
-# MAIN
-# =========================
-
-async def main():
-
-    app = (
-        ApplicationBuilder()
-        .token(TELEGRAM_TOKEN)
-        .build()
-    )
-
-    logging.info("🤖 BOT RODANDO ESTAVEL")
-
-    asyncio.create_task(loop_ofertas(app))
-    asyncio.create_task(keep_alive())
-
-    await app.initialize()
-
-    await app.start()
-
-    await app.updater.start_polling(
-        drop_pending_updates=True
-    )
-
-    while True:
-
-        await asyncio.sleep(60)
 
 # =========================
 # START
 # =========================
 
+async def post_init(app):
+
+    app.job_queue.run_repeating(
+        send_ofertas,
+        interval=CHECK_INTERVAL,
+        first=10
+    )
+
+    asyncio.create_task(keep_alive())
+
+    logging.info("🤖 BOT RODANDO ESTAVEL")
+
 if __name__ == "__main__":
 
-    asyncio.run(main())
+    while True:
+
+        try:
+
+            app = (
+                ApplicationBuilder()
+                .token(TELEGRAM_TOKEN)
+                .post_init(post_init)
+                .build()
+            )
+
+            app.run_polling()
+
+        except Exception as e:
+
+            logging.error(f"BOT REINICIANDO: {e}")
+
+            time.sleep(15)
