@@ -147,7 +147,7 @@ def get_ml_offers():
                imagem = card.select_one("img")
 
                 if not titulo:
-                    continue
+                   continue
 
                 if not preco:
                     continue
