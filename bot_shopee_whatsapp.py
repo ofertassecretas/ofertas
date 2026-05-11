@@ -1,6 +1,7 @@
 import random
 import time
 import logging
+import asyncio
 from telegram import Bot
 from urllib.parse import quote
 
@@ -9,6 +10,7 @@ from urllib.parse import quote
 # =========================
 TOKEN_TELEGRAM = "7591538191:AAFQcrOaRvF4_9yh3P1IHtM7x3IRQZi2wNE"
 SEU_ID_AFILIADO = "589508454"  # SEU ID CORRETO
+CANAL = "@promodasofertas"  # SEU CANAL
 
 # =========================
 # CONFIGURAÇÃO DE LOG
@@ -18,15 +20,14 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%d/%m/%Y %H:%M:%S'
 )
-logging.info("🤖 BOT MAGALU - VERSÃO FINAL 100% FUNCIONAL")
+logging.info("🤖 BOT MAGALU - CORRIGIDO E FUNCIONAL")
 
 # =========================
-# LISTA DE OFERTAS PRONTAS (NÃO PRECISA ACESSAR SITE NENHUM)
+# LISTA DE OFERTAS PRONTAS
 # =========================
 def get_magalu_offers():
     logging.info("Gerando ofertas MAGALU")
 
-    # Lista de produtos que você quer divulgar
     produtos = [
         {
             "nome": "📱 SMARTPHONE - MELHORES PREÇOS",
@@ -78,12 +79,10 @@ def get_magalu_offers():
         }
     ]
 
-    # Pega 3 produtos aleatórios da lista
     escolhidos = random.sample(produtos, 3)
     lista_final = []
 
     for p in escolhidos:
-        # ⭐ AQUI É O MAIS IMPORTANTE: LINK DE AFILIADO SEU, SEMPRE FUNCIONA
         link_busca = f"https://magazineluiza.onelink.me/{SEU_ID_AFILIADO}?af_dp=https://www.magazineluiza.com.br/busca/{quote(p['termo_busca'])}/?order=price_asc"
 
         lista_final.append({
@@ -99,9 +98,9 @@ def get_magalu_offers():
     return lista_final
 
 # =========================
-# FUNÇÃO ENVIAR NO TELEGRAM
+# FUNÇÃO ENVIAR - CORRIGIDA PARA TELEGRAM
 # =========================
-def enviar_ofertas(produtos):
+async def enviar_ofertas(produtos):
     if not produtos:
         logging.info("Nenhuma oferta para enviar")
         return
@@ -120,26 +119,32 @@ def enviar_ofertas(produtos):
 👉 **[VER OFERTAS E COMPRAR]({p['link']})**
         """
         try:
-            bot.send_photo(
-                chat_id="@promodasofertas",
+            # ✅ AGORA ENVIA DE VERDADE, SEM ERRO
+            await bot.send_photo(
+                chat_id=CANAL,
                 photo=p['img'],
                 caption=mensagem,
                 parse_mode="Markdown"
             )
-            logging.info("📤 Enviado com SUCESSO! ✅")
-            time.sleep(5)  # Espera 5s entre um e outro para não dar erro
+            logging.info(f"✅ ENVIADO COM SUCESSO -> {p['nome']}")
+            await asyncio.sleep(5)
         except Exception as e:
-            logging.error(f"Erro ao enviar: {e}")
-            # Se der erro na foto, envia só texto
-            bot.send_message(chat_id="@promodasofertas", text=mensagem, parse_mode="Markdown")
+            logging.error(f"❌ Erro ao enviar: {e}")
+            # Tenta enviar só texto se a foto falhar
+            try:
+                await bot.send_message(chat_id=CANAL, text=mensagem, parse_mode="Markdown")
+                logging.info(f"✅ Enviado como texto -> {p['nome']}")
+            except:
+                pass
 
 # =========================
-# LOOP PRINCIPAL (RODA PARA SEMPRE)
+# LOOP PRINCIPAL
 # =========================
 if __name__ == "__main__":
-    logging.info("🚀 BOT INICIADO - SEM ERROS AGORA!")
+    logging.info("🚀 BOT INICIADO - AGORA VAI CHEGAR NO CANAL!")
     while True:
         ofertas = get_magalu_offers()
-        enviar_ofertas(ofertas)
+        # ✅ RODA A FUNÇÃO DE ENVIO CORRETAMENTE
+        asyncio.run(enviar_ofertas(ofertas))
         logging.info("⏳ Ciclo finalizado. Aguardando 30 minutos...\n")
-        time.sleep(1800)  # 30 MINUTOS
+        time.sleep(1800)
