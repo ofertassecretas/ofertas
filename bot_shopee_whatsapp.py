@@ -90,7 +90,8 @@ def get_ml_offers():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Referer": "https://www.mercadolivre.com.br/"
+        "Referer": "https://www.mercadolivre.com.br/",
+        "Connection": "keep-alive"
     }
 
     buscas = [
@@ -117,33 +118,35 @@ def get_ml_offers():
         soup = BeautifulSoup(response.text, "html.parser")
         produtos = []
 
-        # Seletor atualizado e mais estável
-        cards = soup.select("div.ui-search-result__wrapper") or soup.select(".ui-search-result")
-        logging.info(f"Cards encontrados: {len(cards)}")
+        # SELETORES ATUALIZADOS E MAIS AMPLOS
+        cards = soup.find_all("li", class_="ui-search-layout__item")
+        logging.info(f"Cartões encontrados: {len(cards)}")
 
         for card in cards[:5]:
             try:
-                # Seletores corrigidos para funcionar no ML atual
-                titulo = card.select_one("h2.ui-search-item__title") or card.select_one(".poly-component__title")
-                preco = card.select_one("span.andes-money-amount__fraction") or card.select_one(".price-tag-fraction")
-                link = card.select_one("a.ui-search-link") or card.select_one("a")
-                imagem = card.select_one("img.ui-search-result-image__element") or card.select_one("img")
-
-                # ✅ INDENTAÇÃO CORRIGIDA AQUI
+                # Título
+                titulo = card.find("h2") or card.find("div", class_="poly-component__title-wrapper")
                 if not titulo:
                     continue
+                nome_prod = titulo.get_text(strip=True)
+
+                # Preço
+                preco = card.find("span", class_="andes-money-amount__fraction")
                 if not preco:
                     continue
-                if not link:
+                preco_prod = preco.get_text(strip=True)
+
+                # Link
+                link_tag = card.find("a")
+                if not link_tag or not link_tag.get("href"):
                     continue
+                link_prod = link_tag["href"]
+
+                # Imagem
+                imagem = card.find("img")
                 if not imagem:
                     continue
-
-                # Extração de texto/atributos com validação
-                nome_prod = titulo.get_text(strip=True)
-                preco_prod = preco.get_text(strip=True)
-                link_prod = link.get("href", "")
-                img_prod = imagem.get("src", "") or imagem.get("data-src", "")
+                img_prod = imagem.get("src") or imagem.get("data-src", "")
 
                 if not nome_prod or not preco_prod or not link_prod or not img_prod:
                     continue
