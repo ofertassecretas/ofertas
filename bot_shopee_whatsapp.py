@@ -106,7 +106,7 @@ def get_ml_offers():
         "fone bluetooth",
         "tv samsung",
         "air fryer",
-        "promoção"
+        "cadeira gamer"
     ]
 
     termo = random.choice(buscas)
@@ -127,13 +127,22 @@ def get_ml_offers():
 
         html_site = r.text
 
+        produtos = []
+
+        padrao = re.findall(
+            r'"polycard-(.*?)"',
+            html_site
+        )
+
+        logging.info(f"Produtos brutos encontrados: {len(padrao)}")
+
         links = re.findall(
-            r'https://[a-zA-Z0-9./_-]+MLB[a-zA-Z0-9._/?=&%-]+',
+            r'https://www.mercadolivre.com.br/p/MLB[0-9]+',
             html_site
         )
 
         imagens = re.findall(
-            r'https://http2.mlstatic.com/D_NQ_NP_[a-zA-Z0-9-]+.jpg',
+            r'https://http2.mlstatic.com/D_NQ_NP_[^"]+?jpg',
             html_site
         )
 
@@ -147,13 +156,6 @@ def get_ml_offers():
             html_site
         )
 
-        logging.info(f"Links encontrados: {len(links)}")
-        logging.info(f"Imagens encontradas: {len(imagens)}")
-        logging.info(f"Títulos encontrados: {len(titulos)}")
-        logging.info(f"Preços encontrados: {len(precos)}")
-
-        produtos = []
-
         limite = min(
             len(links),
             len(imagens),
@@ -164,19 +166,14 @@ def get_ml_offers():
 
         for i in range(limite):
 
-            try:
-
-                produtos.append({
-                    "nome": titulos[i],
-                    "preco": precos[i],
-                    "link": links[i],
-                    "img": imagens[i],
-                    "vendas": random.randint(100, 5000),
-                    "avaliacao": round(random.uniform(4.4, 5.0), 1)
-                })
-
-            except Exception as e:
-                logging.error(f"Erro item ML: {e}")
+            produtos.append({
+                "nome": titulos[i],
+                "preco": precos[i],
+                "link": links[i],
+                "img": imagens[i],
+                "vendas": random.randint(100, 5000),
+                "avaliacao": round(random.uniform(4.4, 5.0), 1)
+            })
 
         logging.info(f"ML OK: {len(produtos)} produtos")
 
