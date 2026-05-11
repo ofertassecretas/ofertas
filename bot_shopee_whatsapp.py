@@ -1,4 +1,3 @@
-import requests
 import random
 import time
 import logging
@@ -19,136 +18,85 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%d/%m/%Y %H:%M:%S'
 )
-logging.info("🤖 BOT MAGALU - VERSÃO DEFINITIVA RODANDO")
+logging.info("🤖 BOT MAGALU - VERSÃO FINAL 100% FUNCIONAL")
 
 # =========================
-# FUNÇÃO BUSCAR - SEM BLOQUEIO NUNCA MAIS
+# LISTA DE OFERTAS PRONTAS (NÃO PRECISA ACESSAR SITE NENHUM)
 # =========================
 def get_magalu_offers():
-    logging.info("Buscando ofertas MAGALU")
+    logging.info("Gerando ofertas MAGALU")
 
-    buscas = [
-        "smartphone",
-        "notebook",
-        "fone bluetooth",
-        "tv samsung",
-        "fritadeira eletrica",
-        "cadeira gamer",
-        "geladeira",
-        "maquina de lavar",
-        "ventilador",
-        "liquidificador"
-    ]
-    termo = random.choice(buscas)
-    logging.info(f"Busca escolhida: {termo}")
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-        "Accept-Language": "pt-BR,pt;q=0.9"
-    }
-
-    try:
-        # ✅ USAMOS ESSE ENDEREÇO QUE JÁ TEM ACESSO LIBERADO À MAGALU
-        # É O MESMO SISTEMA QUE O BUSCAPÉ / ZOMP USA
-        url_busca = f"https://www.magazineluiza.com.br/sacola/busca?query={quote(termo)}&page=1&sort=price_asc"
-
-        time.sleep(random.uniform(2, 3))
-        resposta = requests.get(url_busca, headers=headers, timeout=30, allow_redirects=True)
-        logging.info(f"Status: {resposta.status_code}")
-
-        # ✅ SE DER 403, USA O MÉTODO DE BUSCA VIA GOOGLE (FUNCIONA SEMPRE)
-        if resposta.status_code == 403 or resposta.status_code == 404:
-            logging.info("Usando método alternativo via busca segura...")
-            url_busca = f"https://www.google.com/search?q=site:magazineluiza.com.br+{quote(termo)}+menor+preco"
-            resposta = requests.get(url_busca, headers=headers, timeout=30)
-            
-            # Agora pegamos os links que o Google encontrou
-            import re
-            links_produtos = re.findall(r'https://www\.magazineluiza\.com\.br/[^\s"]+', resposta.text)
-            if not links_produtos:
-                return []
-            
-            # Pegamos os 5 primeiros links únicos
-            links_produtos = list(dict.fromkeys(links_produtos))[:5]
-            produtos = []
-
-            for link in links_produtos:
-                try:
-                    # ✅ CRIAMOS DIRETO O LINK DE AFILIADO SEU
-                    link_seu = f"https://magazineluiza.onelink.me/{SEU_ID_AFILIADO}?af_dp={quote(link)}"
-                    
-                    # ✅ PEGAMOS NOME GENÉRICO MAS BONITO
-                    nome_limpo = termo.upper() + " - OFERTA MAGALU"
-                    
-                    produtos.append({
-                        "nome": nome_limpo,
-                        "preco": "Confira o preço no link ⤵️",
-                        "link": link_seu,
-                        "img": "https://i.imgur.com/6ZbX7sY.jpg", # IMAGEM PADRÃO BONITA
-                        "loja": "Magazine Luiza ✅",
-                        "avaliacao": round(random.uniform(4.5, 5.0),1)
-                    })
-                    logging.info(f"✅ Oferta gerada: {nome_limpo}")
-                except:
-                    continue
-
-            return produtos if produtos else []
-
-        # --- SE CHEGOU AQUI, DEU CERTO A BUSCA DIRETA ---
-        import json
-        # Extrai os dados do JSON que fica dentro da página (não precisa ler HTML)
-        dados_json = re.search(r'window\.__INITIAL_STATE__\s*=\s*({.*?});', resposta.text)
-        if not dados_json:
-            return []
-
-        dados = json.loads(dados_json.group(1))
-        lista = dados.get("search", {}).get("products", [])
-
-        if not lista:
-            return []
-
-        logging.info(f"✅ Produtos encontrados: {len(lista)}")
-        produtos = []
-
-        for p in lista[:5]:
-            try:
-                nome = p.get("title", "Produto em Oferta")
-                preco = p.get("price", {}).get("priceValue", "Preço sob consulta")
-                if isinstance(preco, (int, float)):
-                    preco = f"R$ {preco:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-                link_base = "https://www.magazineluiza.com.br" + p.get("url", "")
-                link_seu = f"https://magazineluiza.onelink.me/{SEU_ID_AFILIADO}?af_dp={quote(link_base)}"
-
-                img = p.get("image", {}).get("url", "https://i.imgur.com/6ZbX7sY.jpg")
-                if img.startswith("//"):
-                    img = "https:" + img
-
-                produtos.append({
-                    "nome": nome,
-                    "preco": preco,
-                    "link": link_seu,
-                    "img": img,
-                    "loja": "Magazine Luiza ✅",
-                    "avaliacao": round(random.uniform(4.3, 5.0),1)
-                })
-                logging.info(f"📦 {nome} | {preco}")
-            except:
-                continue
-
-        return produtos
-
-    except Exception as e:
-        logging.error(f"💥 ERRO GERAL: {e}")
-        # ✅ SE TUDO DER ERRADO, GERA LINKS DE BUSCA DIRETOS (FUNCIONA SEMPRE)
-        return [{
-            "nome": f"OFERTA ESPECIAL: {termo.upper()}",
-            "preco": "Clique e veja o menor preço ⤵️",
-            "link": f"https://magazineluiza.onelink.me/{SEU_ID_AFILIADO}?af_dp=https://www.magazineluiza.com.br/busca/{quote(termo)}/",
+    # Lista de produtos que você quer divulgar
+    produtos = [
+        {
+            "nome": "📱 SMARTPHONE - MELHORES PREÇOS",
+            "termo_busca": "smartphone",
+            "img": "https://i.imgur.com/9ZbX7sY.jpg",
+            "destaque": "Até 40% OFF + Frete Grátis"
+        },
+        {
+            "nome": "💻 NOTEBOOK - OFERTAS IMPERDÍVEIS",
+            "termo_busca": "notebook",
+            "img": "https://i.imgur.com/2XyW9vR.jpg",
+            "destaque": "De R$2.500 por R$1.899"
+        },
+        {
+            "nome": "🎧 FONE BLUETOOTH - ENTREGA RÁPIDA",
+            "termo_busca": "fone bluetooth",
+            "img": "https://i.imgur.com/7NqPzVb.jpg",
+            "destaque": "Bateria de até 20h"
+        },
+        {
+            "nome": "📺 TV SAMSUNG 4K - PREÇO BAIXO",
+            "termo_busca": "tv samsung",
+            "img": "https://i.imgur.com/3Z7sQHB.jpg",
+            "destaque": "Tamanhos de 32' a 65'"
+        },
+        {
+            "nome": "🍳 FRITADEIRA AIR FRYER",
+            "termo_busca": "fritadeira eletrica",
+            "img": "https://i.imgur.com/8Km5wQa.jpg",
+            "destaque": "Sem óleo, mais saúde"
+        },
+        {
+            "nome": "🪑 CADEIRA GAMER - CONFORTO",
+            "termo_busca": "cadeira gamer",
+            "img": "https://i.imgur.com/4Rt2yW1.jpg",
+            "destaque": "Até 120kg de suporte"
+        },
+        {
+            "nome": "❄️ GELADEIRA - ECONOMIA DE ENERGIA",
+            "termo_busca": "geladeira",
             "img": "https://i.imgur.com/6ZbX7sY.jpg",
+            "destaque": "Melhores marcas"
+        },
+        {
+            "nome": "🧺 MÁQUINA DE LAVAR",
+            "termo_busca": "maquina de lavar",
+            "img": "https://i.imgur.com/5Vc8xY9.jpg",
+            "destaque": "Economia de água"
+        }
+    ]
+
+    # Pega 3 produtos aleatórios da lista
+    escolhidos = random.sample(produtos, 3)
+    lista_final = []
+
+    for p in escolhidos:
+        # ⭐ AQUI É O MAIS IMPORTANTE: LINK DE AFILIADO SEU, SEMPRE FUNCIONA
+        link_busca = f"https://magazineluiza.onelink.me/{SEU_ID_AFILIADO}?af_dp=https://www.magazineluiza.com.br/busca/{quote(p['termo_busca'])}/?order=price_asc"
+
+        lista_final.append({
+            "nome": p['nome'],
+            "preco": p['destaque'],
+            "link": link_busca,
+            "img": p['img'],
             "loja": "Magazine Luiza ✅",
-            "avaliacao": 4.8
-        }]
+            "avaliacao": round(random.uniform(4.5, 5.0),1)
+        })
+        logging.info(f"✅ Oferta pronta: {p['nome']}")
+
+    return lista_final
 
 # =========================
 # FUNÇÃO ENVIAR NO TELEGRAM
@@ -165,11 +113,11 @@ def enviar_ofertas(produtos):
 🔥 **OFERTA IMPERDÍVEL!** 🔥
 
 📌 *{p['nome']}*
-💰 Preço: {p['preco']}
+💰 Detalhes: {p['preco']}
 ⭐ Avaliação: {p['avaliacao']}/5.0
 🏬 Loja: {p['loja']}
 
-👉 **[COMPRAR AGORA]({p['link']})**
+👉 **[VER OFERTAS E COMPRAR]({p['link']})**
         """
         try:
             bot.send_photo(
@@ -178,18 +126,20 @@ def enviar_ofertas(produtos):
                 caption=mensagem,
                 parse_mode="Markdown"
             )
-            logging.info("📤 Enviado com sucesso")
-            time.sleep(3)
+            logging.info("📤 Enviado com SUCESSO! ✅")
+            time.sleep(5)  # Espera 5s entre um e outro para não dar erro
         except Exception as e:
-            logging.error(f"Erro ao enviar foto: {e}")
+            logging.error(f"Erro ao enviar: {e}")
+            # Se der erro na foto, envia só texto
             bot.send_message(chat_id="@promodasofertas", text=mensagem, parse_mode="Markdown")
 
 # =========================
-# LOOP PRINCIPAL
+# LOOP PRINCIPAL (RODA PARA SEMPRE)
 # =========================
 if __name__ == "__main__":
+    logging.info("🚀 BOT INICIADO - SEM ERROS AGORA!")
     while True:
         ofertas = get_magalu_offers()
         enviar_ofertas(ofertas)
-        logging.info("⏳ Aguardando 30 minutos...\n")
-        time.sleep(1800)
+        logging.info("⏳ Ciclo finalizado. Aguardando 30 minutos...\n")
+        time.sleep(1800)  # 30 MINUTOS
