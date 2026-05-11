@@ -37,9 +37,7 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 # =========================
 
 def dentro_do_horario():
-
     agora = datetime.now(FUSO_BR).time()
-
     return dt_time(5, 0) <= agora <= dt_time(21, 0)
 
 # =========================
@@ -47,7 +45,6 @@ def dentro_do_horario():
 # =========================
 
 def gerar_copy(nome, preco, vendas, avaliacao, link):
-
     aberturas = [
         "🚨 OFERTA ENCONTRADA",
         "🔥 PREÇO MUITO BOM",
@@ -78,11 +75,8 @@ def gerar_copy(nome, preco, vendas, avaliacao, link):
 # =========================
 
 def gerar_link_whatsapp_from_html(msg_html, link):
-
     texto = re.sub('<[^<]+?>', '', msg_html)
-
     texto += f"\n\n🛒 {link}"
-
     return f"https://wa.me/?text={quote(texto)}"
 
 # =========================
@@ -90,15 +84,13 @@ def gerar_link_whatsapp_from_html(msg_html, link):
 # =========================
 
 def get_ml_offers():
-
     logging.info("Buscando ofertas ML")
 
     headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0 Safari/537.36"
-        )
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Referer": "https://www.mercadolivre.com.br/"
     }
 
     buscas = [
@@ -111,74 +103,68 @@ def get_ml_offers():
     ]
 
     termo = random.choice(buscas)
-
     logging.info(f"Busca escolhida: {termo}")
 
     try:
-
         url = f"https://lista.mercadolivre.com.br/{termo.replace(' ', '-')}"
-
-        response = requests.get(
-            url,
-            headers=headers,
-            timeout=20
-        )
-
+        response = requests.get(url, headers=headers, timeout=20)
         logging.info(f"Status ML: {response.status_code}")
 
-        soup = BeautifulSoup(response.text, "html.parser")
+        if response.status_code != 200:
+            logging.error("Página indisponível ou bloqueada")
+            return []
 
+        soup = BeautifulSoup(response.text, "html.parser")
         produtos = []
 
-        cards = soup.select(".ui-search-result")
-
+        # Seletor atualizado e mais estável
+        cards = soup.select("div.ui-search-result__wrapper") or soup.select(".ui-search-result")
         logging.info(f"Cards encontrados: {len(cards)}")
 
         for card in cards[:5]:
-
             try:
+                # Seletores corrigidos para funcionar no ML atual
+                titulo = card.select_one("h2.ui-search-item__title") or card.select_one(".poly-component__title")
+                preco = card.select_one("span.andes-money-amount__fraction") or card.select_one(".price-tag-fraction")
+                link = card.select_one("a.ui-search-link") or card.select_one("a")
+                imagem = card.select_one("img.ui-search-result-image__element") or card.select_one("img")
 
-               titulo = card.select_one(".poly-component__title")
-
-               preco = card.select_one(".andes-money-amount__fraction")
-
-               link = card.select_one("a")
-
-               imagem = card.select_one("img")
-
+                # ✅ INDENTAÇÃO CORRIGIDA AQUI
                 if not titulo:
-                   continue
-
+                    continue
                 if not preco:
                     continue
-
                 if not link:
                     continue
-
                 if not imagem:
                     continue
 
+                # Extração de texto/atributos com validação
+                nome_prod = titulo.get_text(strip=True)
+                preco_prod = preco.get_text(strip=True)
+                link_prod = link.get("href", "")
+                img_prod = imagem.get("src", "") or imagem.get("data-src", "")
+
+                if not nome_prod or not preco_prod or not link_prod or not img_prod:
+                    continue
+
                 produtos.append({
-                    "nome": titulo.get_text(strip=True),
-                    "preco": preco.get_text(strip=True),
-                    "link": link.get("href"),
-                    "img": imagem.get("src"),
+                    "nome": nome_prod,
+                    "preco": preco_prod,
+                    "link": link_prod,
+                    "img": img_prod,
                     "vendas": random.randint(100, 5000),
                     "avaliacao": round(random.uniform(4.4, 5.0), 1)
                 })
 
             except Exception as e:
-
                 logging.error(f"Erro produto: {e}")
 
         logging.info(f"ML OK: {len(produtos)} produtos")
-
         return produtos
 
     except Exception as e:
-
         logging.error(f"ERRO ML: {e}")
-
         return []
 
 # =========================
@@ -186,23 +172,17 @@ def get_ml_offers():
 # =========================
 
 async def send_ofertas(app):
-
     try:
-
         logging.info("Loop iniciado")
 
         if not dentro_do_horario():
-
             logging.info("Fora do horario")
-
             return
 
         ofertas = get_ml_offers()
 
         if len(ofertas) == 0:
-
             logging.warning("Nenhuma oferta encontrada")
-
             return
 
         await app.bot.send_message(
@@ -213,17 +193,12 @@ async def send_ofertas(app):
         await asyncio.sleep(5)
 
         for item in ofertas:
-
             try:
-
                 nome = html.escape(item["nome"])
-
                 if not nome:
                     continue
-
                 if not item["img"]:
                     continue
-
                 if not item["link"]:
                     continue
 
@@ -235,11 +210,7 @@ async def send_ofertas(app):
                     item["link"]
                 )
 
-                zap = gerar_link_whatsapp_from_html(
-                    msg,
-                    item["link"]
-                )
-
+                zap = gerar_link_whatsapp_from_html(msg, item["link"])
                 msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
 
                 logging.info(f"Enviando produto: {nome}")
@@ -254,13 +225,11 @@ async def send_ofertas(app):
                 await asyncio.sleep(40)
 
             except Exception as e:
-
                 logging.error(f"Erro Telegram produto: {e}")
 
         logging.info("Loop finalizado")
 
     except Exception as e:
-
         logging.error(f"ERRO CRITICO: {e}")
 
 # =========================
@@ -268,17 +237,11 @@ async def send_ofertas(app):
 # =========================
 
 async def loop_ofertas(app):
-
     while True:
-
         try:
-
             await send_ofertas(app)
-
         except Exception as e:
-
             logging.error(f"ERRO LOOP: {e}")
-
         await asyncio.sleep(CHECK_INTERVAL)
 
 # =========================
@@ -286,7 +249,6 @@ async def loop_ofertas(app):
 # =========================
 
 async def main():
-
     app = (
         ApplicationBuilder()
         .token(TELEGRAM_TOKEN)
@@ -298,15 +260,12 @@ async def main():
     asyncio.create_task(loop_ofertas(app))
 
     await app.initialize()
-
     await app.start()
-
     await app.updater.start_polling(
         drop_pending_updates=True
     )
 
     while True:
-
         await asyncio.sleep(60)
 
 # =========================
@@ -314,5 +273,4 @@ async def main():
 # =========================
 
 if __name__ == "__main__":
-
     asyncio.run(main())
