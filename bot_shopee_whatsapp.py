@@ -308,7 +308,9 @@ if __name__ == "__main__":
 
             logging.info("INICIANDO POLLING...")
 
-            app.run_polling()
+            app.run_polling(
+                allowed_updates=[]
+            )
 
         except Exception as e:
 
