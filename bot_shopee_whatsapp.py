@@ -130,7 +130,7 @@ def get_ml_offers():
 
         produtos = []
 
-        cards = soup.select("li.ui-search-layout__item")
+        cards = soup.select(".ui-search-result")
 
         logging.info(f"Cards encontrados: {len(cards)}")
 
@@ -138,13 +138,13 @@ def get_ml_offers():
 
             try:
 
-                titulo = card.select_one("h2")
+               titulo = card.select_one(".poly-component__title")
 
-                preco = card.select_one(".andes-money-amount__fraction")
+               preco = card.select_one(".andes-money-amount__fraction")
 
-                link = card.select_one("a")
+               link = card.select_one("a")
 
-                imagem = card.select_one("img")
+               imagem = card.select_one("img")
 
                 if not titulo:
                     continue
