@@ -108,29 +108,24 @@ def gerar_link_whatsapp_from_html(msg_html, link):
 
 def get_ml_offers():
 
-    logging.info("Buscando ofertas ML")
+    logging.info("Buscando ofertas ML SITE")
+
+    buscas = [
+        "notebook",
+        "smartphone",
+        "tv",
+        "fone bluetooth",
+        "promoção",
+        "ofertas"
+    ]
 
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        ),
-        "Accept": "application/json",
-        "Accept-Language": "pt-BR,pt;q=0.9",
-        "Connection": "keep-alive"
+            "Chrome/122.0 Safari/537.36"
+        )
     }
-
-    buscas = [
-        "smart tv",
-        "iphone",
-        "notebook",
-        "fone bluetooth",
-        "caixa de som",
-        "video game",
-        "promoção",
-        "oferta"
-    ]
 
     produtos = []
 
@@ -140,10 +135,7 @@ def get_ml_offers():
 
         logging.info(f"Busca escolhida: {termo}")
 
-        url = (
-            "https://api.mercadolibre.com/sites/MLB/search"
-            f"?q={quote(termo)}&limit=10"
-        )
+        url = f"https://lista.mercadolivre.com.br/{termo}"
 
         r = requests.get(
             url,
@@ -151,68 +143,46 @@ def get_ml_offers():
             timeout=30
         )
 
-        logging.info(f"Status ML: {r.status_code}")
+        logging.info(f"Status SITE ML: {r.status_code}")
 
         if r.status_code != 200:
-
-            logging.error(f"Erro ML: {r.text}")
-
             return []
 
-        data = r.json()
+        html_site = r.text
 
-        resultados = data.get("results", [])
+        blocos = re.findall(
+            r'<a href="(https://[^"]+)" class="poly-component__title".*?>(.*?)</a>.*?src="(https://[^"]+)"',
+            html_site,
+            re.S
+        )
 
-        logging.info(f"Resultados encontrados: {len(resultados)}")
+        logging.info(f"Produtos encontrados ML: {len(blocos)}")
 
-        for item in resultados:
+        for link, nome, img in blocos[:10]:
 
-            try:
+            nome = re.sub('<.*?>', '', nome)
 
-                thumb = item.get("thumbnail")
+            preco_match = re.search(
+                rf'{re.escape(link)}.*?andes-money-amount__fraction">([^<]+)',
+                html_site,
+                re.S
+            )
 
-                if not thumb:
-                    continue
+            preco = preco_match.group(1) if preco_match else "0"
 
-                preco = item.get("price")
-
-                if not preco:
-                    continue
-
-                link = item.get("permalink")
-
-                if not link:
-                    continue
-
-                produtos.append({
-
-                    "nome": item["title"],
-
-                    "preco": preco,
-
-                    "link": link,
-
-                    "img": thumb.replace(
-                        "http://",
-                        "https://"
-                    ),
-
-                    "vendas": random.randint(100, 5000),
-
-                    "avaliacao": round(
-                        random.uniform(4.4, 5.0),
-                        1
-                    )
-
-                })
-
-            except Exception as e:
-
-                logging.error(f"Erro item ML: {e}")
+            produtos.append({
+                "nome": nome.strip(),
+                "preco": float(str(preco).replace(".", "").replace(",", ".")),
+                "link": link,
+                "img": img,
+                "vendas": random.randint(100, 5000),
+                "avaliacao": round(random.uniform(4.4, 5.0), 1),
+                "origem": "ml"
+            })
 
     except Exception as e:
 
-        logging.error(f"ERRO ML GERAL: {e}")
+        logging.error(f"ERRO ML SITE: {e}")
 
     logging.info(f"ML OK: {len(produtos)} produtos")
 
