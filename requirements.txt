@@ -1,2 +1,4 @@
-python-telegram-bot==21.0.1
+python-telegram-bot[job-queue]==20.6
 requests
+beautifulsoup4
+APScheduler==3.10.4
