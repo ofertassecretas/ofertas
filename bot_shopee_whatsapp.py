@@ -308,29 +308,56 @@ async def keep_alive():
         await asyncio.sleep(300)
 
 # =========================
-# START (CORRIGIDO PARA 20.6 — SEM UPLOADER ANTIGO)
+# LOOP MANUAL
 # =========================
-async def post_init(app):
-    app.job_queue.run_repeating(
-        send_ofertas,
-        interval=CHECK_INTERVAL,
-        first=10
-    )
-    asyncio.create_task(keep_alive())
-    logging.info("🤖 BOT RODANDO ESTAVEL - VERSÃO 20.6 ✅")
 
-if __name__ == "__main__":
+async def loop_ofertas(app):
+
     while True:
+
         try:
-            app = (
-                ApplicationBuilder()
-                .token(TELEGRAM_TOKEN)
-                .post_init(post_init)
-                .build()
-            )
-            # ✅ Agora usa a forma correta da 20.6, sem erro de __polling_cleanup_cb
-            app.run_polling(close_loop=False)
+
+            await send_ofertas(app)
 
         except Exception as e:
-            logging.error(f"BOT REINICIANDO: {e}")
-            time.sleep(15)
+
+            logging.error(f"ERRO LOOP: {e}")
+
+        await asyncio.sleep(CHECK_INTERVAL)
+
+# =========================
+# MAIN
+# =========================
+
+async def main():
+
+    app = (
+        ApplicationBuilder()
+        .token(TELEGRAM_TOKEN)
+        .build()
+    )
+
+    logging.info("🤖 BOT RODANDO ESTAVEL")
+
+    asyncio.create_task(loop_ofertas(app))
+    asyncio.create_task(keep_alive())
+
+    await app.initialize()
+
+    await app.start()
+
+    await app.updater.start_polling(
+        drop_pending_updates=True
+    )
+
+    while True:
+
+        await asyncio.sleep(60)
+
+# =========================
+# START
+# =========================
+
+if __name__ == "__main__":
+
+    asyncio.run(main())
