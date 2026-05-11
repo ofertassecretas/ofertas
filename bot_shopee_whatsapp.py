@@ -2,7 +2,6 @@ import asyncio
 import requests
 import logging
 import random
-import time
 import os
 import html
 import re
@@ -10,9 +9,11 @@ import re
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 from urllib.parse import quote
-from telegram.ext import ApplicationBuilder, ContextTypes
+from bs4 import BeautifulSoup
 
-print("VERSAO TESTE ML V2")
+from telegram.ext import ApplicationBuilder
+
+print("VERSAO TESTE ML V3")
 
 # =========================
 # CONFIG
@@ -36,14 +37,14 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 # =========================
 
 def dentro_do_horario():
+
     agora = datetime.now(FUSO_BR).time()
+
     return dt_time(5, 0) <= agora <= dt_time(21, 0)
 
 # =========================
 # COPY
 # =========================
-
-usadas_abertura = set()
 
 def gerar_copy(nome, preco, vendas, avaliacao, link):
 
@@ -90,13 +91,13 @@ def gerar_link_whatsapp_from_html(msg_html, link):
 
 def get_ml_offers():
 
-    logging.info("Buscando ofertas ML SITE")
+    logging.info("Buscando ofertas ML")
 
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
+            "Chrome/124.0 Safari/537.36"
         )
     }
 
@@ -117,63 +118,58 @@ def get_ml_offers():
 
         url = f"https://lista.mercadolivre.com.br/{termo.replace(' ', '-')}"
 
-        r = requests.get(
+        response = requests.get(
             url,
             headers=headers,
             timeout=20
         )
 
-        logging.info(f"Status SITE ML: {r.status_code}")
+        logging.info(f"Status ML: {response.status_code}")
 
-        html_site = r.text
+        soup = BeautifulSoup(response.text, "html.parser")
 
         produtos = []
 
-        padrao = re.findall(
-            r'"polycard-(.*?)"',
-            html_site
-        )
+        cards = soup.select("li.ui-search-layout__item")
 
-        logging.info(f"Produtos brutos encontrados: {len(padrao)}")
+        logging.info(f"Cards encontrados: {len(cards)}")
 
-        links = re.findall(
-            r'https://www.mercadolivre.com.br/p/MLB[0-9]+',
-            html_site
-        )
+        for card in cards[:5]:
 
-        imagens = re.findall(
-            r'https://http2.mlstatic.com/D_NQ_NP_[^"]+?jpg',
-            html_site
-        )
+            try:
 
-        titulos = re.findall(
-            r'"title":"(.*?)"',
-            html_site
-        )
+                titulo = card.select_one("h2")
 
-        precos = re.findall(
-            r'"price":([0-9]+)',
-            html_site
-        )
+                preco = card.select_one(".andes-money-amount__fraction")
 
-        limite = min(
-            len(links),
-            len(imagens),
-            len(titulos),
-            len(precos),
-            5
-        )
+                link = card.select_one("a")
 
-        for i in range(limite):
+                imagem = card.select_one("img")
 
-            produtos.append({
-                "nome": titulos[i],
-                "preco": precos[i],
-                "link": links[i],
-                "img": imagens[i],
-                "vendas": random.randint(100, 5000),
-                "avaliacao": round(random.uniform(4.4, 5.0), 1)
-            })
+                if not titulo:
+                    continue
+
+                if not preco:
+                    continue
+
+                if not link:
+                    continue
+
+                if not imagem:
+                    continue
+
+                produtos.append({
+                    "nome": titulo.get_text(strip=True),
+                    "preco": preco.get_text(strip=True),
+                    "link": link.get("href"),
+                    "img": imagem.get("src"),
+                    "vendas": random.randint(100, 5000),
+                    "avaliacao": round(random.uniform(4.4, 5.0), 1)
+                })
+
+            except Exception as e:
+
+                logging.error(f"Erro produto: {e}")
 
         logging.info(f"ML OK: {len(produtos)} produtos")
 
@@ -189,7 +185,7 @@ def get_ml_offers():
 # ENVIO
 # =========================
 
-async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
+async def send_ofertas(app):
 
     try:
 
@@ -205,11 +201,11 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
         if len(ofertas) == 0:
 
-            logging.warning("Nenhuma oferta ML encontrada")
+            logging.warning("Nenhuma oferta encontrada")
 
             return
 
-        await context.bot.send_message(
+        await app.bot.send_message(
             chat_id=CHAT_ID_DESTINO,
             text="🚨 OFERTAS ML CHEGANDO..."
         )
@@ -237,9 +233,9 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
                 msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
 
-                logging.info("Enviando produto ML")
+                logging.info("Enviando produto")
 
-                await context.bot.send_photo(
+                await app.bot.send_photo(
                     chat_id=CHAT_ID_DESTINO,
                     photo=item["img"],
                     caption=msg,
@@ -259,48 +255,55 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         logging.error(f"ERRO CRITICO: {e}")
 
 # =========================
-# KEEP ALIVE
+# LOOP MANUAL
 # =========================
 
-async def keep_alive():
+async def loop_ofertas(app):
 
     while True:
 
-        logging.info("BOT ML VIVO")
+        try:
 
-        await asyncio.sleep(300)
+            await send_ofertas(app)
 
-# =========================
-# START
-# =========================
+        except Exception as e:
 
-async def post_init(app):
+            logging.error(f"ERRO LOOP: {e}")
 
-    app.job_queue.run_repeating(
-        send_ofertas,
-        interval=CHECK_INTERVAL,
-        first=10
-    )
-
-    asyncio.create_task(keep_alive())
-
-    logging.info("🤖 BOT ML RODANDO")
+        await asyncio.sleep(CHECK_INTERVAL)
 
 # =========================
 # MAIN
 # =========================
 
-if __name__ == "__main__":
-
-    logging.info("INICIANDO BOT...")
+async def main():
 
     app = (
         ApplicationBuilder()
         .token(TELEGRAM_TOKEN)
-        .post_init(post_init)
         .build()
     )
 
-    app.run_polling(
+    logging.info("🤖 BOT ML RODANDO")
+
+    asyncio.create_task(loop_ofertas(app))
+
+    await app.initialize()
+
+    await app.start()
+
+    await app.updater.start_polling(
         drop_pending_updates=True
     )
+
+    while True:
+
+        await asyncio.sleep(60)
+
+# =========================
+# START
+# =========================
+
+if __name__ == "__main__":
+
+    asyncio.run(main())
