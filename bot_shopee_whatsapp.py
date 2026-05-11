@@ -218,6 +218,15 @@ async def send_ofertas(app):
 
                 nome = html.escape(item["nome"])
 
+                if not nome:
+                    continue
+
+                if not item["img"]:
+                    continue
+
+                if not item["link"]:
+                    continue
+
                 msg = gerar_copy(
                     nome,
                     item["preco"],
@@ -233,7 +242,7 @@ async def send_ofertas(app):
 
                 msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
 
-                logging.info("Enviando produto")
+                logging.info(f"Enviando produto: {nome}")
 
                 await app.bot.send_photo(
                     chat_id=CHAT_ID_DESTINO,
@@ -246,7 +255,7 @@ async def send_ofertas(app):
 
             except Exception as e:
 
-                logging.error(f"Erro Telegram: {e}")
+                logging.error(f"Erro Telegram produto: {e}")
 
         logging.info("Loop finalizado")
 
