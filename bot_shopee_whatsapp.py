@@ -7,12 +7,15 @@ import os
 import html
 import re
 
+from bs4 import BeautifulSoup
+
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 from urllib.parse import quote
+
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO TESTE ML V1")
+print("VERSAO TESTE ML V2")
 
 # =========================
 # CONFIG
@@ -32,11 +35,13 @@ logging.basicConfig(
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # =========================
-# HORÁRIO
+# HORARIO
 # =========================
 
 def dentro_do_horario():
+
     agora = datetime.now(FUSO_BR).time()
+
     return dt_time(5, 0) <= agora <= dt_time(21, 0)
 
 # =========================
@@ -48,46 +53,25 @@ usadas_abertura = set()
 def gerar_copy(nome, preco, vendas, avaliacao, link):
 
     aberturas = [
-        "🚨 Oferta encontrada agora",
-        "🔥 Isso aqui tá chamando atenção",
-        "👀 Achei isso aqui no ML",
-        "💥 Preço interessante aparecendo",
-        "🛑 Olha isso aqui",
-        "⚠️ Pode acabar rápido",
-        "🚀 Produto rodando forte",
-        "📉 Esse preço não costuma durar"
+        "🚨 OFERTA ENCONTRADA",
+        "🔥 ACHADINHO DO MOMENTO",
+        "💥 PREÇO MUITO FORTE",
+        "⚠️ ISSO AQUI VAI SUMIR",
+        "👀 OLHA ESSE PREÇO",
     ]
 
-    gatilhos = [
-        "Preço abaixo da média",
-        "Produto muito procurado",
-        "Boa oportunidade",
-        "Custo-benefício forte",
-        "Produto com bastante saída",
-        "Quem compra recomenda"
-    ]
-
-    abertura = random.choice(
-        [a for a in aberturas if a not in usadas_abertura] or aberturas
-    )
-
-    usadas_abertura.add(abertura)
-
-    gatilho = random.choice(gatilhos)
+    abertura = random.choice(aberturas)
 
     return f"""
 <b>{abertura}</b>
 
 🔥 <b>{nome}</b>
 
-{gatilho}
-
 💰 <b>R$ {preco}</b>
-⭐ {avaliacao} | 🛒 {vendas} vendas
+⭐ {avaliacao}
+🛒 {vendas} vendas
 
-⚠️ Pode subir de preço
-
-<a href="{link}">🛒 VER PRODUTO</a>
+<a href="{link}">🛒 COMPRAR AGORA</a>
 """
 
 # =========================
@@ -103,28 +87,28 @@ def gerar_link_whatsapp_from_html(msg_html, link):
     return f"https://wa.me/?text={quote(texto)}"
 
 # =========================
-# MERCADO LIVRE
+# ML
 # =========================
 
 def get_ml_offers():
 
     logging.info("Buscando ofertas ML SITE")
 
-    buscas = [
-        "notebook",
-        "smartphone",
-        "tv",
-        "fone-bluetooth",
-        "ofertas"
-    ]
-
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/122.0 Safari/537.36"
+            "Chrome/123.0 Safari/537.36"
         )
     }
+
+    buscas = [
+        "notebook",
+        "smartphone",
+        "fone bluetooth",
+        "tv samsung",
+        "promoção"
+    ]
 
     produtos = []
 
@@ -139,55 +123,72 @@ def get_ml_offers():
         r = requests.get(
             url,
             headers=headers,
-            timeout=30
+            timeout=20
         )
 
         logging.info(f"Status SITE ML: {r.status_code}")
 
-        if r.status_code != 200:
-            return []
+        soup = BeautifulSoup(r.text, "html.parser")
 
-        html_site = r.text
+        cards = soup.select("li.ui-search-layout__item")
 
-        links = re.findall(
-            r'https://[^\s"]+MLB[0-9]+[^\s"]+',
-            html_site
-        )
+        logging.info(f"Cards encontrados: {len(cards)}")
 
-        imagens = re.findall(
-            r'https://http2\.mlstatic\.com/D_NQ_NP_[^\s"]+',
-            html_site
-        )
+        for card in cards[:10]:
 
-        logging.info(f"Links encontrados: {len(links)}")
-        logging.info(f"Imagens encontradas: {len(imagens)}")
+            try:
 
-        usados = set()
+                titulo = card.select_one("h3")
 
-        for i in range(min(10, len(links), len(imagens))):
+                preco = card.select_one(".andes-money-amount__fraction")
 
-            link = links[i]
+                link = card.select_one("a")
 
-            if link in usados:
-                continue
+                imagem = card.select_one("img")
 
-            usados.add(link)
+                if not titulo or not preco or not link:
+                    continue
 
-            produtos.append({
-                "nome": f"Oferta Mercado Livre {i+1}",
-                "preco": random.randint(99, 4999),
-                "link": link,
-                "img": imagens[i],
-                "vendas": random.randint(100, 5000),
-                "avaliacao": round(random.uniform(4.4, 5.0), 1),
-                "origem": "ml"
-            })
+                nome = titulo.get_text(strip=True)
 
-        logging.info(f"ML OK: {len(produtos)} produtos")
+                preco_texto = preco.get_text(strip=True)
+
+                preco_float = float(
+                    preco_texto.replace(".", "")
+                )
+
+                link_produto = link.get("href")
+
+                img = None
+
+                if imagem:
+
+                    img = imagem.get("src")
+
+                    if not img:
+                        img = imagem.get("data-src")
+
+                if not img:
+                    continue
+
+                produtos.append({
+                    "nome": nome,
+                    "preco": preco_float,
+                    "link": link_produto,
+                    "img": img,
+                    "vendas": random.randint(100, 5000),
+                    "avaliacao": round(random.uniform(4.4, 5.0), 1),
+                })
+
+            except Exception as e:
+
+                logging.error(f"Erro item ML: {e}")
 
     except Exception as e:
 
-        logging.error(f"ERRO ML SITE: {e}")
+        logging.error(f"Erro ML: {e}")
+
+    logging.info(f"ML OK: {len(produtos)} produtos")
 
     return produtos
 
@@ -207,8 +208,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
             return
 
-        usadas_abertura.clear()
-
         ofertas = get_ml_offers()
 
         if len(ofertas) == 0:
@@ -217,8 +216,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
             return
 
-        selecionadas = ofertas[:5]
-
         await context.bot.send_message(
             chat_id=CHAT_ID_DESTINO,
             text="🚨 OFERTAS ML CHEGANDO..."
@@ -226,42 +223,24 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
         await asyncio.sleep(5)
 
-        for item in selecionadas:
+        for item in ofertas[:5]:
 
             try:
 
-                nome = html.escape(item["nome"])
-
-                preco = f"{float(item['preco']):.2f}"
-
-                rating = item["avaliacao"]
-
-                vendas = f"{item['vendas']:,}".replace(",", ".")
-
-                link = item["link"]
-
                 msg = gerar_copy(
-                    nome,
-                    preco,
-                    vendas,
-                    rating,
-                    link
+                    item["nome"],
+                    f'{item["preco"]:.2f}',
+                    item["vendas"],
+                    item["avaliacao"],
+                    item["link"]
                 )
 
                 zap = gerar_link_whatsapp_from_html(
                     msg,
-                    link
+                    item["link"]
                 )
 
-                msg += (
-                    f'\n📲 <a href="{zap}">'
-                    'Compartilhar no WhatsApp</a>'
-                )
-
-                msg += (
-                    "\n━━━━━━━━━━━━━━━"
-                    "\n📢 <b>Ofertas Mercado Livre</b>"
-                )
+                msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
 
                 logging.info("Enviando produto ML")
 
@@ -272,17 +251,15 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     parse_mode="HTML"
                 )
 
-                await asyncio.sleep(40)
+                await asyncio.sleep(25)
 
             except Exception as e:
 
-                logging.error(f"Erro envio ML: {e}")
-
-        logging.info("Loop finalizado")
+                logging.error(f"Erro Telegram: {e}")
 
     except Exception as e:
 
-        logging.error(f"ERRO CRITICO: {e}")
+        logging.error(f"ERRO LOOP: {e}")
 
 # =========================
 # KEEP ALIVE
