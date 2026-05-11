@@ -7,12 +7,9 @@ import os
 import html
 import re
 
-from bs4 import BeautifulSoup
-
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 from urllib.parse import quote
-
 from telegram.ext import ApplicationBuilder, ContextTypes
 
 print("VERSAO TESTE ML V2")
@@ -35,13 +32,11 @@ logging.basicConfig(
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # =========================
-# HORARIO
+# HORÁRIO
 # =========================
 
 def dentro_do_horario():
-
     agora = datetime.now(FUSO_BR).time()
-
     return dt_time(5, 0) <= agora <= dt_time(21, 0)
 
 # =========================
@@ -54,10 +49,10 @@ def gerar_copy(nome, preco, vendas, avaliacao, link):
 
     aberturas = [
         "🚨 OFERTA ENCONTRADA",
-        "🔥 ACHADINHO DO MOMENTO",
-        "💥 PREÇO MUITO FORTE",
-        "⚠️ ISSO AQUI VAI SUMIR",
-        "👀 OLHA ESSE PREÇO",
+        "🔥 PREÇO MUITO BOM",
+        "💥 OLHA ESSE ACHADO",
+        "👀 ENCONTREI ISSO AQUI",
+        "⚠️ ESSA OFERTA PODE SUMIR"
     ]
 
     abertura = random.choice(aberturas)
@@ -72,6 +67,9 @@ def gerar_copy(nome, preco, vendas, avaliacao, link):
 🛒 {vendas} vendas
 
 <a href="{link}">🛒 COMPRAR AGORA</a>
+
+━━━━━━━━━━━━━━━
+📢 <b>Ofertas Secretas</b>
 """
 
 # =========================
@@ -87,7 +85,7 @@ def gerar_link_whatsapp_from_html(msg_html, link):
     return f"https://wa.me/?text={quote(texto)}"
 
 # =========================
-# ML
+# MERCADO LIVRE
 # =========================
 
 def get_ml_offers():
@@ -98,27 +96,26 @@ def get_ml_offers():
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/123.0 Safari/537.36"
+            "Chrome/124.0.0.0 Safari/537.36"
         )
     }
 
     buscas = [
-        "notebook",
         "smartphone",
+        "notebook",
         "fone bluetooth",
         "tv samsung",
+        "air fryer",
         "promoção"
     ]
 
-    produtos = []
+    termo = random.choice(buscas)
+
+    logging.info(f"Busca escolhida: {termo}")
 
     try:
 
-        termo = random.choice(buscas)
-
-        logging.info(f"Busca escolhida: {termo}")
-
-        url = f"https://lista.mercadolivre.com.br/{termo}"
+        url = f"https://lista.mercadolivre.com.br/{termo.replace(' ', '-')}"
 
         r = requests.get(
             url,
@@ -128,69 +125,68 @@ def get_ml_offers():
 
         logging.info(f"Status SITE ML: {r.status_code}")
 
-        soup = BeautifulSoup(r.text, "html.parser")
+        html_site = r.text
 
-        cards = soup.select("li.ui-search-layout__item")
+        links = re.findall(
+            r'https://[a-zA-Z0-9./_-]+MLB[a-zA-Z0-9._/?=&%-]+',
+            html_site
+        )
 
-        logging.info(f"Cards encontrados: {len(cards)}")
+        imagens = re.findall(
+            r'https://http2.mlstatic.com/D_NQ_NP_[a-zA-Z0-9-]+.jpg',
+            html_site
+        )
 
-        for card in cards[:10]:
+        titulos = re.findall(
+            r'"title":"(.*?)"',
+            html_site
+        )
+
+        precos = re.findall(
+            r'"price":([0-9]+)',
+            html_site
+        )
+
+        logging.info(f"Links encontrados: {len(links)}")
+        logging.info(f"Imagens encontradas: {len(imagens)}")
+        logging.info(f"Títulos encontrados: {len(titulos)}")
+        logging.info(f"Preços encontrados: {len(precos)}")
+
+        produtos = []
+
+        limite = min(
+            len(links),
+            len(imagens),
+            len(titulos),
+            len(precos),
+            5
+        )
+
+        for i in range(limite):
 
             try:
 
-                titulo = card.select_one("h3")
-
-                preco = card.select_one(".andes-money-amount__fraction")
-
-                link = card.select_one("a")
-
-                imagem = card.select_one("img")
-
-                if not titulo or not preco or not link:
-                    continue
-
-                nome = titulo.get_text(strip=True)
-
-                preco_texto = preco.get_text(strip=True)
-
-                preco_float = float(
-                    preco_texto.replace(".", "")
-                )
-
-                link_produto = link.get("href")
-
-                img = None
-
-                if imagem:
-
-                    img = imagem.get("src")
-
-                    if not img:
-                        img = imagem.get("data-src")
-
-                if not img:
-                    continue
-
                 produtos.append({
-                    "nome": nome,
-                    "preco": preco_float,
-                    "link": link_produto,
-                    "img": img,
+                    "nome": titulos[i],
+                    "preco": precos[i],
+                    "link": links[i],
+                    "img": imagens[i],
                     "vendas": random.randint(100, 5000),
-                    "avaliacao": round(random.uniform(4.4, 5.0), 1),
+                    "avaliacao": round(random.uniform(4.4, 5.0), 1)
                 })
 
             except Exception as e:
-
                 logging.error(f"Erro item ML: {e}")
+
+        logging.info(f"ML OK: {len(produtos)} produtos")
+
+        return produtos
 
     except Exception as e:
 
-        logging.error(f"Erro ML: {e}")
+        logging.error(f"ERRO ML: {e}")
 
-    logging.info(f"ML OK: {len(produtos)} produtos")
-
-    return produtos
+        return []
 
 # =========================
 # ENVIO
@@ -223,13 +219,15 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
         await asyncio.sleep(5)
 
-        for item in ofertas[:5]:
+        for item in ofertas:
 
             try:
 
+                nome = html.escape(item["nome"])
+
                 msg = gerar_copy(
-                    item["nome"],
-                    f'{item["preco"]:.2f}',
+                    nome,
+                    item["preco"],
                     item["vendas"],
                     item["avaliacao"],
                     item["link"]
@@ -251,15 +249,17 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     parse_mode="HTML"
                 )
 
-                await asyncio.sleep(25)
+                await asyncio.sleep(40)
 
             except Exception as e:
 
                 logging.error(f"Erro Telegram: {e}")
 
+        logging.info("Loop finalizado")
+
     except Exception as e:
 
-        logging.error(f"ERRO LOOP: {e}")
+        logging.error(f"ERRO CRITICO: {e}")
 
 # =========================
 # KEEP ALIVE
@@ -289,6 +289,10 @@ async def post_init(app):
 
     logging.info("🤖 BOT ML RODANDO")
 
+# =========================
+# MAIN
+# =========================
+
 if __name__ == "__main__":
 
     while True:
@@ -301,6 +305,8 @@ if __name__ == "__main__":
                 .post_init(post_init)
                 .build()
             )
+
+            logging.info("INICIANDO POLLING...")
 
             app.run_polling()
 
