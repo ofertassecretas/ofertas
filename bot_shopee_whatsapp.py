@@ -86,7 +86,7 @@ def gerar_link_whatsapp_from_html(msg_html, link):
 def get_ml_offers():
     logging.info("Buscando ofertas ML")
 
-    # ✅ Cabeçalhos COMPLETOS para simular navegador real (principal segredo)
+    # ✅ Cabeçalhos COMPLETOS para simular navegador real
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
@@ -120,8 +120,9 @@ def get_ml_offers():
     try:
         url = f"https://lista.mercadolivre.com.br/{termo.replace(' ', '-')}"
         
-        # ✅ Adicionei delay aleatório para parecer humano
-        await asyncio.sleep(random.uniform(1, 3))
+        # ✅ Delay aleatório SEM await (correção do erro)
+        import time
+        time.sleep(random.uniform(1, 3))
         
         response = requests.get(url, headers=headers, timeout=30)
         logging.info(f"Status ML: {response.status_code}")
@@ -129,10 +130,6 @@ def get_ml_offers():
         if response.status_code != 200:
             logging.error("Página indisponível ou bloqueada")
             return []
-
-        # ✅ Salva o HTML para debug (só na primeira vez, ajuda muito!)
-        # with open("debug_ml.html", "w", encoding="utf-8") as f:
-        #     f.write(response.text)
 
         soup = BeautifulSoup(response.text, "html.parser")
         produtos = []
