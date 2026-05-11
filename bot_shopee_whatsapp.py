@@ -292,25 +292,15 @@ async def post_init(app):
 
 if __name__ == "__main__":
 
-    while True:
+    logging.info("INICIANDO BOT...")
 
-        try:
+    app = (
+        ApplicationBuilder()
+        .token(TELEGRAM_TOKEN)
+        .post_init(post_init)
+        .build()
+    )
 
-            app = (
-                ApplicationBuilder()
-                .token(TELEGRAM_TOKEN)
-                .post_init(post_init)
-                .build()
-            )
-
-            logging.info("INICIANDO BOT...")
-
-            app.run_polling(
-                allowed_updates=[]
-            )
-
-        except Exception as e:
-
-            logging.error(f"BOT REINICIANDO: {e}")
-
-            time.sleep(15)
+    app.run_polling(
+        drop_pending_updates=True
+    )
