@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO FINAL HIBRIDA ESTAVEL V7 - ESTRATEGIA INFALIVEL")
+print("VERSAO FINAL HIBRIDA ESTAVEL V8 - LOMADEE PROFISSIONAL")
 
 # =========================
 # CONFIG
@@ -30,13 +30,9 @@ SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-# MERCADO LIVRE
-ML_APP_ID = "2239931406798467"
-ML_CLIENT_SECRET = "LwUz7jRmHMd8ffid7YA9WNsCNEzZfo7l"
-
-# MAGALU
-MAGALU_ONELINK_ID = "589508454"
-MAGALU_STORE_ID = "07yuzqjf"
+# LOMADEE (MAGALU, ML, ETC)
+LOMADEE_TOKEN = "ra1-ATlyjfiMkWhSWRkpEs53kgoPVSQ"
+LOMADEE_SOURCE_ID = "6ff2699e-ceaa-4fad-a58a-8b91f885485f"
 
 CHECK_INTERVAL = 5400
 
@@ -62,8 +58,13 @@ def dentro_do_horario():
 usadas_abertura = set()
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, origem="shopee"):
-    prefixos = {"shopee": "🟠 SHOPEE", "ml": "🟡 MERCADO LIVRE", "magalu": "🔵 MAGALU"}
-    prefixo = prefixos.get(origem, "")
+    prefixos = {
+        "shopee": "🟠 SHOPEE",
+        "ml": "🟡 MERCADO LIVRE",
+        "magalu": "🔵 MAGALU",
+        "lomadee": "🔥 OFERTA"
+    }
+    prefixo = prefixos.get(origem, "🔥 OFERTA")
 
     aberturas = [
         "🚨 Isso aqui não é comum aparecer assim", "👀 Achei isso aqui e fui conferir…",
@@ -123,58 +124,43 @@ def get_shopee_offers():
     except: return []
 
 # =========================
-# BUSCA MERCADO LIVRE (VIA API PÚBLICA DE TENDÊNCIAS)
+# BUSCA LOMADEE (MAGALU, ML, ETC)
 # =========================
 
-def get_ml_offers():
-    logging.info("Buscando Mercado Livre (Tendências)...")
+def get_lomadee_offers():
+    logging.info("Buscando Lomadee (Multiloja)...")
     try:
-        # Usamos a API de tendências que é mais aberta e menos bloqueada
-        url = "https://api.mercadolibre.com/sites/MLB/search?category=MLB1051&sort=relevance&limit=10"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers, timeout=10)
-        
-        res = []
-        for item in r.json().get("results", []):
-            if not item.get("thumbnail"): continue
-            res.append({
-                "nome": item["title"], "preco": f"{item['price']:.2f}", "link": item["permalink"],
-                "img": item["thumbnail"].replace("http://", "https://").replace("-I.jpg", "-O.jpg"),
-                "vendas": random.randint(100, 5000), "avaliacao": round(random.uniform(4.4, 5.0), 1), "origem": "ml"
-            })
-        return res
-    except: return []
-
-# =========================
-# BUSCA MAGALU (MÉTODO VITRINE)
-# =========================
-
-def get_magalu_offers():
-    logging.info("Buscando Magalu (Vitrine)...")
-    try:
-        # Usamos a API de vitrine mobile que é a mais estável de todas
-        url = "https://www.magazineluiza.com.br/api/v1/search-partial/products?q=oferta&limit=10"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Mobile Safari/537.36",
-            "Referer": "https://www.magazineluiza.com.br/"
+        # Busca as melhores ofertas (Top Offers) da Lomadee
+        url = f"http://api.lomadee.com/v2/{LOMADEE_TOKEN}/offer/_best"
+        params = {
+            "sourceId": LOMADEE_SOURCE_ID,
+            "size": 20
         }
-        r = requests.get(url, headers=headers, timeout=10)
-        
+        r = requests.get(url, params=params, timeout=15)
         data = r.json()
-        items = data.get("data", {}).get("search", {}).get("products", [])
         
+        offers = data.get("offers", [])
         res = []
-        for item in items:
-            p_url = f"https://www.magazineluiza.com.br/{item['path']}"
-            aff = f"https://magazineluiza.onelink.me/{MAGALU_ONELINK_ID}/{MAGALU_STORE_ID}?af_dp={quote(p_url)}"
+        for item in offers:
+            # Identifica a loja para colocar o prefixo correto
+            loja_nome = item.get("store", {}).get("name", "").lower()
+            origem = "lomadee"
+            if "magazineluiza" in loja_nome or "magalu" in loja_nome: origem = "magalu"
+            elif "mercado livre" in loja_nome: origem = "ml"
+            
             res.append({
-                "nome": item["title"], "preco": f"{float(item['price']['salesPrice']):.2f}",
-                "link": aff, "img": item["image"], "vendas": random.randint(50, 2000),
-                "avaliacao": round(random.uniform(4.5, 5.0), 1), "origem": "magalu"
+                "nome": item["name"],
+                "preco": f"{item['price']:.2f}",
+                "link": item["link"],
+                "img": item["thumbnail"],
+                "vendas": random.randint(100, 5000),
+                "avaliacao": round(random.uniform(4.5, 5.0), 1),
+                "origem": origem,
+                "comissao": 10 # Lomadee varia, mas 10% é uma boa média visual
             })
         return res
-    except:
-        # Se falhar, tenta buscar via termo genérico
+    except Exception as e:
+        logging.error(f"Erro Lomadee: {e}")
         return []
 
 # =========================
@@ -188,9 +174,9 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         
         total_lista = []
 
-        # SHOPEE
+        # Coleta Shopee (3)
         shopee = get_shopee_offers()
-        for i in shopee[:2]:
+        for i in shopee[:3]:
             try:
                 l = i["productLink"]
                 if "af_siteid" not in l: l = f"{l}?af_siteid={AFILIADO_ID}"
@@ -198,23 +184,17 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 total_lista.append({"msg": msg, "img": i["imageUrl"], "link": l})
             except: pass
 
-        # MAGALU
-        magalu = get_magalu_offers()
-        for i in magalu[:2]:
+        # Coleta Lomadee (3) - Magalu, ML, etc
+        lomadee = get_lomadee_offers()
+        for i in lomadee[:3]:
             try:
-                msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], 10, i["link"], "magalu")
+                msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], i["comissao"], i["link"], i["origem"])
                 total_lista.append({"msg": msg, "img": i["img"], "link": i["link"]})
             except: pass
 
-        # ML
-        ml = get_ml_offers()
-        for i in ml[:1]:
-            try:
-                msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], 10, i["link"], "ml")
-                total_lista.append({"msg": msg, "img": i["img"], "link": i["link"]})
-            except: pass
-
-        if not total_lista: return
+        if not total_lista:
+            logging.warning("Nenhuma oferta encontrada em nenhuma plataforma.")
+            return
 
         await context.bot.send_message(chat_id=CHAT_ID_DESTINO, text="🚨 OFERTAS NOVAS CHEGANDO...")
         await asyncio.sleep(5)
@@ -224,11 +204,9 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 zap = gerar_link_whatsapp(item["msg"], item["link"])
                 full_msg = item["msg"] + f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>'
                 
-                # Verificação de segurança para a imagem
-                img_url = item["img"]
-                if not img_url.startswith("http"): continue
+                if not item["img"].startswith("http"): continue
                 
-                await context.bot.send_photo(chat_id=CHAT_ID_DESTINO, photo=img_url, caption=full_msg, parse_mode="HTML")
+                await context.bot.send_photo(chat_id=CHAT_ID_DESTINO, photo=item["img"], caption=full_msg, parse_mode="HTML")
                 await asyncio.sleep(45)
             except Exception as e:
                 logging.error(f"Erro ao enviar item: {e}")
@@ -237,12 +215,15 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("🤖 BOT V7 RODANDO")
+    logging.info("🤖 BOT V8 PROFISSIONAL RODANDO")
 
 if __name__ == "__main__":
     while True:
         try:
             app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
             app.run_polling()
-        except: time.sleep(15)
+        except Exception as e:
+            logging.error(f"BOT REINICIANDO: {e}")
+            time.sleep(15)
+
 
