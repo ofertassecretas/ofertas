@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO FINAL HIBRIDA ESTAVEL V8 - LOMADEE PROFISSIONAL")
+print("VERSAO FINAL HIBRIDA ESTAVEL V9 - ESTRATEGIA MOTO + PREMIUM")
 
 # =========================
 # CONFIG
@@ -30,9 +30,9 @@ SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-# LOMADEE (MAGALU, ML, ETC)
-LOMADEE_TOKEN = "ra1-ATlyjfiMkWhSWRkpEs53kgoPVSQ"
-LOMADEE_SOURCE_ID = "6ff2699e-ceaa-4fad-a58a-8b91f885485f"
+# LOMADEE / SOCIALSOUL (NOVA API)
+LOMADEE_API_KEY = "ra1-ATlyjfiMkWhSWRkpEs53kgoPVSQ"
+LOMADEE_BASE_URL = "https://api-beta.lomadee.com.br" # Endpoint oficial atualizado
 
 CHECK_INTERVAL = 5400
 
@@ -44,12 +44,21 @@ logging.basicConfig(
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # =========================
+# LISTAS DE BUSCA (MOTO E PREMIUM)
+# =========================
+
+MOTOS_MODELOS = ["Titan 125", "Titan 150", "Titan 160", "Fazer 150", "Fazer 250", "Lander 250", "CB300", "XRE 190", "XRE 300", "Biz 125", "Twister 250", "Tornado", "PCX", "Factor 150"]
+MOTOS_PECAS = ["Kit Relação", "Kit Embreagem", "Pneu", "Guidão", "Roda", "Manete", "Banco", "Cabo de Freio", "Estator", "Kit Cilindro", "Biela", "Rolamento", "Corrente Comando", "Carenagem", "Farol", "Vela Iridium", "CDI", "Bobina", "Carburador", "Filtro de Ar", "Bomba Combustivel", "Pedal Cambio", "Disco Freio", "Capacete", "Luva", "Jaqueta"]
+
+PREMIUM_TERMOS = ["Smartphone", "Geladeira", "Smart TV", "Fogão", "Microondas", "Airfryer", "Notebook", "Lavadora"]
+
+# =========================
 # HORÁRIO
 # =========================
 
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
-    return dt_time(5, 0) <= agora <= dt_time(21, 0)
+    return dt_time(5, 0) <= agora <= dt_time(22, 0)
 
 # =========================
 # COPY
@@ -58,12 +67,7 @@ def dentro_do_horario():
 usadas_abertura = set()
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, origem="shopee"):
-    prefixos = {
-        "shopee": "🟠 SHOPEE",
-        "ml": "🟡 MERCADO LIVRE",
-        "magalu": "🔵 MAGALU",
-        "lomadee": "🔥 OFERTA"
-    }
+    prefixos = {"shopee": "🟠 SHOPEE", "ml": "🟡 MERCADO LIVRE", "magalu": "🔵 MAGALU", "lomadee": "🔥 OFERTA"}
     prefixo = prefixos.get(origem, "🔥 OFERTA")
 
     aberturas = [
@@ -113,7 +117,7 @@ def gerar_link_whatsapp(msg_html, link):
 def get_shopee_offers():
     logging.info("Buscando Shopee...")
     timestamp = int(time.time())
-    query_body = "query { productOfferV2(sortType: 2, limit: 15) { nodes { productName, priceMin, commissionRate, sales, ratingStar, productLink, imageUrl } } }"
+    query_body = "query { productOfferV2(sortType: 2, limit: 10) { nodes { productName, priceMin, commissionRate, sales, ratingStar, productLink, imageUrl } } }"
     payload = json.dumps({"query": query_body})
     base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
     signature = hashlib.sha256(base.encode()).hexdigest()
@@ -127,40 +131,37 @@ def get_shopee_offers():
 # BUSCA LOMADEE (MAGALU, ML, ETC)
 # =========================
 
-def get_lomadee_offers():
-    logging.info("Buscando Lomadee (Multiloja)...")
+def get_lomadee_search(termo):
+    logging.info(f"Buscando Lomadee para: {termo}")
     try:
-        # Busca as melhores ofertas (Top Offers) da Lomadee
-        url = f"http://api.lomadee.com/v2/{LOMADEE_TOKEN}/offer/_best"
-        params = {
-            "sourceId": LOMADEE_SOURCE_ID,
-            "size": 20
-        }
-        r = requests.get(url, params=params, timeout=15)
-        data = r.json()
+        url = f"{LOMADEE_BASE_URL}/affiliate/products"
+        headers = {"x-api-key": LOMADEE_API_KEY}
+        params = {"search": termo, "limit": 5}
+        r = requests.get(url, headers=headers, params=params, timeout=15)
         
-        offers = data.get("offers", [])
+        data = r.json()
+        products = data.get("data", [])
         res = []
-        for item in offers:
-            # Identifica a loja para colocar o prefixo correto
-            loja_nome = item.get("store", {}).get("name", "").lower()
-            origem = "lomadee"
-            if "magazineluiza" in loja_nome or "magalu" in loja_nome: origem = "magalu"
-            elif "mercado livre" in loja_nome: origem = "ml"
-            
-            res.append({
-                "nome": item["name"],
-                "preco": f"{item['price']:.2f}",
-                "link": item["link"],
-                "img": item["thumbnail"],
-                "vendas": random.randint(100, 5000),
-                "avaliacao": round(random.uniform(4.5, 5.0), 1),
-                "origem": origem,
-                "comissao": 10 # Lomadee varia, mas 10% é uma boa média visual
-            })
+        for p in products:
+            try:
+                # Determina a loja pelo URL ou nome se disponível
+                loja = "lomadee"
+                if "magazineluiza" in p["url"]: loja = "magalu"
+                elif "mercadolivre" in p["url"]: loja = "ml"
+                
+                # Preço vem em centavos na nova API
+                preco_real = float(p["options"][0]["pricing"][0]["price"]) / 100
+                
+                res.append({
+                    "nome": p["name"], "preco": f"{preco_real:.2f}",
+                    "link": p["url"], "img": p["images"][0]["url"],
+                    "vendas": random.randint(100, 5000), "avaliacao": round(random.uniform(4.5, 5.0), 1),
+                    "origem": loja, "comissao": 10
+                })
+            except: continue
         return res
     except Exception as e:
-        logging.error(f"Erro Lomadee: {e}")
+        logging.error(f"Erro Lomadee Search: {e}")
         return []
 
 # =========================
@@ -174,9 +175,9 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         
         total_lista = []
 
-        # Coleta Shopee (3)
+        # 1. SHOPEE (2 ofertas)
         shopee = get_shopee_offers()
-        for i in shopee[:3]:
+        for i in shopee[:2]:
             try:
                 l = i["productLink"]
                 if "af_siteid" not in l: l = f"{l}?af_siteid={AFILIADO_ID}"
@@ -184,17 +185,33 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 total_lista.append({"msg": msg, "img": i["imageUrl"], "link": l})
             except: pass
 
-        # Coleta Lomadee (3) - Magalu, ML, etc
-        lomadee = get_lomadee_offers()
-        for i in lomadee[:3]:
+        # 2. MAGALU (2 ofertas Premium)
+        termo_magalu = random.choice(PREMIUM_TERMOS)
+        magalu = get_lomadee_search(f"Magalu {termo_magalu}")
+        for i in magalu[:2]:
             try:
-                msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], i["comissao"], i["link"], i["origem"])
+                msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], 10, i["link"], "magalu")
                 total_lista.append({"msg": msg, "img": i["img"], "link": i["link"]})
             except: pass
 
-        if not total_lista:
-            logging.warning("Nenhuma oferta encontrada em nenhuma plataforma.")
-            return
+        # 3. MERCADO LIVRE (1 Moto + 1 Premium)
+        # Oferta de Moto
+        termo_moto = f"{random.choice(MOTOS_PECAS)} {random.choice(MOTOS_MODELOS)}"
+        ml_moto = get_lomadee_search(f"Mercado Livre {termo_moto}")
+        if ml_moto:
+            i = ml_moto[0]
+            msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], 10, i["link"], "ml")
+            total_lista.append({"msg": msg, "img": i["img"], "link": i["link"]})
+        
+        # Oferta Premium ML
+        termo_ml_p = random.choice(PREMIUM_TERMOS)
+        ml_p = get_lomadee_search(f"Mercado Livre {termo_ml_p}")
+        if ml_p:
+            i = ml_p[0]
+            msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], 10, i["link"], "ml")
+            total_lista.append({"msg": msg, "img": i["img"], "link": i["link"]})
+
+        if not total_lista: return
 
         await context.bot.send_message(chat_id=CHAT_ID_DESTINO, text="🚨 OFERTAS NOVAS CHEGANDO...")
         await asyncio.sleep(5)
@@ -203,9 +220,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             try:
                 zap = gerar_link_whatsapp(item["msg"], item["link"])
                 full_msg = item["msg"] + f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>'
-                
-                if not item["img"].startswith("http"): continue
-                
                 await context.bot.send_photo(chat_id=CHAT_ID_DESTINO, photo=item["img"], caption=full_msg, parse_mode="HTML")
                 await asyncio.sleep(45)
             except Exception as e:
@@ -215,7 +229,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("🤖 BOT V8 PROFISSIONAL RODANDO")
+    logging.info("🤖 BOT V9 RODANDO")
 
 if __name__ == "__main__":
     while True:
