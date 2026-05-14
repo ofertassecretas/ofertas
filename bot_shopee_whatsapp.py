@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO FINAL HIBRIDA ESTAVEL V10 - MOTO + PREMIUM + LOMADEE FIX")
+print("VERSAO FINAL HIBRIDA ESTAVEL V12 - TOKEN NOVO ATIVADO")
 
 # =========================
 # CONFIG
@@ -30,9 +30,9 @@ SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-# LOMADEE / SOCIALSOUL
-LOMADEE_TOKEN = "ra1-ATlyjfiMkWhSWRkpEs53kgoPVSQ"
-LOMADEE_SOURCE_ID = "6ff2699e-ceaa-4fad-a58a-8b91f885485f"
+# LOMADEE / SOCIALSOUL (TOKEN NOVO V3)
+LOMADEE_API_KEY = "ra1-ATlyjfiMkWhSWRkpEs53kgoPVSQ"
+LOMADEE_BASE_URL = "https://api-beta.lomadee.com.br" # Endpoint V3
 
 CHECK_INTERVAL = 5400
 
@@ -128,61 +128,44 @@ def get_shopee_offers():
     except: return []
 
 # =========================
-# BUSCA LOMADEE (MÉTODO COMPATÍVEL V2/V3)
+# BUSCA LOMADEE (NOVA API V3)
 # =========================
 
-def get_lomadee_offers(termo):
-    logging.info(f"Buscando Lomadee para: {termo}")
-    # Tentamos primeiro o endpoint que aceita o Token ra1- (V2)
+def get_lomadee_search(termo):
+    logging.info(f"Buscando Lomadee V3 para: {termo}")
     try:
-        url = f"http://api.lomadee.com/v2/{LOMADEE_TOKEN}/offer/_search"
-        params = {"sourceId": LOMADEE_SOURCE_ID, "keyword": termo, "size": 5}
-        r = requests.get(url, params=params, timeout=10)
-        
-        if r.status_code == 200:
-            data = r.json()
-            offers = data.get("offers", [])
-            res = []
-            for item in offers:
-                loja_nome = item.get("store", {}).get("name", "").lower()
-                origem = "lomadee"
-                if "magazineluiza" in loja_nome or "magalu" in loja_nome: origem = "magalu"
-                elif "mercado livre" in loja_nome: origem = "ml"
-                
-                res.append({
-                    "nome": item["name"], "preco": f"{item['price']:.2f}",
-                    "link": item["link"], "img": item["thumbnail"],
-                    "vendas": random.randint(100, 5000), "avaliacao": round(random.uniform(4.5, 5.0), 1),
-                    "origem": origem, "comissao": 10
-                })
-            return res
-    except: pass
-
-    # Se falhar, tentamos o endpoint V3 Beta (SocialSoul) com o token como API KEY
-    try:
-        url = "https://api-beta.lomadee.com.br/affiliate/products"
-        headers = {"x-api-key": LOMADEE_TOKEN}
+        url = f"{LOMADEE_BASE_URL}/affiliate/products"
+        headers = {"x-api-key": LOMADEE_API_KEY}
         params = {"search": termo, "limit": 5}
-        r = requests.get(url, headers=headers, params=params, timeout=10)
-        if r.status_code == 200:
-            data = r.json()
-            products = data.get("data", [])
-            res = []
-            for p in products:
+        r = requests.get(url, headers=headers, params=params, timeout=15)
+        
+        if r.status_code != 200:
+            logging.error(f"Erro na API Lomadee: {r.status_code}")
+            return []
+
+        data = r.json()
+        products = data.get("data", [])
+        res = []
+        for p in products:
+            try:
                 loja = "lomadee"
                 if "magazineluiza" in p["url"]: loja = "magalu"
                 elif "mercadolivre" in p["url"]: loja = "ml"
+                
+                # Preço em centavos na V3
                 preco_real = float(p["options"][0]["pricing"][0]["price"]) / 100
+                
                 res.append({
                     "nome": p["name"], "preco": f"{preco_real:.2f}",
                     "link": p["url"], "img": p["images"][0]["url"],
                     "vendas": random.randint(100, 5000), "avaliacao": round(random.uniform(4.5, 5.0), 1),
                     "origem": loja, "comissao": 10
                 })
-            return res
-    except: pass
-    
-    return []
+            except: continue
+        return res
+    except Exception as e:
+        logging.error(f"Erro Lomadee Search V3: {e}")
+        return []
 
 # =========================
 # LOOP DE ENVIO
@@ -207,7 +190,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
         # 2. MAGALU (2 ofertas Premium)
         termo_magalu = random.choice(PREMIUM_TERMOS)
-        magalu = get_lomadee_offers(f"Magalu {termo_magalu}")
+        magalu = get_lomadee_search(f"Magalu {termo_magalu}")
         for i in magalu[:2]:
             try:
                 msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], 10, i["link"], "magalu")
@@ -215,17 +198,17 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             except: pass
 
         # 3. MERCADO LIVRE (1 Moto + 1 Premium)
-        # Oferta de Moto
+        # Moto
         termo_moto = f"{random.choice(MOTOS_PECAS)} {random.choice(MOTOS_MODELOS)}"
-        ml_moto = get_lomadee_offers(f"Mercado Livre {termo_moto}")
+        ml_moto = get_lomadee_search(f"Mercado Livre {termo_moto}")
         if ml_moto:
             i = ml_moto[0]
             msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], 10, i["link"], "ml")
             total_lista.append({"msg": msg, "img": i["img"], "link": i["link"]})
         
-        # Oferta Premium ML
+        # Premium ML
         termo_ml_p = random.choice(PREMIUM_TERMOS)
-        ml_p = get_lomadee_offers(f"Mercado Livre {termo_ml_p}")
+        ml_p = get_lomadee_search(f"Mercado Livre {termo_ml_p}")
         if ml_p:
             i = ml_p[0]
             msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], 10, i["link"], "ml")
@@ -249,7 +232,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("🤖 BOT V10 RODANDO")
+    logging.info("🤖 BOT V12 ATIVADO")
 
 if __name__ == "__main__":
     while True:
@@ -259,6 +242,7 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"BOT REINICIANDO: {e}")
             time.sleep(15)
+
 
 
 
