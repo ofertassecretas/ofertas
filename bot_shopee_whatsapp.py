@@ -301,41 +301,63 @@ def get_ml_lista():
 
             soup = BeautifulSoup(r.text, "html.parser")
 
-            cards = soup.find_all("a", href=True)
+            links = soup.find_all("a", href=True)
 
-            for c in cards:
+            encontrados = []
 
-                href = c["href"]
+            for l in links:
 
-                texto = c.get_text(" ", strip=True)
+                href = l["href"]
 
-                if not texto:
+                # FILTRA SOMENTE PRODUTOS MLB
+                if "MLB-" not in href:
                     continue
 
-                if "mercadolivre.com" not in href:
+                if href in encontrados:
                     continue
 
-                if len(texto) < 15:
+                encontrados.append(href)
+
+                texto = l.get_text(" ", strip=True)
+
+                if len(texto) < 10:
                     continue
 
                 preco = "0"
 
-                m = re.search(r'R\$ ?([\d\.,]+)', texto)
+                preco_match = re.search(r'R\$ ?([\d\.,]+)', texto)
 
-                if m:
-                    preco = m.group(1)
+                if preco_match:
+                    preco = preco_match.group(1)
+
+                # tenta imagem
+                img = ""
+
+                try:
+                    img_tag = l.find("img")
+
+                    if img_tag and img_tag.get("src"):
+                        img = img_tag.get("src")
+
+                except:
+                    pass
+
+                if not img:
+                    img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
 
                 produtos.append({
                     "nome": texto[:120],
                     "preco": preco,
                     "link": href,
-                    "img": "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp",
+                    "img": img,
                     "vendas": random.randint(100, 5000),
                     "avaliacao": round(random.uniform(4.4, 5.0), 1),
                     "origem": "ml"
                 })
 
         random.shuffle(produtos)
+
+        logging.info(f"ML Produtos encontrados: {len(produtos)}")
 
         return produtos[:10]
 
