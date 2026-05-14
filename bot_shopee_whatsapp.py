@@ -9,12 +9,13 @@ import os
 import html
 import re
 
+from bs4 import BeautifulSoup
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
+from urllib.parse import quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO FINAL HIBRIDA ESTAVEL V15 - INDEPENDENCIA TOTAL")
+print("VERSAO CURADORIA V1 - MAGALU + ML LISTAS")
 
 # =========================
 # CONFIG
@@ -25,14 +26,41 @@ SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
 
 CHAT_ID_DESTINO = -1003848415150
 
+# =========================
 # SHOPEE
+# =========================
+
 SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-# MAGALU (DIRETO)
-MAGALU_ONELINK_ID = "589508454"
-MAGALU_STORE_ID = "07yuzqjf"
+# =========================
+# MAGALU SUA LOJA
+# =========================
+
+MAGALU_STORE_URL = "https://www.magazinevoce.com.br/magazineshopandreonline/"
+
+MAGALU_FILTROS = [
+    "smartphone",
+    "iphone",
+    "samsung",
+    "tv",
+    "geladeira",
+    "notebook",
+    "air fryer",
+]
+
+# =========================
+# LISTAS ML
+# =========================
+
+ML_LISTAS = [
+    "https://mercadolivre.com/sec/167xbsR",
+]
+
+# =========================
+# CONFIG GERAL
+# =========================
 
 CHECK_INTERVAL = 5400
 
@@ -44,16 +72,7 @@ logging.basicConfig(
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # =========================
-# LISTAS DE BUSCA
-# =========================
-
-MOTOS_MODELOS = ["Titan 160", "Fazer 250", "XRE 300", "Biz 125", "PCX", "Lander 250"]
-MOTOS_PECAS = ["Kit Relação", "Pneu", "Capacete", "Jaqueta", "Kit Cilindro", "Disco Freio"]
-
-PREMIUM_TERMOS = ["Smartphone", "Geladeira", "Smart TV", "Airfryer", "Notebook"]
-
-# =========================
-# HORÁRIO
+# HORARIO
 # =========================
 
 def dentro_do_horario():
@@ -67,19 +86,39 @@ def dentro_do_horario():
 usadas_abertura = set()
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, origem="shopee"):
-    prefixos = {"shopee": "🟠 SHOPEE", "ml": "🟡 MERCADO LIVRE", "magalu": "🔵 MAGALU"}
+
+    prefixos = {
+        "shopee": "🟠 SHOPEE",
+        "ml": "🟡 MERCADO LIVRE",
+        "magalu": "🔵 MAGALU"
+    }
+
     prefixo = prefixos.get(origem, "🔥 OFERTA")
 
     aberturas = [
-        "🚨 Isso aqui não é comum aparecer assim", "👀 Achei isso aqui e fui conferir…",
-        "🔥 Isso aqui tá com cara de oportunidade", "💥 Esse aqui tá chamando atenção de quem compra",
-        "🛑 Para tudo e olha isso aqui", "🤯 Sério… olha esse achado",
-        "⚠️ Isso aqui pode desaparecer rápido", "👁️ Pouca gente viu isso ainda",
-        "📉 Esse preço aqui não costuma durar", "🚀 Esse aqui tá começando a rodar forte"
+        "🚨 Isso aqui não é comum aparecer assim",
+        "👀 Achei isso aqui e fui conferir…",
+        "🔥 Isso aqui tá com cara de oportunidade",
+        "💥 Esse aqui tá chamando atenção de quem compra",
+        "🛑 Para tudo e olha isso aqui",
+        "🤯 Sério… olha esse achado",
+        "⚠️ Isso aqui pode desaparecer rápido",
+        "👁️ Pouca gente viu isso ainda",
+        "📉 Esse preço aqui não costuma durar",
+        "🚀 Esse aqui tá começando a rodar forte"
     ]
 
-    gatilho = random.choice(["Preço muito abaixo", "Avaliações acima da média", "Volume de vendas alto", "Custo-benefício forte"])
-    abertura = random.choice([a for a in aberturas if a not in usadas_abertura] or aberturas)
+    gatilho = random.choice([
+        "Preço muito abaixo",
+        "Avaliações acima da média",
+        "Volume de vendas alto",
+        "Custo-benefício forte"
+    ])
+
+    abertura = random.choice(
+        [a for a in aberturas if a not in usadas_abertura] or aberturas
+    )
+
     usadas_abertura.add(abertura)
 
     return f"""
@@ -91,157 +130,415 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, origem="shopee"):
 
 💰 <b>R$ {preco}</b>
 ⭐ {avaliacao} | 🛒 {vendas} vendas
-💸 Comissão: <b>{comissao}%</b>
+💸 Comissão estimada
 
 ⚠️ Pode subir de preço
 
 <a href="{link}">🛒 COMPRAR AGORA</a>
 """
 
+# =========================
+# WHATSAPP
+# =========================
+
 def gerar_link_whatsapp(msg_html, link):
+
     texto = re.sub('<[^<]+?>', '', msg_html)
+
     texto += f"\n\n🛒 {link}"
+
     return f"https://wa.me/?text={quote(texto)}"
 
 # =========================
-# BUSCA SHOPEE
+# SHOPEE
 # =========================
 
 def get_shopee_offers():
+
     logging.info("Buscando Shopee...")
+
     timestamp = int(time.time())
-    query_body = "query { productOfferV2(sortType: 2, limit: 10) { nodes { productName, priceMin, commissionRate, sales, ratingStar, productLink, imageUrl } } }"
-    payload = json.dumps({"query": query_body})
-    base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
-    signature = hashlib.sha256(base.encode()).hexdigest()
-    headers = {"Content-Type": "application/json", "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"}
-    try:
-        r = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=15)
-        return r.json()["data"]["productOfferV2"]["nodes"]
-    except: return []
 
-# =========================
-# BUSCA MAGALU (MÉTODO MOBILE MIMICRY)
-# =========================
-
-def get_magalu_direct(termo):
-    logging.info(f"Buscando Magalu Direto: {termo}")
-    try:
-        # Usamos o endpoint de busca parcial que é o mais aberto
-        url = f"https://www.magazineluiza.com.br/busca-parcial/v1/search?q={termo}"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.1",
-            "Referer": "https://www.magazineluiza.com.br/"
+    query_body = """
+    query {
+      productOfferV2(sortType: 2, limit: 10) {
+        nodes {
+          productName,
+          priceMin,
+          commissionRate,
+          sales,
+          ratingStar,
+          productLink,
+          imageUrl
         }
-        r = requests.get(url, headers=headers, timeout=10)
-        data = r.json()
-        items = data.get("data", {}).get("search", {}).get("products", [])
-        
-        res = []
-        for item in items[:5]:
-            p_url = f"https://www.magazineluiza.com.br/{item['path']}"
-            aff = f"https://magazineluiza.onelink.me/{MAGALU_ONELINK_ID}/{MAGALU_STORE_ID}?af_dp={quote(p_url)}"
-            res.append({
-                "nome": item["title"], "preco": f"{float(item['price']['salesPrice']):.2f}",
-                "link": aff, "img": item["image"], "vendas": random.randint(100, 2000),
-                "avaliacao": round(random.uniform(4.5, 5.0), 1), "origem": "magalu"
-            })
-        return res
-    except: return []
+      }
+    }
+    """
 
-# =========================
-# BUSCA MERCADO LIVRE (DIRETO)
-# =========================
+    payload = json.dumps({"query": query_body})
 
-def get_ml_direct(termo):
-    logging.info(f"Buscando ML Direto: {termo}")
+    base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
+
+    signature = hashlib.sha256(base.encode()).hexdigest()
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
+    }
+
     try:
-        url = f"https://api.mercadolibre.com/sites/MLB/search?q={termo}&limit=5"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers, timeout=10)
-        items = r.json().get("results", [])
-        
-        res = []
-        for item in items:
-            res.append({
-                "nome": item["title"], "preco": f"{item['price']:.2f}",
-                "link": item["permalink"], "img": item["thumbnail"].replace("http://", "https://").replace("-I.jpg", "-O.jpg"),
-                "vendas": random.randint(100, 5000), "avaliacao": round(random.uniform(4.4, 5.0), 1), "origem": "ml"
-            })
-        return res
-    except: return []
+
+        r = requests.post(
+            SHOPEE_GRAPHQL_URL,
+            data=payload,
+            headers=headers,
+            timeout=15
+        )
+
+        return r.json()["data"]["productOfferV2"]["nodes"]
+
+    except Exception as e:
+
+        logging.error(f"Erro Shopee: {e}")
+
+        return []
 
 # =========================
-# LOOP DE ENVIO
+# MAGALU SUA LOJA
+# =========================
+
+def get_magalu_store():
+
+    logging.info("Buscando produtos da SUA LOJA MAGALU")
+
+    try:
+
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+
+        r = requests.get(
+            MAGALU_STORE_URL,
+            headers=headers,
+            timeout=15
+        )
+
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        produtos = []
+
+        links = soup.find_all("a", href=True)
+
+        for l in links:
+
+            href = l["href"]
+
+            texto = l.get_text(" ", strip=True)
+
+            if not texto:
+                continue
+
+            texto_lower = texto.lower()
+
+            if any(f in texto_lower for f in MAGALU_FILTROS):
+
+                if "/p/" in href:
+
+                    try:
+
+                        preco = "0"
+
+                        m = re.search(r'R\$ ?([\d\.,]+)', texto)
+
+                        if m:
+                            preco = m.group(1)
+
+                        if href.startswith("/"):
+                            href = "https://www.magazinevoce.com.br" + href
+
+                        produtos.append({
+                            "nome": texto[:120],
+                            "preco": preco,
+                            "link": href,
+                            "img": "https://a-static.mlcdn.com.br/1500x1500/smartphone-samsung-galaxy/magazineluiza/227344500/123.jpg",
+                            "vendas": random.randint(100, 4000),
+                            "avaliacao": round(random.uniform(4.5, 5.0), 1),
+                            "origem": "magalu"
+                        })
+
+                    except:
+                        pass
+
+        random.shuffle(produtos)
+
+        return produtos[:10]
+
+    except Exception as e:
+
+        logging.error(f"Erro MAGALU: {e}")
+
+        return []
+
+# =========================
+# ML LISTA
+# =========================
+
+def get_ml_lista():
+
+    logging.info("Buscando produtos da LISTA ML")
+
+    produtos = []
+
+    try:
+
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+
+        for url in ML_LISTAS:
+
+            r = requests.get(url, headers=headers, timeout=15)
+
+            soup = BeautifulSoup(r.text, "html.parser")
+
+            cards = soup.find_all("a", href=True)
+
+            for c in cards:
+
+                href = c["href"]
+
+                texto = c.get_text(" ", strip=True)
+
+                if not texto:
+                    continue
+
+                if "mercadolivre.com" not in href:
+                    continue
+
+                if len(texto) < 15:
+                    continue
+
+                preco = "0"
+
+                m = re.search(r'R\$ ?([\d\.,]+)', texto)
+
+                if m:
+                    preco = m.group(1)
+
+                produtos.append({
+                    "nome": texto[:120],
+                    "preco": preco,
+                    "link": href,
+                    "img": "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp",
+                    "vendas": random.randint(100, 5000),
+                    "avaliacao": round(random.uniform(4.4, 5.0), 1),
+                    "origem": "ml"
+                })
+
+        random.shuffle(produtos)
+
+        return produtos[:10]
+
+    except Exception as e:
+
+        logging.error(f"Erro ML LISTA: {e}")
+
+        return []
+
+# =========================
+# ENVIO
 # =========================
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
+
     try:
-        if not dentro_do_horario(): return
+
+        if not dentro_do_horario():
+            return
+
         usadas_abertura.clear()
-        
+
         total_lista = []
 
-        # 1. SHOPEE (2)
+        # =========================
+        # 1 - SHOPEE
+        # =========================
+
         shopee = get_shopee_offers()
+
         for i in shopee[:2]:
+
             try:
+
                 l = i["productLink"]
-                if "af_siteid" not in l: l = f"{l}?af_siteid={AFILIADO_ID}"
-                msg = gerar_copy(html.escape(i["productName"]), f"{float(i['priceMin']):.2f}", f"{int(i.get('sales', 100)):,}".replace(",", "."), float(i.get("ratingStar", 4.5)), round(float(i.get("commissionRate", 0)) * 100, 2), l, "shopee")
-                total_lista.append({"msg": msg, "img": i["imageUrl"], "link": l})
-            except: pass
 
-        # 2. MAGALU (2 Premium)
-        magalu = get_magalu_direct(random.choice(PREMIUM_TERMOS))
-        if not magalu: magalu = get_magalu_direct("ofertas")
+                if "af_siteid" not in l:
+                    l = f"{l}?af_siteid={AFILIADO_ID}"
+
+                msg = gerar_copy(
+                    html.escape(i["productName"]),
+                    f"{float(i['priceMin']):.2f}",
+                    f"{int(i.get('sales', 100)):,}".replace(",", "."),
+                    float(i.get("ratingStar", 4.5)),
+                    round(float(i.get("commissionRate", 0)) * 100, 2),
+                    l,
+                    "shopee"
+                )
+
+                total_lista.append({
+                    "msg": msg,
+                    "img": i["imageUrl"],
+                    "link": l
+                })
+
+            except:
+                pass
+
+        # =========================
+        # 2 - MAGALU SUA LOJA
+        # =========================
+
+        magalu = get_magalu_store()
+
         for i in magalu[:2]:
+
             try:
-                msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], 10, i["link"], "magalu")
-                total_lista.append({"msg": msg, "img": i["img"], "link": i["link"]})
-            except: pass
 
-        # 3. ML (1 Moto + 1 Premium)
-        termo_moto = f"{random.choice(MOTOS_PECAS)} {random.choice(MOTOS_MODELOS)}"
-        ml_moto = get_ml_direct(termo_moto)
-        if ml_moto:
-            i = ml_moto[0]
-            msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], 10, i["link"], "ml")
-            total_lista.append({"msg": msg, "img": i["img"], "link": i["link"]})
-        
-        ml_p = get_ml_direct(random.choice(PREMIUM_TERMOS))
-        if ml_p:
-            i = ml_p[0]
-            msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], 10, i["link"], "ml")
-            total_lista.append({"msg": msg, "img": i["img"], "link": i["link"]})
+                msg = gerar_copy(
+                    html.escape(i["nome"]),
+                    i["preco"],
+                    i["vendas"],
+                    i["avaliacao"],
+                    10,
+                    i["link"],
+                    "magalu"
+                )
 
-        if not total_lista: return
+                total_lista.append({
+                    "msg": msg,
+                    "img": i["img"],
+                    "link": i["link"]
+                })
 
-        await context.bot.send_message(chat_id=CHAT_ID_DESTINO, text="🚨 OFERTAS NOVAS CHEGANDO...")
+            except:
+                pass
+
+        # =========================
+        # 3 - ML LISTA
+        # =========================
+
+        ml = get_ml_lista()
+
+        for i in ml[:2]:
+
+            try:
+
+                msg = gerar_copy(
+                    html.escape(i["nome"]),
+                    i["preco"],
+                    i["vendas"],
+                    i["avaliacao"],
+                    10,
+                    i["link"],
+                    "ml"
+                )
+
+                total_lista.append({
+                    "msg": msg,
+                    "img": i["img"],
+                    "link": i["link"]
+                })
+
+            except:
+                pass
+
+        # =========================
+        # ENVIO
+        # =========================
+
+        if not total_lista:
+            return
+
+        await context.bot.send_message(
+            chat_id=CHAT_ID_DESTINO,
+            text="🚨 OFERTAS NOVAS CHEGANDO..."
+        )
+
         await asyncio.sleep(5)
 
+        random.shuffle(total_lista)
+
         for item in total_lista:
+
             try:
-                zap = gerar_link_whatsapp(item["msg"], item["link"])
-                full_msg = item["msg"] + f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>'
-                await context.bot.send_photo(chat_id=CHAT_ID_DESTINO, photo=item["img"], caption=full_msg, parse_mode="HTML")
+
+                zap = gerar_link_whatsapp(
+                    item["msg"],
+                    item["link"]
+                )
+
+                full_msg = (
+                    item["msg"] +
+                    f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
+                    '\n━━━━━━━━━━━━━━━'
+                    '\n📢 <b>Ofertas Secretas</b>'
+                )
+
+                await context.bot.send_photo(
+                    chat_id=CHAT_ID_DESTINO,
+                    photo=item["img"],
+                    caption=full_msg,
+                    parse_mode="HTML"
+                )
+
                 await asyncio.sleep(45)
+
             except Exception as e:
+
                 logging.error(f"Erro ao enviar item: {e}")
 
-    except Exception as e: logging.error(f"ERRO CRITICO: {e}")
+    except Exception as e:
+
+        logging.error(f"ERRO CRITICO: {e}")
+
+# =========================
+# START
+# =========================
 
 async def post_init(app):
-    app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("🤖 BOT V15 ATIVADO")
+
+    app.job_queue.run_repeating(
+        send_ofertas,
+        interval=CHECK_INTERVAL,
+        first=10
+    )
+
+    logging.info("🤖 BOT CURADORIA V1 ATIVADO")
+
+# =========================
+# MAIN
+# =========================
 
 if __name__ == "__main__":
-    while True:
-        try:
-            app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
-            app.run_polling()
-        except: time.sleep(15)
 
+    while True:
+
+        try:
+
+            app = (
+                ApplicationBuilder()
+                .token(TELEGRAM_TOKEN)
+                .post_init(post_init)
+                .build()
+            )
+
+            app.run_polling()
+
+        except Exception as e:
+
+            logging.error(f"Erro geral: {e}")
+
+            time.sleep(15)
 
 
 
