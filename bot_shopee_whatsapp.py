@@ -283,7 +283,6 @@ def get_magalu_store():
 # ML LISTA
 # =========================
 
-```python
 def get_ml_lista():
 
     logging.info("Buscando produtos da LISTA ML")
