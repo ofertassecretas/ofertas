@@ -373,58 +373,59 @@ def get_ml_lista():
                     "html.parser"
                 )
 
-                    meta_img = produto_soup.find(
-        "meta",
-        property="og:image"
+            meta_img = produto_soup.find(
+   
+    "meta",
+    property="og:image"
+)
+
+if meta_img:
+
+    possible_img = meta_img.get(
+        "content",
+        ""
     )
-    
-    if meta_img:
-    
-        possible_img = meta_img.get(
-            "content",
-            ""
-        )
-    
-        if possible_img:
-    
-            possible_img = possible_img.replace(
-                "\\u002F",
-                "/"
-            )
-    
-            if possible_img.startswith("//"):
-    
-                possible_img = "https:" + possible_img
-    
-            if possible_img.startswith("http"):
-    
-                img = possible_img
 
-                produtos.append({
-                    "nome": texto[:120],
-                    "preco": preco,
-                    "link": href,
-                    "img": img,
-                    "vendas": random.randint(100, 5000),
-                    "avaliacao": round(random.uniform(4.4, 5.0), 1),
-                    "origem": "ml"
-                })
+    if possible_img:
 
-        random.shuffle(produtos)
-
-        logging.info(
-            f"ML Produtos encontrados: {len(produtos)}"
+        possible_img = possible_img.replace(
+            "\\u002F",
+            "/"
         )
 
-        return produtos[:10]
+        if possible_img.startswith("//"):
 
-    except Exception as e:
+            possible_img = "https:" + possible_img
 
-        logging.error(
-            f"Erro ML LISTA: {e}"
-        )
+        if possible_img.startswith("http"):
 
-        return []
+            img = possible_img
+
+            produtos.append({
+                "nome": texto[:120],
+                "preco": preco,
+                "link": href,
+                "img": img,
+                "vendas": random.randint(100, 5000),
+                "avaliacao": round(random.uniform(4.4, 5.0), 1),
+                "origem": "ml"
+            })
+
+    random.shuffle(produtos)
+
+    logging.info(
+        f"ML Produtos encontrados: {len(produtos)}"
+    )
+
+    return produtos[:10]
+
+except Exception as e:
+
+    logging.error(
+        f"Erro ML LISTA: {e}"
+    )
+
+    return []
 
 # =========================
 # ENVIO
