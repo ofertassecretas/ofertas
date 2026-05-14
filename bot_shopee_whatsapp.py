@@ -325,25 +325,46 @@ def get_ml_lista():
 
                 preco = "0"
 
-                preco_match = re.search(r'R\$ ?([\d\.,]+)', texto)
+                try:
 
+                parent_text = l.parent.get_text(" ", strip=True)
+                
+                preco_match = re.search(r'R\$ ?([\d\.\,]+)', parent_text)
+                  
                 if preco_match:
                     preco = preco_match.group(1)
 
-                # tenta imagem
-                img = ""
+           except:
+               pass
+                  
+# =========================
+# IMAGEM
+# =========================
 
-                try:
-                    img_tag = l.find("img")
+img = ""
 
-                    if img_tag and img_tag.get("src"):
-                        img = img_tag.get("src")
+try:
 
-                except:
-                    pass
+    img_tag = l.find("img")
 
-                if not img:
-                    img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
+    if img_tag:
+
+        if img_tag.get("data-src"):
+            img = img_tag.get("data-src")
+
+        elif img_tag.get("src"):
+            img = img_tag.get("src")
+
+        elif img_tag.get("data-lazy"):
+            img = img_tag.get("data-lazy")
+
+except:
+    pass
+
+# fallback
+if not img or "data:image" in img:
+
+    img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
 
                 produtos.append({
                     "nome": texto[:120],
