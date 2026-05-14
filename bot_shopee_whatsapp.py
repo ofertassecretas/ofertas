@@ -373,21 +373,32 @@ def get_ml_lista():
                     "html.parser"
                 )
 
-                meta_img = produto_soup.find(
-                    "meta",
-                    property="og:image"
-                )
-
-                if meta_img:
-
-                    possible_img = meta_img.get(
-                        "content",
-                        ""
-                    )
-
-                    if possible_img:
-
-                        img = possible_img
+                    meta_img = produto_soup.find(
+        "meta",
+        property="og:image"
+    )
+    
+    if meta_img:
+    
+        possible_img = meta_img.get(
+            "content",
+            ""
+        )
+    
+        if possible_img:
+    
+            possible_img = possible_img.replace(
+                "\\u002F",
+                "/"
+            )
+    
+            if possible_img.startswith("//"):
+    
+                possible_img = "https:" + possible_img
+    
+            if possible_img.startswith("http"):
+    
+                img = possible_img
 
                 produtos.append({
                     "nome": texto[:120],
