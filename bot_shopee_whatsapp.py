@@ -323,19 +323,28 @@ def get_ml_lista():
                 if len(texto) < 10:
                     continue
 
-                preco = "0"
+# =========================
+# PREÇO
+# =========================
 
-                try:
+preco = "0"
 
-                parent_text = l.parent.get_text(" ", strip=True)
-                
-                preco_match = re.search(r'R\$ ?([\d\.\,]+)', parent_text)
-                  
-                if preco_match:
-                    preco = preco_match.group(1)
+try:
 
-           except:
-               pass
+    texto_pai = l.parent.get_text(" ", strip=True)
+
+    preco_match = re.search(
+        r'R\$ ?([\d\.\,]+)',
+        texto_pai
+    )
+
+    if preco_match:
+
+        preco = preco_match.group(1)
+
+except:
+
+    pass
                   
 # =========================
 # IMAGEM
@@ -350,18 +359,21 @@ try:
     if img_tag:
 
         if img_tag.get("data-src"):
+
             img = img_tag.get("data-src")
 
         elif img_tag.get("src"):
+
             img = img_tag.get("src")
 
         elif img_tag.get("data-lazy"):
+
             img = img_tag.get("data-lazy")
 
 except:
+
     pass
 
-# fallback
 if not img or "data:image" in img:
 
     img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
