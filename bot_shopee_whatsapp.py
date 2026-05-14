@@ -297,7 +297,11 @@ def get_ml_lista():
 
         for url in ML_LISTAS:
 
-            r = requests.get(url, headers=headers, timeout=15)
+            r = requests.get(
+                url,
+                headers=headers,
+                timeout=15
+            )
 
             soup = BeautifulSoup(r.text, "html.parser")
 
@@ -307,90 +311,98 @@ def get_ml_lista():
 
             for l in links:
 
-                href = l["href"]
+                try:
 
-                # FILTRA SOMENTE PRODUTOS MLB
-                if "MLB-" not in href:
-                    continue
+                    href = l["href"]
 
-                if href in encontrados:
-                    continue
+                    # SOMENTE PRODUTOS MLB
+                    if "MLB-" not in href:
+                        continue
 
-                encontrados.append(href)
+                    if href in encontrados:
+                        continue
 
-                texto = l.get_text(" ", strip=True)
+                    encontrados.append(href)
 
-                if len(texto) < 10:
-                    continue
+                    texto = l.get_text(" ", strip=True)
 
-# =========================
-# PREÇO
-# =========================
+                    if len(texto) < 10:
+                        continue
 
-preco = "0"
+                    # =========================
+                    # PREÇO
+                    # =========================
 
-try:
+                    preco = "0"
 
-    texto_pai = l.parent.get_text(" ", strip=True)
+                    try:
 
-    preco_match = re.search(
-        r'R\$ ?([\d\.\,]+)',
-        texto_pai
-    )
+                        texto_pai = l.parent.get_text(
+                            " ",
+                            strip=True
+                        )
 
-    if preco_match:
+                        preco_match = re.search(
+                            r'R\$ ?([\d\.\,]+)',
+                            texto_pai
+                        )
 
-        preco = preco_match.group(1)
+                        if preco_match:
 
-except:
+                            preco = preco_match.group(1)
 
-    pass
-                  
-# =========================
-# IMAGEM
-# =========================
+                    except:
+                        pass
 
-img = ""
+                    # =========================
+                    # IMAGEM
+                    # =========================
 
-try:
+                    img = ""
 
-    img_tag = l.find("img")
+                    try:
 
-    if img_tag:
+                        img_tag = l.find("img")
 
-        if img_tag.get("data-src"):
+                        if img_tag:
 
-            img = img_tag.get("data-src")
+                            if img_tag.get("data-src"):
 
-        elif img_tag.get("src"):
+                                img = img_tag.get("data-src")
 
-            img = img_tag.get("src")
+                            elif img_tag.get("src"):
 
-        elif img_tag.get("data-lazy"):
+                                img = img_tag.get("src")
 
-            img = img_tag.get("data-lazy")
+                            elif img_tag.get("data-lazy"):
 
-except:
+                                img = img_tag.get("data-lazy")
 
-    pass
+                    except:
+                        pass
 
-if not img or "data:image" in img:
+                    if not img or "data:image" in img:
 
-    img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
+                        img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
 
-                produtos.append({
-                    "nome": texto[:120],
-                    "preco": preco,
-                    "link": href,
-                    "img": img,
-                    "vendas": random.randint(100, 5000),
-                    "avaliacao": round(random.uniform(4.4, 5.0), 1),
-                    "origem": "ml"
-                })
+                    produtos.append({
+                        "nome": texto[:120],
+                        "preco": preco,
+                        "link": href,
+                        "img": img,
+                        "vendas": random.randint(100, 5000),
+                        "avaliacao": round(random.uniform(4.4, 5.0), 1),
+                        "origem": "ml"
+                    })
+
+                except:
+                    pass
 
         random.shuffle(produtos)
 
-        logging.info(f"ML Produtos encontrados: {len(produtos)}")
+        logging.info(
+            f"ML Produtos encontrados: {len(produtos)}"
+        )
 
         return produtos[:10]
 
