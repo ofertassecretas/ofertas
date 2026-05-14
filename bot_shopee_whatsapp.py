@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO FINAL HIBRIDA ESTAVEL V14 - BUSCA INTELIGENTE")
+print("VERSAO FINAL HIBRIDA ESTAVEL V15 - INDEPENDENCIA TOTAL")
 
 # =========================
 # CONFIG
@@ -30,9 +30,9 @@ SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-# LOMADEE / SOCIALSOUL
-LOMADEE_TOKEN = "ra1-ATlyjfiMkWhSWRkpEs53kgoPVSQ"
-LOMADEE_SOURCE_ID = "6ff2699e-ceaa-4fad-a58a-8b91f885485f"
+# MAGALU (DIRETO)
+MAGALU_ONELINK_ID = "589508454"
+MAGALU_STORE_ID = "07yuzqjf"
 
 CHECK_INTERVAL = 5400
 
@@ -47,10 +47,10 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 # LISTAS DE BUSCA
 # =========================
 
-MOTOS_MODELOS = ["Titan", "Fazer", "Lander", "CB300", "XRE", "Biz", "Twister", "Tornado", "PCX", "Factor"]
-MOTOS_PECAS = ["Kit Relação", "Pneu", "Guidão", "Capacete", "Luva", "Jaqueta", "Kit Cilindro", "Disco Freio", "Retrovisor", "Bateria"]
+MOTOS_MODELOS = ["Titan 160", "Fazer 250", "XRE 300", "Biz 125", "PCX", "Lander 250"]
+MOTOS_PECAS = ["Kit Relação", "Pneu", "Capacete", "Jaqueta", "Kit Cilindro", "Disco Freio"]
 
-PREMIUM_TERMOS = ["Smartphone", "Geladeira", "Smart TV", "Airfryer", "Notebook", "Lavadora", "Ar Condicionado", "Monitor Gamer"]
+PREMIUM_TERMOS = ["Smartphone", "Geladeira", "Smart TV", "Airfryer", "Notebook"]
 
 # =========================
 # HORÁRIO
@@ -67,7 +67,7 @@ def dentro_do_horario():
 usadas_abertura = set()
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, origem="shopee"):
-    prefixos = {"shopee": "🟠 SHOPEE", "ml": "🟡 MERCADO LIVRE", "magalu": "🔵 MAGALU", "lomadee": "🔥 OFERTA"}
+    prefixos = {"shopee": "🟠 SHOPEE", "ml": "🟡 MERCADO LIVRE", "magalu": "🔵 MAGALU"}
     prefixo = prefixos.get(origem, "🔥 OFERTA")
 
     aberturas = [
@@ -78,16 +78,9 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, origem="shopee"):
         "📉 Esse preço aqui não costuma durar", "🚀 Esse aqui tá começando a rodar forte"
     ]
 
-    gatilhos = [
-        "Preço muito abaixo do que costuma aparecer", "Avaliações acima da média",
-        "Volume de vendas alto", "Simples e funcional", "Custo-benefício forte",
-        "Quem compra recomenda", "Produto direto ao ponto", "Tá vendendo bem",
-        "Boa margem pra afiliado", "Resolve de verdade"
-    ]
-
+    gatilho = random.choice(["Preço muito abaixo", "Avaliações acima da média", "Volume de vendas alto", "Custo-benefício forte"])
     abertura = random.choice([a for a in aberturas if a not in usadas_abertura] or aberturas)
     usadas_abertura.add(abertura)
-    gatilho = random.choice(gatilhos)
 
     return f"""
 <b>{prefixo} | {abertura}</b>
@@ -128,77 +121,55 @@ def get_shopee_offers():
     except: return []
 
 # =========================
-# BUSCA LOMADEE (INTELIGENTE)
+# BUSCA MAGALU (MÉTODO MOBILE MIMICRY)
 # =========================
 
-def get_lomadee_smart(termo, loja_alvo=None):
-    logging.info(f"Buscando Lomadee Inteligente: {termo} (Loja: {loja_alvo})")
-    
-    headers_list = [
-        {"x-api-key": LOMADEE_TOKEN},
-        {"Authorization": f"Bearer {LOMADEE_TOKEN}"}
-    ]
-    
-    for headers in headers_list:
-        try:
-            url = "https://api-beta.lomadee.com.br/affiliate/products"
-            params = {"search": termo, "limit": 20}
-            r = requests.get(url, headers=headers, params=params, timeout=10)
-            
-            if r.status_code == 200:
-                data = r.json()
-                products = data.get("data", [])
-                res = []
-                for p in products:
-                    try:
-                        loja_id = p.get("organizationId", "").lower()
-                        p_url = p["url"].lower()
-                        
-                        origem = "lomadee"
-                        if "magazineluiza" in p_url or "magalu" in p_url: origem = "magalu"
-                        elif "mercadolivre" in p_url: origem = "ml"
-                        
-                        # Se pedimos uma loja específica, filtramos
-                        if loja_alvo and loja_alvo != origem: continue
-                        
-                        preco_real = float(p["options"][0]["pricing"][0]["price"]) / 100
-                        res.append({
-                            "nome": p["name"], "preco": f"{preco_real:.2f}",
-                            "link": p["url"], "img": p["images"][0]["url"],
-                            "vendas": random.randint(100, 5000), "avaliacao": round(random.uniform(4.5, 5.0), 1),
-                            "origem": origem, "comissao": 10
-                        })
-                    except: continue
-                if res: return res
-        except: continue
-    
-    # Fallback para V2 se V3 falhar
+def get_magalu_direct(termo):
+    logging.info(f"Buscando Magalu Direto: {termo}")
     try:
-        url = f"http://api.lomadee.com/v2/{LOMADEE_TOKEN}/offer/_search"
-        params = {"sourceId": LOMADEE_SOURCE_ID, "keyword": termo, "size": 20}
-        r = requests.get(url, params=params, timeout=10)
-        if r.status_code == 200:
-            data = r.json()
-            offers = data.get("offers", [])
-            res = []
-            for item in offers:
-                loja_nome = item.get("store", {}).get("name", "").lower()
-                origem = "lomadee"
-                if "magazineluiza" in loja_nome or "magalu" in loja_nome: origem = "magalu"
-                elif "mercado livre" in loja_nome: origem = "ml"
-                
-                if loja_alvo and loja_alvo != origem: continue
-                
-                res.append({
-                    "nome": item["name"], "preco": f"{item['price']:.2f}",
-                    "link": item["link"], "img": item["thumbnail"],
-                    "vendas": random.randint(100, 5000), "avaliacao": round(random.uniform(4.5, 5.0), 1),
-                    "origem": origem, "comissao": 10
-                })
-            return res
-    except: pass
-    
-    return []
+        # Usamos o endpoint de busca parcial que é o mais aberto
+        url = f"https://www.magazineluiza.com.br/busca-parcial/v1/search?q={termo}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.1",
+            "Referer": "https://www.magazineluiza.com.br/"
+        }
+        r = requests.get(url, headers=headers, timeout=10)
+        data = r.json()
+        items = data.get("data", {}).get("search", {}).get("products", [])
+        
+        res = []
+        for item in items[:5]:
+            p_url = f"https://www.magazineluiza.com.br/{item['path']}"
+            aff = f"https://magazineluiza.onelink.me/{MAGALU_ONELINK_ID}/{MAGALU_STORE_ID}?af_dp={quote(p_url)}"
+            res.append({
+                "nome": item["title"], "preco": f"{float(item['price']['salesPrice']):.2f}",
+                "link": aff, "img": item["image"], "vendas": random.randint(100, 2000),
+                "avaliacao": round(random.uniform(4.5, 5.0), 1), "origem": "magalu"
+            })
+        return res
+    except: return []
+
+# =========================
+# BUSCA MERCADO LIVRE (DIRETO)
+# =========================
+
+def get_ml_direct(termo):
+    logging.info(f"Buscando ML Direto: {termo}")
+    try:
+        url = f"https://api.mercadolibre.com/sites/MLB/search?q={termo}&limit=5"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(url, headers=headers, timeout=10)
+        items = r.json().get("results", [])
+        
+        res = []
+        for item in items:
+            res.append({
+                "nome": item["title"], "preco": f"{item['price']:.2f}",
+                "link": item["permalink"], "img": item["thumbnail"].replace("http://", "https://").replace("-I.jpg", "-O.jpg"),
+                "vendas": random.randint(100, 5000), "avaliacao": round(random.uniform(4.4, 5.0), 1), "origem": "ml"
+            })
+        return res
+    except: return []
 
 # =========================
 # LOOP DE ENVIO
@@ -211,7 +182,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         
         total_lista = []
 
-        # 1. SHOPEE (2 ofertas)
+        # 1. SHOPEE (2)
         shopee = get_shopee_offers()
         for i in shopee[:2]:
             try:
@@ -221,36 +192,30 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 total_lista.append({"msg": msg, "img": i["imageUrl"], "link": l})
             except: pass
 
-        # 2. MAGALU (2 ofertas Premium)
-        magalu_res = get_lomadee_smart(random.choice(PREMIUM_TERMOS), "magalu")
-        if not magalu_res: magalu_res = get_lomadee_smart("Ofertas Magalu", "magalu")
-        for i in magalu_res[:2]:
+        # 2. MAGALU (2 Premium)
+        magalu = get_magalu_direct(random.choice(PREMIUM_TERMOS))
+        if not magalu: magalu = get_magalu_direct("ofertas")
+        for i in magalu[:2]:
             try:
                 msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], 10, i["link"], "magalu")
                 total_lista.append({"msg": msg, "img": i["img"], "link": i["link"]})
             except: pass
 
-        # 3. MERCADO LIVRE (1 Moto + 1 Premium)
-        # Moto
+        # 3. ML (1 Moto + 1 Premium)
         termo_moto = f"{random.choice(MOTOS_PECAS)} {random.choice(MOTOS_MODELOS)}"
-        ml_moto = get_lomadee_smart(termo_moto, "ml")
-        if not ml_moto: ml_moto = get_lomadee_smart("Peças Moto", "ml")
+        ml_moto = get_ml_direct(termo_moto)
         if ml_moto:
             i = ml_moto[0]
             msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], 10, i["link"], "ml")
             total_lista.append({"msg": msg, "img": i["img"], "link": i["link"]})
         
-        # Premium ML
-        ml_p = get_lomadee_smart(random.choice(PREMIUM_TERMOS), "ml")
-        if not ml_p: ml_p = get_lomadee_smart("Ofertas Mercado Livre", "ml")
+        ml_p = get_ml_direct(random.choice(PREMIUM_TERMOS))
         if ml_p:
             i = ml_p[0]
             msg = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], 10, i["link"], "ml")
             total_lista.append({"msg": msg, "img": i["img"], "link": i["link"]})
 
-        if not total_lista:
-            logging.warning("Nenhuma oferta encontrada para enviar.")
-            return
+        if not total_lista: return
 
         await context.bot.send_message(chat_id=CHAT_ID_DESTINO, text="🚨 OFERTAS NOVAS CHEGANDO...")
         await asyncio.sleep(5)
@@ -268,16 +233,15 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("🤖 BOT V14 RODANDO")
+    logging.info("🤖 BOT V15 ATIVADO")
 
 if __name__ == "__main__":
     while True:
         try:
             app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
             app.run_polling()
-        except Exception as e:
-            logging.error(f"BOT REINICIANDO: {e}")
-            time.sleep(15)
+        except: time.sleep(15)
+
 
 
 
