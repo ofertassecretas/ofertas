@@ -358,39 +358,34 @@ def get_ml_lista():
 # IMAGEM
 # =========================
 
-img = ""
+img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
 
-try:
+produto_req = requests.get(
+    href,
+    headers=headers,
+    timeout=10
+)
 
-    # abre página do produto
-    produto_req = requests.get(
-        href,
-        headers=headers,
-        timeout=10
+produto_soup = BeautifulSoup(
+    produto_req.text,
+    "html.parser"
+)
+
+meta_img = produto_soup.find(
+    "meta",
+    property="og:image"
+)
+
+if meta_img:
+
+    possible_img = meta_img.get(
+        "content",
+        ""
     )
 
-    produto_soup = BeautifulSoup(
-        produto_req.text,
-        "html.parser"
-    )
+    if possible_img:
 
-    # tenta meta og:image
-    meta_img = produto_soup.find(
-        "meta",
-        property="og:image"
-    )
-
-    if meta_img:
-
-        img = meta_img.get("content", "")
-
-except:
-    pass
-
-# fallback
-if not img:
-
-    img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
+        img = possible_img
 
                     produtos.append({
                         "nome": texto[:120],
