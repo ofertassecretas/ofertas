@@ -289,11 +289,11 @@ def get_ml_lista():
 
     produtos = []
 
-    try:
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
 
-        headers = {
-            "User-Agent": "Mozilla/5.0"
-        }
+    try:
 
         for url in ML_LISTAS:
 
@@ -303,102 +303,101 @@ def get_ml_lista():
                 timeout=15
             )
 
-            soup = BeautifulSoup(r.text, "html.parser")
+            soup = BeautifulSoup(
+                r.text,
+                "html.parser"
+            )
 
-            links = soup.find_all("a", href=True)
+            links = soup.find_all(
+                "a",
+                href=True
+            )
 
             encontrados = []
 
             for l in links:
 
-                try:
+                href = l["href"]
 
-                    href = l["href"]
+                # somente produtos MLB
+                if "MLB-" not in href:
+                    continue
 
-                    # SOMENTE PRODUTOS MLB
-                    if "MLB-" not in href:
-                        continue
+                if href in encontrados:
+                    continue
 
-                    if href in encontrados:
-                        continue
+                encontrados.append(href)
 
-                    encontrados.append(href)
+                texto = l.get_text(
+                    " ",
+                    strip=True
+                )
 
-                    texto = l.get_text(" ", strip=True)
+                if len(texto) < 10:
+                    continue
 
-                    if len(texto) < 10:
-                        continue
+                # =========================
+                # PREÇO
+                # =========================
 
-                    # =========================
-                    # PREÇO
-                    # =========================
+                preco = "0"
 
-                    preco = "0"
+                texto_pai = l.parent.get_text(
+                    " ",
+                    strip=True
+                )
 
-                    try:
+                preco_match = re.search(
+                    r'R\$ ?([\d\.\,]+)',
+                    texto_pai
+                )
 
-                        texto_pai = l.parent.get_text(
-                            " ",
-                            strip=True
-                        )
+                if preco_match:
 
-                        preco_match = re.search(
-                            r'R\$ ?([\d\.\,]+)',
-                            texto_pai
-                        )
+                    preco = preco_match.group(1)
 
-                        if preco_match:
+                # =========================
+                # IMAGEM
+                # =========================
 
-                            preco = preco_match.group(1)
+                img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
 
-                    except:
-                        pass
+                produto_req = requests.get(
+                    href,
+                    headers=headers,
+                    timeout=10
+                )
 
-# =========================
-# IMAGEM
-# =========================
+                produto_soup = BeautifulSoup(
+                    produto_req.text,
+                    "html.parser"
+                )
 
-img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
+                meta_img = produto_soup.find(
+                    "meta",
+                    property="og:image"
+                )
 
-produto_req = requests.get(
-    href,
-    headers=headers,
-    timeout=10
-)
+                if meta_img:
 
-produto_soup = BeautifulSoup(
-    produto_req.text,
-    "html.parser"
-)
+                    possible_img = meta_img.get(
+                        "content",
+                        ""
+                    )
 
-meta_img = produto_soup.find(
-    "meta",
-    property="og:image"
-)
+                    if possible_img:
 
-if meta_img:
+                        img = possible_img
 
-    possible_img = meta_img.get(
-        "content",
-        ""
-    )
-
-    if possible_img:
-
-        img = possible_img
-
-                    produtos.append({
-                        "nome": texto[:120],
-                        "preco": preco,
-                        "link": href,
-                        "img": img,
-                        "vendas": random.randint(100, 5000),
-                        "avaliacao": round(random.uniform(4.4, 5.0), 1),
-                        "origem": "ml"
-                    })
-
-                except:
-                    pass
+                produtos.append({
+                    "nome": texto[:120],
+                    "preco": preco,
+                    "link": href,
+                    "img": img,
+                    "vendas": random.randint(100, 5000),
+                    "avaliacao": round(random.uniform(4.4, 5.0), 1),
+                    "origem": "ml"
+                })
 
         random.shuffle(produtos)
 
@@ -410,7 +409,9 @@ if meta_img:
 
     except Exception as e:
 
-        logging.error(f"Erro ML LISTA: {e}")
+        logging.error(
+            f"Erro ML LISTA: {e}"
+        )
 
         return []
 
