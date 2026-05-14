@@ -354,36 +354,43 @@ def get_ml_lista():
                     except:
                         pass
 
-                    # =========================
-                    # IMAGEM
-                    # =========================
+# =========================
+# IMAGEM
+# =========================
 
-                    img = ""
+img = ""
 
-                    try:
+try:
 
-                        img_tag = l.find("img")
+    # abre página do produto
+    produto_req = requests.get(
+        href,
+        headers=headers,
+        timeout=10
+    )
 
-                        if img_tag:
+    produto_soup = BeautifulSoup(
+        produto_req.text,
+        "html.parser"
+    )
 
-                            if img_tag.get("data-src"):
+    # tenta meta og:image
+    meta_img = produto_soup.find(
+        "meta",
+        property="og:image"
+    )
 
-                                img = img_tag.get("data-src")
+    if meta_img:
 
-                            elif img_tag.get("src"):
+        img = meta_img.get("content", "")
 
-                                img = img_tag.get("src")
+except:
+    pass
 
-                            elif img_tag.get("data-lazy"):
+# fallback
+if not img:
 
-                                img = img_tag.get("data-lazy")
-
-                    except:
-                        pass
-
-                    if not img or "data:image" in img:
-
-                        img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
+    img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
 
                     produtos.append({
                         "nome": texto[:120],
