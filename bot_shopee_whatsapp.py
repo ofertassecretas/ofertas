@@ -356,25 +356,24 @@ def get_ml_lista():
 
                     preco = preco_match.group(1)
 
-                # =========================
-                # IMAGEM
-                # =========================
+               # =========================
+# IMAGEM ML
+# =========================
 
-                img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
+img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
 
-                produto_req = requests.get(
-                    href,
-                    headers=headers,
-                    timeout=10
-                )
+produto_req = requests.get(
+    href,
+    headers=headers,
+    timeout=10
+)
 
-                produto_soup = BeautifulSoup(
-                    produto_req.text,
-                    "html.parser"
-                )
+produto_soup = BeautifulSoup(
+    produto_req.text,
+    "html.parser"
+)
 
-            meta_img = produto_soup.find(
-   
+meta_img = produto_soup.find(
     "meta",
     property="og:image"
 )
