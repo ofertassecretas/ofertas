@@ -507,39 +507,31 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
 
+    logging.info("🤖 BOT CURADORIA V1 ATIVADO")
+
     app.job_queue.run_repeating(
         send_ofertas,
         interval=CHECK_INTERVAL,
         first=10
     )
 
-    logging.info("🤖 BOT CURADORIA V1 ATIVADO")
-
 # =========================
 # MAIN
 # =========================
 
+def main():
+
+    app = (
+        ApplicationBuilder()
+        .token(TELEGRAM_TOKEN)
+        .post_init(post_init)
+        .build()
+    )
+
+    app.run_polling()
+
 if __name__ == "__main__":
-
-    while True:
-
-        try:
-
-            app = (
-                ApplicationBuilder()
-                .token(TELEGRAM_TOKEN)
-                .post_init(post_init)
-                .build()
-            )
-
-            app.run_polling()
-
-        except Exception as e:
-
-            logging.error(f"Erro geral: {e}")
-
-            time.sleep(15)
-
+    main()
 
 
 
