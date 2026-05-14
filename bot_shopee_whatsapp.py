@@ -283,6 +283,7 @@ def get_magalu_store():
 # ML LISTA
 # =========================
 
+```python
 def get_ml_lista():
 
     logging.info("Buscando produtos da LISTA ML")
@@ -319,7 +320,6 @@ def get_ml_lista():
 
                 href = l["href"]
 
-                # somente produtos MLB
                 if "MLB-" not in href:
                     continue
 
@@ -356,75 +356,75 @@ def get_ml_lista():
 
                     preco = preco_match.group(1)
 
-               # =========================
-# IMAGEM ML
-# =========================
+                # =========================
+                # IMAGEM
+                # =========================
 
-img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
+                img = "https://http2.mlstatic.com/D_NQ_NP_2X_945607-MLB83916558834_042025-F.webp"
 
-produto_req = requests.get(
-    href,
-    headers=headers,
-    timeout=10
-)
+                produto_req = requests.get(
+                    href,
+                    headers=headers,
+                    timeout=10
+                )
 
-produto_soup = BeautifulSoup(
-    produto_req.text,
-    "html.parser"
-)
+                produto_soup = BeautifulSoup(
+                    produto_req.text,
+                    "html.parser"
+                )
 
-meta_img = produto_soup.find(
-    "meta",
-    property="og:image"
-)
+                meta_img = produto_soup.find(
+                    "meta",
+                    property="og:image"
+                )
 
-if meta_img:
+                if meta_img:
 
-    possible_img = meta_img.get(
-        "content",
-        ""
-    )
+                    possible_img = meta_img.get(
+                        "content",
+                        ""
+                    )
 
-    if possible_img:
+                    if possible_img:
 
-        possible_img = possible_img.replace(
-            "\\u002F",
-            "/"
+                        possible_img = possible_img.replace(
+                            "\\u002F",
+                            "/"
+                        )
+
+                        if possible_img.startswith("//"):
+
+                            possible_img = "https:" + possible_img
+
+                        if possible_img.startswith("http"):
+
+                            img = possible_img
+
+                produtos.append({
+                    "nome": texto[:120],
+                    "preco": preco,
+                    "link": href,
+                    "img": img,
+                    "vendas": random.randint(100, 5000),
+                    "avaliacao": round(random.uniform(4.4, 5.0), 1),
+                    "origem": "ml"
+                })
+
+        random.shuffle(produtos)
+
+        logging.info(
+            f"ML Produtos encontrados: {len(produtos)}"
         )
 
-        if possible_img.startswith("//"):
+        return produtos[:10]
 
-            possible_img = "https:" + possible_img
+    except Exception as e:
 
-        if possible_img.startswith("http"):
+        logging.error(
+            f"Erro ML LISTA: {e}"
+        )
 
-            img = possible_img
-
-            produtos.append({
-                "nome": texto[:120],
-                "preco": preco,
-                "link": href,
-                "img": img,
-                "vendas": random.randint(100, 5000),
-                "avaliacao": round(random.uniform(4.4, 5.0), 1),
-                "origem": "ml"
-            })
-
-    random.shuffle(produtos)
-
-    logging.info(
-        f"ML Produtos encontrados: {len(produtos)}"
-    )
-
-    return produtos[:10]
-
-except Exception as e:
-
-    logging.error(
-        f"Erro ML LISTA: {e}"
-    )
-
-    return []
+        return []
 
 # =========================
 # ENVIO
