@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import quote, urljoin
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO FINAL HIBRIDA ESTAVEL V22 - SIMPLES E SEGURA")
+print("VERSAO FINAL HIBRIDA ESTAVEL V21 - LISTA ML PRIORITARIA + LOJA MAGALU")
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
@@ -117,30 +117,40 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, origem="shopee"):
     abertura = random.choice([a for a in aberturas if a not in usadas_abertura] or aberturas)
     usadas_abertura.add(abertura)
 
-    msg_tg = (
-        f"<b>{prefixo} | {abertura}</b>\n\n"
-        f"🔥 <b>{nome}</b>\n\n"
-        f"{gatilho}\n\n"
-        f"💰 <b>R$ {preco}</b>\n"
-        f"⭐ {avaliacao} | 🛒 {vendas} vendas\n"
-        f"💸 Comissão: <b>{comissao}%</b>\n\n"
-        f"⚠️ Pode subir de preço\n\n"
-        f"<a href=\"{link}\">🛒 COMPRAR AGORA</a>"
-    )
+    msg_tg = f"""
+<b>{prefixo} | {abertura}</b>
 
-    msg_wa = (
-        f"*{prefixo} | {abertura}*\n\n"
-        f"🔥 *{nome}*\n\n"
-        f"{gatilho}\n\n"
-        f"💰 *R$ {preco}*\n"
-        f"⭐ {avaliacao} | 🛒 *{vendas} vendas*\n\n"
-        f"⚠️ Pode subir de preço\n\n"
-        f"🛒 {link}"
-    )
+🔥 <b>{nome}</b>
+
+{gatilho}
+
+💰 <b>R$ {preco}</b>
+⭐ {avaliacao} | 🛒 {vendas} vendas
+💸 Comissão: <b>{comissao}%</b>
+
+⚠️ Pode subir de preço
+
+<a href="{link}">🛒 COMPRAR AGORA</a>
+"""
+
+    msg_wa = f"""
+*{prefixo} | {abertura}*
+
+🔥 *{nome}*
+
+{gatilho}
+
+💰 *R$ {preco}*
+⭐ {avaliacao} | 🛒 *{vendas} vendas*
+
+⚠️ Pode subir de preço
+
+🛒 {link}
+"""
     return msg_tg, msg_wa
 
 def gerar_link_whatsapp(msg_wa):
-    return "https://wa.me/?text=" + quote(msg_wa.strip())
+    return f"https://wa.me/?text={quote(msg_wa.strip())}"
 
 def get_shopee_offers():
     logging.info("Buscando Shopee...")
@@ -174,18 +184,17 @@ def extract_links(html_text, base_url):
                 out.append(full)
     return out
 
-def get_page(url):
+def get_ml_list_page():
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
-        "Referer": "https://www.magazinevoce.com.br/"
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
     }
-    r = requests.get(url, headers=headers, timeout=20)
+    r = requests.get(ML_LISTA_URL, headers=headers, timeout=20)
     return r.text, r.url
 
 def refresh_ml_cache():
     try:
-        html_text, final_url = get_page(ML_LISTA_URL)
+        html_text, final_url = get_ml_list_page()
         links = extract_links(html_text, final_url)
         logging.info(f"ML links encontrados na lista: {len(links)}")
         items = []
@@ -252,10 +261,19 @@ def get_ml_direct(termo):
         logging.warning(f"ML direto falhou: {e}")
         return []
 
+def get_magalu_store_page(url):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        "Referer": "https://www.magazinevoce.com.br/"
+    }
+    r = requests.get(url, headers=headers, timeout=20)
+    return r.text, r.url
+
 def refresh_magalu_cache():
     try:
         for url in [MAGALU_OFERTAS_URL, MAGALU_LOJA_URL]:
-            html_text, final_url = get_page(url)
+            html_text, final_url = get_magalu_store_page(url)
             links = extract_links(html_text, final_url)
             logging.info(f"Magalu links encontrados em {url}: {len(links)}")
             items = []
@@ -308,8 +326,8 @@ def get_magalu_direct(termo):
                 price = item.get("price", {}).get("salesPrice")
                 if not path or not title or price is None:
                     continue
-                p_url = "https://www.magazineluiza.com.br/" + path
-                aff = "https://magazineluiza.onelink.me/" + MAGALU_ONELINK_ID + "/" + MAGALU_STORE_ID + "?af_dp=" + quote(p_url)
+                p_url = f"https://www.magazineluiza.com.br/{path}"
+                aff = f"https://magazineluiza.onelink.me/{MAGALU_ONELINK_ID}/{MAGALU_STORE_ID}?af_dp={quote(p_url)}"
                 res.append({
                     "id": str(item.get("id", hashlib.md5(p_url.encode()).hexdigest())),
                     "nome": title,
@@ -338,6 +356,15 @@ def escolher_item_sem_repetir(items, prefixo_cache):
             registrar_enviado(key)
             return item
     return None
+
+def montar_link_final(item):
+    origem = item.get("origem")
+    link = item.get("link", "")
+    if origem == "magalu":
+        if "magazineluiza.onelink.me" in link or "magazinevoce.com.br" in link:
+            return link
+        return link
+    return link
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -375,16 +402,17 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         if magalu_items:
             i = escolher_item_sem_repetir(magalu_items, "magalu")
             if i and i["preco"] != "0.00" and i["nome"] and i["link"]:
+                link_final = montar_link_final(i)
                 msg_tg, msg_wa = gerar_copy(
                     html.escape(i["nome"]),
                     i["preco"],
                     i["vendas"],
                     i["avaliacao"],
                     i["comissao"],
-                    i["link"],
+                    link_final,
                     "magalu"
                 )
-                total_lista.append({"msg_tg": msg_tg, "msg_wa": msg_wa, "img": i.get("img", ""), "link": i["link"]})
+                total_lista.append({"msg_tg": msg_tg, "msg_wa": msg_wa, "img": i.get("img", ""), "link": link_final})
 
         ml_items = get_ml_from_cache()
         if not ml_items:
@@ -432,7 +460,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("🤖 BOT V22 ATIVADO")
+    logging.info("🤖 BOT V21 ATIVADO")
 
 if __name__ == "__main__":
     while True:
