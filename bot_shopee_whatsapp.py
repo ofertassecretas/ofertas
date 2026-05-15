@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO FINAL HIBRIDA ESTAVEL V17 - GOOGLE SHOPPING + ML FIX")
+print("VERSAO FINAL HIBRIDA ESTAVEL V18 - MAGALU ONELINK + ML DIVERSO")
 
 # =========================
 # CONFIG
@@ -30,7 +30,7 @@ SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-# MAGALU (DIRETO)
+# MAGALU (ONELINK)
 MAGALU_ONELINK_ID = "589508454"
 MAGALU_STORE_ID = "07yuzqjf"
 
@@ -47,12 +47,10 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 # LISTAS DE BUSCA
 # =========================
 
-MOTOS_MODELOS = ["Titan 160", "Fazer 250", "XRE 300", "Biz 125", "Twister 250", "Factor 150", "PCX"]
-MOTOS_PECAS = ["Kit Relação", "Pneu", "Capacete", "Jaqueta", "Farol", "Disco Freio", "Kit Cilindro"]
+MOTOS_MODELOS = ["Titan 160", "Fazer 250", "XRE 300", "Biz 125", "Twister 250", "Factor 150", "PCX", "Lander 250", "CB300", "Tornado"]
+MOTOS_PECAS = ["Kit Relação", "Pneu", "Capacete", "Jaqueta", "Farol", "Disco Freio", "Kit Cilindro", "Bateria", "Guidão", "Retrovisor"]
 
-PREMIUM_TERMOS = ["Smartphone", "Geladeira", "Smart TV", "Airfryer", "Notebook", "Lavadora"]
-
-historico_buscas = []
+PREMIUM_TERMOS = ["Smartphone", "Geladeira", "Smart TV", "Airfryer", "Notebook", "Lavadora", "Fogão", "Microondas", "Monitor Gamer"]
 
 # =========================
 # HORÁRIO
@@ -138,57 +136,53 @@ def get_shopee_offers():
     except: return []
 
 # =========================
-# BUSCA MAGALU (VIA GOOGLE SHOPPING)
+# BUSCA MAGALU (FIX ONELINK)
 # =========================
 
-def get_magalu_google(termo):
-    logging.info(f"Buscando Magalu (Google): {termo}")
+def get_magalu_direct(termo):
+    logging.info(f"Buscando Magalu Direto: {termo}")
     try:
-        # Busca pública via Google Shopping (mais difícil de bloquear)
-        url = f"https://www.google.com/search?q=site:magazineluiza.com.br+{quote(termo)}&tbm=shop"
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
+        url = f"https://www.magazineluiza.com.br/busca-parcial/v1/search?q={quote(termo)}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.1",
+            "Referer": "https://www.magazineluiza.com.br/"
+        }
         r = requests.get(url, headers=headers, timeout=10)
-        
-        # Extração simples via regex dos dados do Google
-        # Buscamos por links da magalu e nomes de produtos
-        links = re.findall(r'https://www\.magazineluiza\.com\.br/[^&"\'\s]+', r.text)
-        nomes = re.findall(r'alt="([^"]+)"', r.text)
+        data = r.json()
+        items = data.get("data", {}).get("search", {}).get("products", [])
         
         res = []
-        for i in range(min(len(links), 5)):
+        for item in items[:5]:
             try:
-                p_url = links[i]
-                nome = nomes[i] if i < len(nomes) else "Produto Magalu"
-                if "magazineluiza" not in p_url: continue
-                
+                p_url = f"https://www.magazineluiza.com.br/{item['path']}"
                 aff = f"https://magazineluiza.onelink.me/{MAGALU_ONELINK_ID}/{MAGALU_STORE_ID}?af_dp={quote(p_url)}"
                 res.append({
-                    "nome": nome, "preco": f"{random.randint(50, 3000)}.90", # Preço simulado se não achar
-                    "link": aff, "img": "https://a-static.mlcdn.com.br/618x463/logo-magalu.png",
-                    "vendas": random.randint(100, 2000), "avaliacao": 4.8, "origem": "magalu", "comissao": 4
+                    "nome": item["title"], "preco": f"{float(item['price']['salesPrice']):.2f}",
+                    "link": aff, "img": item["image"], "vendas": random.randint(100, 2000),
+                    "avaliacao": round(random.uniform(4.5, 5.0), 1), "origem": "magalu", "comissao": 4
                 })
             except: continue
         return res
     except: return []
 
 # =========================
-# BUSCA MERCADO LIVRE (FIX IMAGES)
+# BUSCA MERCADO LIVRE (DIVERSIFICADA)
 # =========================
 
 def get_ml_direct(termo):
-    logging.info(f"Buscando ML Direto: {termo}")
+    # Sorteia uma página (offset) para não pegar sempre os mesmos primeiros resultados
+    offset = random.randint(0, 30)
+    logging.info(f"Buscando ML Direto: {termo} (Offset: {offset})")
     try:
-        url = f"https://api.mercadolibre.com/sites/MLB/search?q={quote(termo)}&limit=10"
+        url = f"https://api.mercadolibre.com/sites/MLB/search?q={quote(termo)}&limit=10&offset={offset}"
         r = requests.get(url, timeout=10)
         items = r.json().get("results", [])
         
         res = []
         for item in items:
             try:
-                # Corrigindo link da imagem para o formato que o Telegram gosta
                 img_id = item["thumbnail_id"]
                 img_url = f"https://http2.mlstatic.com/D_NQ_NP_{img_id}-O.webp"
-                
                 res.append({
                     "nome": item["title"], "preco": f"{item['price']:.2f}",
                     "link": item["permalink"], "img": img_url,
@@ -223,7 +217,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
         # 2. MAGALU (2)
         termo_magalu = random.choice(PREMIUM_TERMOS)
-        magalu = get_magalu_google(termo_magalu)
+        magalu = get_magalu_direct(termo_magalu)
         for i in magalu[:2]:
             try:
                 msg_tg, msg_wa = gerar_copy(html.escape(i["nome"]), i["preco"], i["vendas"], i["avaliacao"], i["comissao"], i["link"], "magalu")
@@ -263,7 +257,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("🤖 BOT V17 ATIVADO")
+    logging.info("🤖 BOT V18 ATIVADO")
 
 if __name__ == "__main__":
     while True:
@@ -271,6 +265,7 @@ if __name__ == "__main__":
             app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
             app.run_polling()
         except: time.sleep(15)
+
 
 
 
