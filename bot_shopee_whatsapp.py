@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import quote, urljoin
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO FINAL HIBRIDA ESTAVEL V24 - MAGALU API FIX")
+print("VERSAO FINAL HIBRIDA ESTAVEL V25 - MAGALU NEXT DATA FIX")
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
@@ -31,8 +31,6 @@ SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 MAGALU_ONELINK_ID = "589508454"
 MAGALU_STORE_ID = "07yuzqjf"
-MAGALU_LOJA_URL = "https://www.magazinevoce.com.br/magazineshopandreonline/"
-MAGALU_OFERTAS_URL = "https://www.magazinevoce.com.br/magazineshopandreonline/ofertas/"
 
 ML_LISTA_URL = "https://mercadolivre.com/sec/167xbsR"
 
@@ -54,18 +52,41 @@ CACHE_FILE = "cache_envios.json"
 ML_LISTA_CACHE_FILE = "ml_lista_cache.json"
 
 PREMIUM_TERMOS = [
-    "Smartphone", "Geladeira", "Smart TV", "Airfryer", "Notebook",
-    "Lavadora", "Fogão", "Microondas", "Monitor Gamer"
+    "Smartphone",
+    "Geladeira",
+    "Smart TV",
+    "Airfryer",
+    "Notebook",
+    "Lavadora",
+    "Fogão",
+    "Microondas",
+    "Monitor Gamer"
 ]
 
 MOTOS_MODELOS = [
-    "Titan 160", "Fazer 250", "XRE 300", "Biz 125", "Twister 250",
-    "Factor 150", "PCX", "Lander 250", "CB300", "Tornado"
+    "Titan 160",
+    "Fazer 250",
+    "XRE 300",
+    "Biz 125",
+    "Twister 250",
+    "Factor 150",
+    "PCX",
+    "Lander 250",
+    "CB300",
+    "Tornado"
 ]
 
 MOTOS_PECAS = [
-    "Kit Relação", "Pneu", "Capacete", "Jaqueta", "Farol",
-    "Disco Freio", "Kit Cilindro", "Bateria", "Guidão", "Retrovisor"
+    "Kit Relação",
+    "Pneu",
+    "Capacete",
+    "Jaqueta",
+    "Farol",
+    "Disco Freio",
+    "Kit Cilindro",
+    "Bateria",
+    "Guidão",
+    "Retrovisor"
 ]
 
 def dentro_do_horario():
@@ -89,7 +110,11 @@ def salvar_json(path, data):
         logging.warning(f"Falha ao salvar {path}: {e}")
 
 cache_envios = carregar_json(CACHE_FILE, {"sent": []})
-ml_lista_cache = carregar_json(ML_LISTA_CACHE_FILE, {"items": [], "updated": 0})
+
+ml_lista_cache = carregar_json(
+    ML_LISTA_CACHE_FILE,
+    {"items": [], "updated": 0}
+)
 
 def cache_ja_enviado(key):
     return key in cache_envios["sent"]
@@ -99,7 +124,16 @@ def registrar_enviado(key, max_itens=120):
     cache_envios["sent"] = cache_envios["sent"][-max_itens:]
     salvar_json(CACHE_FILE, cache_envios)
 
-def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, origem="shopee"):
+def gerar_copy(
+    nome,
+    preco,
+    vendas,
+    avaliacao,
+    comissao,
+    link,
+    origem="shopee"
+):
+
     prefixos = {
         "shopee": "🟠 SHOPEE",
         "ml": "🟡 MERCADO LIVRE",
@@ -127,7 +161,9 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, origem="shopee"):
     ])
 
     abertura = random.choice(
-        [a for a in aberturas if a not in usadas_abertura] or aberturas
+        [a for a in aberturas if a not in usadas_abertura]
+        or
+        aberturas
     )
 
     usadas_abertura.add(abertura)
@@ -159,18 +195,27 @@ def gerar_link_whatsapp(msg_wa):
     return "https://wa.me/?text=" + quote(msg_wa.strip())
 
 def get_page(url, timeout=20):
+
     headers = {
         "User-Agent": "Mozilla/5.0",
-        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
-        "Referer": "https://www.magazinevoce.com.br/"
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
     }
 
-    r = requests.get(url, headers=headers, timeout=timeout)
+    r = requests.get(
+        url,
+        headers=headers,
+        timeout=timeout
+    )
 
     return r.text, r.url
 
 def extract_links(html_text, base_url):
-    hrefs = re.findall(r'href=["\']([^"\']+)["\']', html_text, flags=re.I)
+
+    hrefs = re.findall(
+        r'href=["\']([^"\']+)["\']',
+        html_text,
+        flags=re.I
+    )
 
     out = []
 
@@ -194,10 +239,8 @@ def extract_links(html_text, base_url):
         if any(x in low for x in [
             "mercadolivre.com",
             "mercadolivre.com.br",
-            "magazinevoce.com.br",
             "/p/",
             "/produto/",
-            "/ofertas",
             "/dp/"
         ]):
 
@@ -230,13 +273,24 @@ def get_shopee_offers():
 
     payload = json.dumps({"query": query_body})
 
-    base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
+    base = (
+        SHOPEE_APP_ID
+        + str(timestamp)
+        + payload
+        + SHOPEE_PASSWORD
+    )
 
-    signature = hashlib.sha256(base.encode()).hexdigest()
+    signature = hashlib.sha256(
+        base.encode()
+    ).hexdigest()
 
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
+        "Authorization": (
+            f"SHA256 Credential={SHOPEE_APP_ID}, "
+            f"Timestamp={timestamp}, "
+            f"Signature={signature}"
+        )
     }
 
     try:
@@ -248,9 +302,16 @@ def get_shopee_offers():
             timeout=20
         )
 
-        nodes = r.json().get("data", {}).get("productOfferV2", {}).get("nodes", [])
+        nodes = (
+            r.json()
+            .get("data", {})
+            .get("productOfferV2", {})
+            .get("nodes", [])
+        )
 
-        logging.info(f"Shopee itens brutos: {len(nodes)}")
+        logging.info(
+            f"Shopee itens brutos: {len(nodes)}"
+        )
 
         return nodes
 
@@ -264,11 +325,19 @@ def refresh_ml_cache():
 
     try:
 
-        html_text, final_url = get_page(ML_LISTA_URL, timeout=20)
+        html_text, final_url = get_page(
+            ML_LISTA_URL,
+            timeout=20
+        )
 
-        links = extract_links(html_text, final_url)
+        links = extract_links(
+            html_text,
+            final_url
+        )
 
-        logging.info(f"Links de ML encontrados na lista: {len(links)}")
+        logging.info(
+            f"Links de ML encontrados na lista: {len(links)}"
+        )
 
         items = []
 
@@ -277,7 +346,9 @@ def refresh_ml_cache():
             if "mercadolivre" not in l.lower():
                 continue
 
-            item_id = hashlib.md5(l.encode()).hexdigest()
+            item_id = hashlib.md5(
+                l.encode()
+            ).hexdigest()
 
             items.append({
                 "id": item_id,
@@ -286,7 +357,10 @@ def refresh_ml_cache():
                 "link": l,
                 "img": "",
                 "vendas": random.randint(50, 2000),
-                "avaliacao": round(random.uniform(4.4, 5.0), 1),
+                "avaliacao": round(
+                    random.uniform(4.4, 5.0),
+                    1
+                ),
                 "origem": "ml",
                 "comissao": 5
             })
@@ -294,18 +368,27 @@ def refresh_ml_cache():
         ml_lista_cache["items"] = items
         ml_lista_cache["updated"] = int(time.time())
 
-        salvar_json(ML_LISTA_CACHE_FILE, ml_lista_cache)
+        salvar_json(
+            ML_LISTA_CACHE_FILE,
+            ml_lista_cache
+        )
 
     except Exception as e:
 
-        logging.warning(f"Falha ao atualizar cache ML: {e}")
+        logging.warning(
+            f"Falha ao atualizar cache ML: {e}"
+        )
 
 def get_ml_from_cache():
 
     if (
         not ml_lista_cache["items"]
         or
-        (int(time.time()) - ml_lista_cache.get("updated", 0) > 21600)
+        (
+            int(time.time())
+            - ml_lista_cache.get("updated", 0)
+            > 21600
+        )
     ):
         refresh_ml_cache()
 
@@ -318,7 +401,9 @@ def get_ml_from_cache():
         if not cache_ja_enviado("ml_" + item["id"])
     ]
 
-    logging.info(f"ML itens válidos no cache: {len(validos)}")
+    logging.info(
+        f"Itens válidos de ML no cache: {len(validos)}"
+    )
 
     return validos
 
@@ -326,12 +411,14 @@ def get_ml_direct(termo):
 
     offset = random.randint(0, 40)
 
-    logging.info(f"Buscando ML Direto: {termo} (Offset: {offset})")
+    logging.info(
+        f"Buscando ML Direto: {termo} (Offset: {offset})"
+    )
 
     try:
 
         url = (
-            f"https://api.mercadolibre.com/sites/MLB/search"
+            "https://api.mercadolibre.com/sites/MLB/search"
             f"?q={quote(termo)}&limit=10&offset={offset}"
         )
 
@@ -355,13 +442,28 @@ def get_ml_direct(termo):
                 img = item.get("thumbnail") or ""
 
                 res.append({
-                    "id": str(item.get("id", hashlib.md5(link.encode()).hexdigest())),
+                    "id": str(
+                        item.get(
+                            "id",
+                            hashlib.md5(
+                                link.encode()
+                            ).hexdigest()
+                        )
+                    ),
                     "nome": nome,
                     "preco": f"{float(preco):.2f}",
                     "link": link,
                     "img": img,
-                    "vendas": int(item.get("sold_quantity", random.randint(50, 500))),
-                    "avaliacao": round(random.uniform(4.4, 5.0), 1),
+                    "vendas": int(
+                        item.get(
+                            "sold_quantity",
+                            random.randint(50, 500)
+                        )
+                    ),
+                    "avaliacao": round(
+                        random.uniform(4.4, 5.0),
+                        1
+                    ),
                     "origem": "ml",
                     "comissao": 5
                 })
@@ -369,13 +471,17 @@ def get_ml_direct(termo):
             except:
                 continue
 
-        logging.info(f"ML direto itens válidos: {len(res)}")
+        logging.info(
+            f"ML direto itens válidos: {len(res)}"
+        )
 
         return res
 
     except Exception as e:
 
-        logging.warning(f"ML direto falhou: {e}")
+        logging.warning(
+            f"ML direto falhou: {e}"
+        )
 
         return []
 
@@ -399,7 +505,13 @@ def get_magalu_headers():
     return {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Referer": "https://www.magazineluiza.com.br/",
+        "Origin": "https://www.magazineluiza.com.br",
         "X-API-KEY": MAGALU_API_KEY or "",
         "X-API-KEY-ID": MAGALU_API_KEY_ID or "",
         "X-API-SECRET": MAGALU_API_SECRET or "",
@@ -407,7 +519,9 @@ def get_magalu_headers():
 
 def get_magalu_direct(termo):
 
-    logging.info(f"Buscando Magalu API: {termo}")
+    logging.info(
+        f"Buscando API Magalu: {termo}"
+    )
 
     endpoints = [
         f"https://www.magazineluiza.com.br/busca/{quote(termo)}/",
@@ -430,59 +544,162 @@ def get_magalu_direct(termo):
 
             html_text = r.text
 
-            blocos = re.findall(
-                r'"productTitle":"(.*?)".*?"price":"(.*?)".*?"path":"(.*?)".*?"image":"(.*?)"',
-                html_text
+            json_match = re.search(
+                r'window\.__NEXT_DATA__\s*=\s*(\{.*?\})\s*</script>',
+                html_text,
+                re.S
             )
 
-            logging.info(f"Magalu blocos encontrados: {len(blocos)}")
+            if not json_match:
 
-            for item in blocos[:15]:
+                logging.info(
+                    "NEXT_DATA não encontrado"
+                )
+
+                continue
+
+            try:
+
+                data = json.loads(
+                    json_match.group(1)
+                )
+
+            except Exception as e:
+
+                logging.warning(
+                    f"Erro lendo NEXT_DATA: {e}"
+                )
+
+                continue
+
+            produtos_json = []
+
+            def procurar_produtos(obj):
+
+                if isinstance(obj, dict):
+
+                    if (
+                        "title" in obj
+                        and
+                        (
+                            "price" in obj
+                            or
+                            "bestPrice" in obj
+                            or
+                            "salesPrice" in obj
+                        )
+                    ):
+
+                        produtos_json.append(obj)
+
+                    for v in obj.values():
+                        procurar_produtos(v)
+
+                elif isinstance(obj, list):
+
+                    for i in obj:
+                        procurar_produtos(i)
+
+            procurar_produtos(data)
+
+            logging.info(
+                f"Produtos JSON encontrados: {len(produtos_json)}"
+            )
+
+            for item in produtos_json[:15]:
 
                 try:
 
-                    nome = html.unescape(item[0])
+                    nome = (
+                        item.get("title")
+                        or
+                        item.get("productTitle")
+                    )
 
-                    preco = item[1].replace(".", "").replace(",", ".")
+                    preco = (
+                        item.get("bestPrice")
+                        or
+                        item.get("price")
+                        or
+                        item.get("salesPrice")
+                    )
 
-                    path = item[2]
+                    path = (
+                        item.get("url")
+                        or
+                        item.get("path")
+                    )
 
-                    imagem = item[3].replace("\\u002F", "/")
+                    imagem = (
+                        item.get("image")
+                        or
+                        item.get("imageUrl")
+                        or
+                        ""
+                    )
 
-                    produto_url = "https://www.magazineluiza.com.br" + path
+                    if not nome or not preco or not path:
+                        continue
 
-                    link_afiliado = gerar_link_magalu(produto_url)
+                    if not str(path).startswith("http"):
 
-                    produto_id = hashlib.md5(produto_url.encode()).hexdigest()
+                        produto_url = (
+                            "https://www.magazineluiza.com.br"
+                            + str(path)
+                        )
+
+                    else:
+
+                        produto_url = path
+
+                    link_afiliado = gerar_link_magalu(
+                        produto_url
+                    )
+
+                    produto_id = hashlib.md5(
+                        produto_url.encode()
+                    ).hexdigest()
 
                     produtos.append({
                         "id": produto_id,
                         "nome": nome,
-                        "preco": preco,
+                        "preco": str(preco).replace(".", ","),
                         "link": link_afiliado,
                         "img": imagem,
                         "vendas": random.randint(100, 5000),
-                        "avaliacao": round(random.uniform(4.5, 5.0), 1),
+                        "avaliacao": round(
+                            random.uniform(4.5, 5.0),
+                            1
+                        ),
                         "origem": "magalu",
                         "comissao": random.randint(3, 8)
                     })
 
                 except Exception as e:
 
-                    logging.warning(f"Erro item Magalu: {e}")
+                    logging.warning(
+                        f"Erro item Magalu: {e}"
+                    )
 
             if produtos:
                 break
 
         except Exception as e:
 
-            logging.warning(f"Erro endpoint Magalu: {e}")
+            logging.warning(
+                f"Erro endpoint Magalu: {e}"
+            )
 
-    logging.info(f"Magalu produtos válidos: {len(produtos)}")
+    logging.info(
+        f"Produtos Magalu válidos: {len(produtos)}"
+    )
 
     return produtos
 
-def escolher_item_sem_repetir(items, prefixo_cache):
+def escolher_item_sem_repetir(
+    items,
+    prefixo_cache
+):
 
     if not items:
         return None
@@ -494,7 +711,9 @@ def escolher_item_sem_repetir(items, prefixo_cache):
             + "_"
             + item.get(
                 "id",
-                hashlib.md5(item["link"].encode()).hexdigest()
+                hashlib.md5(
+                    item["link"].encode()
+                ).hexdigest()
             )
         )
 
@@ -506,13 +725,17 @@ def escolher_item_sem_repetir(items, prefixo_cache):
 
     return None
 
-async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
+async def send_ofertas(
+    context: ContextTypes.DEFAULT_TYPE
+):
 
     try:
 
         if not dentro_do_horario():
 
-            logging.info("Fora do horario permitido.")
+            logging.info(
+                "Fora do horario permitido."
+            )
 
             return
 
@@ -534,7 +757,12 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     l = f"{l}?af_siteid={AFILIADO_ID}"
 
                 comis = round(
-                    float(i.get("commissionRate", 0)) * 100,
+                    float(
+                        i.get(
+                            "commissionRate",
+                            0
+                        )
+                    ) * 100,
                     2
                 )
 
@@ -559,13 +787,21 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
             except Exception as e:
 
-                logging.warning(f"Shopee item inválido: {e}")
+                logging.warning(
+                    f"Shopee item inválido: {e}"
+                )
 
-        logging.info(f"Shopee itens válidos: {shopee_validos}")
+        logging.info(
+            f"Shopee itens válidos: {shopee_validos}"
+        )
 
-        termo_magalu = random.choice(PREMIUM_TERMOS)
+        termo_magalu = random.choice(
+            PREMIUM_TERMOS
+        )
 
-        magalu_items = get_magalu_direct(termo_magalu)
+        magalu_items = get_magalu_direct(
+            termo_magalu
+        )
 
         if not magalu_items:
 
@@ -577,15 +813,30 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 "air fryer"
             ])
 
-            magalu_items = get_magalu_direct(termo_magalu)
+            magalu_items = get_magalu_direct(
+                termo_magalu
+            )
 
-        logging.info(f"Magalu candidatos: {len(magalu_items)}")
+        logging.info(
+            f"Magalu candidatos: {len(magalu_items)}"
+        )
 
         if magalu_items:
 
-            i = escolher_item_sem_repetir(magalu_items, "magalu")
+            i = escolher_item_sem_repetir(
+                magalu_items,
+                "magalu"
+            )
 
-            if i and i["preco"] != "0.00" and i["nome"] and i["link"]:
+            if (
+                i
+                and
+                i["preco"] != "0.00"
+                and
+                i["nome"]
+                and
+                i["link"]
+            ):
 
                 msg_tg, msg_wa = gerar_copy(
                     html.escape(i["nome"]),
@@ -604,11 +855,9 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     "link": i["link"]
                 })
 
-                logging.info("Magalu adicionado ao envio.")
-
-            else:
-
-                logging.info("Magalu descartado por campos inválidos.")
+                logging.info(
+                    "Magalu adicionado ao envio."
+                )
 
         ml_items = get_ml_from_cache()
 
@@ -619,21 +868,40 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 f"{random.choice(MOTOS_MODELOS)}"
             )
 
-            ml_items = get_ml_direct(termo_moto)
+            ml_items = get_ml_direct(
+                termo_moto
+            )
 
         if not ml_items:
 
-            termo_ml_p = random.choice(PREMIUM_TERMOS)
+            termo_ml_p = random.choice(
+                PREMIUM_TERMOS
+            )
 
-            ml_items = get_ml_direct(termo_ml_p)
+            ml_items = get_ml_direct(
+                termo_ml_p
+            )
 
-        logging.info(f"ML candidatos após fallback: {len(ml_items)}")
+        logging.info(
+            f"ML candidatos após fallback: {len(ml_items)}"
+        )
 
         if ml_items:
 
-            i = escolher_item_sem_repetir(ml_items, "ml")
+            i = escolher_item_sem_repetir(
+                ml_items,
+                "ml"
+            )
 
-            if i and i["preco"] != "0.00" and i["nome"] and i["link"]:
+            if (
+                i
+                and
+                i["preco"] != "0.00"
+                and
+                i["nome"]
+                and
+                i["link"]
+            ):
 
                 msg_tg, msg_wa = gerar_copy(
                     html.escape(i["nome"]),
@@ -652,17 +920,19 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     "link": i["link"]
                 })
 
-                logging.info("ML adicionado ao envio.")
+                logging.info(
+                    "ML adicionado ao envio."
+                )
 
-            else:
-
-                logging.info("ML descartado por campos inválidos.")
-
-        logging.info(f"total_lista final: {len(total_lista)}")
+        logging.info(
+            f"total_lista final: {len(total_lista)}"
+        )
 
         if not total_lista:
 
-            logging.info("Nenhuma oferta válida encontrada nesta rodada.")
+            logging.info(
+                "Nenhuma oferta válida encontrada nesta rodada."
+            )
 
             return
 
@@ -677,7 +947,9 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
             try:
 
-                zap_link = gerar_link_whatsapp(item["msg_wa"])
+                zap_link = gerar_link_whatsapp(
+                    item["msg_wa"]
+                )
 
                 full_msg = (
                     item["msg_tg"]
@@ -709,11 +981,15 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
             except Exception as e:
 
-                logging.error(f"Erro ao enviar item: {e}")
+                logging.error(
+                    f"Erro ao enviar item: {e}"
+                )
 
     except Exception as e:
 
-        logging.error(f"ERRO CRITICO: {e}")
+        logging.error(
+            f"ERRO CRITICO: {e}"
+        )
 
 async def post_init(app):
 
@@ -723,7 +999,9 @@ async def post_init(app):
         first=10
     )
 
-    logging.info("🤖 BOT V24 ATIVADO")
+    logging.info(
+        "🤖 BOT V25 ATIVADO"
+    )
 
 if __name__ == "__main__":
 
@@ -742,7 +1020,9 @@ if __name__ == "__main__":
 
         except Exception as e:
 
-            logging.error(f"Falha geral no app: {e}")
+            logging.error(
+                f"Falha geral no app: {e}"
+            )
 
             time.sleep(15)
         
