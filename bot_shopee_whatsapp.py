@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import quote, urljoin
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO FINAL HIBRIDA ESTAVEL V21 - LISTA ML PRIORITARIA + LOJA MAGALU")
+print("VERSAO FINAL HIBRIDA ESTAVEL V23 - DEBUG FORTE + LOG LOCAL")
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
@@ -37,7 +37,11 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("debug_bot.txt", encoding="utf-8")
+    ]
 )
 
 usadas_abertura = set()
@@ -117,58 +121,39 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, origem="shopee"):
     abertura = random.choice([a for a in aberturas if a not in usadas_abertura] or aberturas)
     usadas_abertura.add(abertura)
 
-    msg_tg = f"""
-<b>{prefixo} | {abertura}</b>
+    msg_tg = (
+        f"<b>{prefixo} | {abertura}</b>\n\n"
+        f"🔥 <b>{nome}</b>\n\n"
+        f"{gatilho}\n\n"
+        f"💰 <b>R$ {preco}</b>\n"
+        f"⭐ {avaliacao} | 🛒 {vendas} vendas\n"
+        f"💸 Comissão: <b>{comissao}%</b>\n\n"
+        f"⚠️ Pode subir de preço\n\n"
+        f"<a href=\"{link}\">🛒 COMPRAR AGORA</a>"
+    )
 
-🔥 <b>{nome}</b>
-
-{gatilho}
-
-💰 <b>R$ {preco}</b>
-⭐ {avaliacao} | 🛒 {vendas} vendas
-💸 Comissão: <b>{comissao}%</b>
-
-⚠️ Pode subir de preço
-
-<a href="{link}">🛒 COMPRAR AGORA</a>
-"""
-
-    msg_wa = f"""
-*{prefixo} | {abertura}*
-
-🔥 *{nome}*
-
-{gatilho}
-
-💰 *R$ {preco}*
-⭐ {avaliacao} | 🛒 *{vendas} vendas*
-
-⚠️ Pode subir de preço
-
-🛒 {link}
-"""
+    msg_wa = (
+        f"*{prefixo} | {abertura}*\n\n"
+        f"🔥 *{nome}*\n\n"
+        f"{gatilho}\n\n"
+        f"💰 *R$ {preco}*\n"
+        f"⭐ {avaliacao} | 🛒 *{vendas} vendas*\n\n"
+        f"⚠️ Pode subir de preço\n\n"
+        f"🛒 {link}"
+    )
     return msg_tg, msg_wa
 
 def gerar_link_whatsapp(msg_wa):
-    return f"https://wa.me/?text={quote(msg_wa.strip())}"
+    return "https://wa.me/?text=" + quote(msg_wa.strip())
 
-def get_shopee_offers():
-    logging.info("Buscando Shopee...")
-    timestamp = int(time.time())
-    query_body = "query { productOfferV2(sortType: 2, limit: 10) { nodes { productName, priceMin, commissionRate, sales, ratingStar, productLink, imageUrl } } }"
-    payload = json.dumps({"query": query_body})
-    base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
-    signature = hashlib.sha256(base.encode()).hexdigest()
+def get_page(url, timeout=20):
     headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        "Referer": "https://www.magazinevoce.com.br/"
     }
-    try:
-        r = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=15)
-        return r.json()["data"]["productOfferV2"]["nodes"]
-    except Exception as e:
-        logging.warning(f"Shopee falhou: {e}")
-        return []
+    r = requests.get(url, headers=headers, timeout=timeout)
+    return r.text, r.url
 
 def extract_links(html_text, base_url):
     hrefs = re.findall(r'href=["\']([^"\']+)["\']', html_text, flags=re.I)
@@ -184,19 +169,31 @@ def extract_links(html_text, base_url):
                 out.append(full)
     return out
 
-def get_ml_list_page():
+def get_shopee_offers():
+    logging.info("Buscando Shopee...")
+    timestamp = int(time.time())
+    query_body = "query { productOfferV2(sortType: 2, limit: 10) { nodes { productName, priceMin, commissionRate, sales, ratingStar, productLink, imageUrl } } }"
+    payload = json.dumps({"query": query_body})
+    base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
+    signature = hashlib.sha256(base.encode()).hexdigest()
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
+        "Content-Type": "application/json",
+        "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
     }
-    r = requests.get(ML_LISTA_URL, headers=headers, timeout=20)
-    return r.text, r.url
+    try:
+        r = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=20)
+        nodes = r.json().get("data", {}).get("productOfferV2", {}).get("nodes", [])
+        logging.info(f"Shopee itens brutos: {len(nodes)}")
+        return nodes
+    except Exception as e:
+        logging.warning(f"Shopee falhou: {e}")
+        return []
 
 def refresh_ml_cache():
     try:
-        html_text, final_url = get_ml_list_page()
+        html_text, final_url = get_page(ML_LISTA_URL, timeout=20)
         links = extract_links(html_text, final_url)
-        logging.info(f"ML links encontrados na lista: {len(links)}")
+        logging.info(f"Links de ML encontrados na lista: {len(links)}")
         items = []
         for l in links:
             if "mercadolivre" not in l.lower():
@@ -224,14 +221,16 @@ def get_ml_from_cache():
         refresh_ml_cache()
     items = ml_lista_cache.get("items", [])
     random.shuffle(items)
-    return [item for item in items if not cache_ja_enviado("ml_" + item["id"])]
+    validos = [item for item in items if not cache_ja_enviado("ml_" + item["id"])]
+    logging.info(f"ML itens válidos no cache: {len(validos)}")
+    return validos
 
 def get_ml_direct(termo):
     offset = random.randint(0, 40)
     logging.info(f"Buscando ML Direto: {termo} (Offset: {offset})")
     try:
         url = f"https://api.mercadolibre.com/sites/MLB/search?q={quote(termo)}&limit=10&offset={offset}"
-        r = requests.get(url, timeout=10)
+        r = requests.get(url, timeout=15)
         items = r.json().get("results", [])
         res = []
         for item in items:
@@ -261,21 +260,12 @@ def get_ml_direct(termo):
         logging.warning(f"ML direto falhou: {e}")
         return []
 
-def get_magalu_store_page(url):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
-        "Referer": "https://www.magazinevoce.com.br/"
-    }
-    r = requests.get(url, headers=headers, timeout=20)
-    return r.text, r.url
-
 def refresh_magalu_cache():
     try:
         for url in [MAGALU_OFERTAS_URL, MAGALU_LOJA_URL]:
-            html_text, final_url = get_magalu_store_page(url)
+            html_text, final_url = get_page(url, timeout=20)
             links = extract_links(html_text, final_url)
-            logging.info(f"Magalu links encontrados em {url}: {len(links)}")
+            logging.info(f"Links Magalu encontrados em {url}: {len(links)}")
             items = []
             for l in links:
                 if "magazinevoce.com.br" not in l.lower():
@@ -305,7 +295,9 @@ def get_magalu_store_products():
         refresh_magalu_cache()
     items = magalu_cache.get("items", [])
     random.shuffle(items)
-    return [item for item in items if not cache_ja_enviado("magalu_" + item["id"])]
+    validos = [item for item in items if not cache_ja_enviado("magalu_" + item["id"])]
+    logging.info(f"Magalu itens válidos no cache: {len(validos)}")
+    return validos
 
 def get_magalu_direct(termo):
     logging.info(f"Buscando Magalu Direto: {termo}")
@@ -315,7 +307,7 @@ def get_magalu_direct(termo):
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.1",
             "Referer": "https://www.magazineluiza.com.br/"
         }
-        r = requests.get(url, headers=headers, timeout=10)
+        r = requests.get(url, headers=headers, timeout=15)
         data = r.json()
         items = data.get("data", {}).get("search", {}).get("products", [])
         res = []
@@ -326,8 +318,8 @@ def get_magalu_direct(termo):
                 price = item.get("price", {}).get("salesPrice")
                 if not path or not title or price is None:
                     continue
-                p_url = f"https://www.magazineluiza.com.br/{path}"
-                aff = f"https://magazineluiza.onelink.me/{MAGALU_ONELINK_ID}/{MAGALU_STORE_ID}?af_dp={quote(p_url)}"
+                p_url = "https://www.magazineluiza.com.br/" + path
+                aff = "https://magazineluiza.onelink.me/" + MAGALU_ONELINK_ID + "/" + MAGALU_STORE_ID + "?af_dp=" + quote(p_url)
                 res.append({
                     "id": str(item.get("id", hashlib.md5(p_url.encode()).hexdigest())),
                     "nome": title,
@@ -357,24 +349,17 @@ def escolher_item_sem_repetir(items, prefixo_cache):
             return item
     return None
 
-def montar_link_final(item):
-    origem = item.get("origem")
-    link = item.get("link", "")
-    if origem == "magalu":
-        if "magazineluiza.onelink.me" in link or "magazinevoce.com.br" in link:
-            return link
-        return link
-    return link
-
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     try:
         if not dentro_do_horario():
+            logging.info("Fora do horario permitido.")
             return
 
         usadas_abertura.clear()
         total_lista = []
 
         shopee = get_shopee_offers()
+        shopee_validos = 0
         for i in shopee[:2]:
             try:
                 l = i["productLink"]
@@ -391,28 +376,33 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     "shopee"
                 )
                 total_lista.append({"msg_tg": msg_tg, "msg_wa": msg_wa, "img": i["imageUrl"], "link": l})
-            except:
-                pass
+                shopee_validos += 1
+            except Exception as e:
+                logging.warning(f"Shopee item inválido: {e}")
+        logging.info(f"Shopee itens válidos: {shopee_validos}")
 
         magalu_items = get_magalu_store_products()
         if not magalu_items:
             termo_magalu = random.choice(PREMIUM_TERMOS)
             magalu_items = get_magalu_direct(termo_magalu)
+        logging.info(f"Magalu candidatos após fallback: {len(magalu_items)}")
 
         if magalu_items:
             i = escolher_item_sem_repetir(magalu_items, "magalu")
             if i and i["preco"] != "0.00" and i["nome"] and i["link"]:
-                link_final = montar_link_final(i)
                 msg_tg, msg_wa = gerar_copy(
                     html.escape(i["nome"]),
                     i["preco"],
                     i["vendas"],
                     i["avaliacao"],
                     i["comissao"],
-                    link_final,
+                    i["link"],
                     "magalu"
                 )
-                total_lista.append({"msg_tg": msg_tg, "msg_wa": msg_wa, "img": i.get("img", ""), "link": link_final})
+                total_lista.append({"msg_tg": msg_tg, "msg_wa": msg_wa, "img": i.get("img", ""), "link": i["link"]})
+                logging.info("Magalu adicionado ao envio.")
+            else:
+                logging.info("Magalu descartado por campos inválidos.")
 
         ml_items = get_ml_from_cache()
         if not ml_items:
@@ -421,6 +411,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         if not ml_items:
             termo_ml_p = random.choice(PREMIUM_TERMOS)
             ml_items = get_ml_direct(termo_ml_p)
+        logging.info(f"ML candidatos após fallback: {len(ml_items)}")
 
         if ml_items:
             i = escolher_item_sem_repetir(ml_items, "ml")
@@ -435,6 +426,11 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     "ml"
                 )
                 total_lista.append({"msg_tg": msg_tg, "msg_wa": msg_wa, "img": i.get("img", ""), "link": i["link"]})
+                logging.info("ML adicionado ao envio.")
+            else:
+                logging.info("ML descartado por campos inválidos.")
+
+        logging.info(f"total_lista final: {len(total_lista)}")
 
         if not total_lista:
             logging.info("Nenhuma oferta válida encontrada nesta rodada.")
@@ -460,14 +456,15 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("🤖 BOT V21 ATIVADO")
+    logging.info("🤖 BOT V23 ATIVADO")
 
 if __name__ == "__main__":
     while True:
         try:
             app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
             app.run_polling()
-        except:
+        except Exception as e:
+            logging.error(f"Falha geral no app: {e}")
             time.sleep(15)
         
 
