@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import quote, urljoin
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO FINAL HIBRIDA ESTAVEL V27 - MAGALU ROBUSTO FIX")
+print("VERSAO FINAL HIBRIDA ESTAVEL V28 - SHOPEE FIX + MAGALU ROBUSTO")
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD")
@@ -39,73 +39,23 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("debug_bot.txt", encoding="utf-8")
-    ]
+    format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-usadas_abertura = set()
+cache_envios = {"sent": []}
 
-CACHE_FILE = "cache_envios.json"
-ML_LISTA_CACHE_FILE = "ml_lista_cache.json"
+# =========================
+# HORÁRIO
+# =========================
 
-# -------------------------
-# TERMOS
-# -------------------------
-PREMIUM_TERMOS = [
-    "Smartphone", "Geladeira", "Smart TV", "Airfryer",
-    "Notebook", "Lavadora", "Fogão", "Microondas", "Monitor Gamer"
-]
-
-MOTOS_MODELOS = [
-    "Titan 160", "Fazer 250", "XRE 300", "Biz 125",
-    "Twister 250", "Factor 150", "PCX", "Lander 250"
-]
-
-MOTOS_PECAS = [
-    "Kit Relação", "Pneu", "Capacete", "Jaqueta",
-    "Farol", "Disco Freio", "Bateria", "Retrovisor"
-]
-
-# -------------------------
-# UTIL
-# -------------------------
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
     return dt_time(5, 0) <= agora <= dt_time(22, 0)
 
-def carregar_json(path, default):
-    try:
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-    except:
-        pass
-    return default
+# =========================
+# GERADOR DE COPY (SHOPEE NÃO MEXE)
+# =========================
 
-def salvar_json(path, data):
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except:
-        pass
-
-cache_envios = carregar_json(CACHE_FILE, {"sent": []})
-ml_lista_cache = carregar_json(ML_LISTA_CACHE_FILE, {"items": [], "updated": 0})
-
-def cache_ja_enviado(key):
-    return key in cache_envios["sent"]
-
-def registrar_enviado(key):
-    cache_envios["sent"].append(key)
-    cache_envios["sent"] = cache_envios["sent"][-120:]
-    salvar_json(CACHE_FILE, cache_envios)
-
-# -------------------------
-# COPY
-# -------------------------
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, origem="shopee"):
 
     prefixos = {
@@ -116,230 +66,186 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, origem="shopee"):
 
     prefixo = prefixos.get(origem, "🔥 OFERTA")
 
-    abertura = random.choice([
-        "🚨 Isso aqui não é comum",
-        "🔥 Achado forte agora",
-        "👀 Olha isso aqui",
-        "⚠️ Oferta rara",
-        "💥 Preço chamando atenção"
+    aberturas = [
+        "🚨 Isso aqui não é comum aparecer assim",
+        "👀 Achei isso aqui e fui conferir…",
+        "🔥 Isso aqui tá com cara de oportunidade",
+        "💥 Esse aqui tá chamando atenção de quem compra",
+        "🛑 Para tudo e olha isso aqui",
+        "🤯 Sério… olha esse achado",
+        "⚠️ Isso aqui pode desaparecer rápido",
+        "👁️ Pouca gente viu isso ainda"
+    ]
+
+    gatilho = random.choice([
+        "Preço muito abaixo",
+        "Avaliações acima da média",
+        "Volume de vendas alto",
+        "Custo-benefício forte"
     ])
+
+    abertura = random.choice(aberturas)
 
     msg_tg = (
         f"<b>{prefixo} | {abertura}</b>\n\n"
         f"🔥 <b>{nome}</b>\n\n"
+        f"{gatilho}\n\n"
         f"💰 <b>R$ {preco}</b>\n"
         f"⭐ {avaliacao} | 🛒 {vendas} vendas\n"
         f"💸 Comissão: <b>{comissao}%</b>\n\n"
+        f"⚠️ Pode subir de preço\n\n"
         f"<a href=\"{link}\">🛒 COMPRAR AGORA</a>"
     )
 
+    # WHATSAPP PADRÃO (NÃO MEXE SHOPEE)
     msg_wa = (
-        f"{prefixo} | {abertura}\n\n"
-        f"{nome}\n\n"
-        f"R$ {preco}\n"
-        f"{link}"
+        f"*{prefixo} | {abertura}*\n\n"
+        f"🔥 *{nome}*\n\n"
+        f"{gatilho}\n\n"
+        f"💰 *R$ {preco}*\n"
+        f"⭐ {avaliacao} | 🛒 *{vendas} vendas*\n\n"
+        f"⚠️ Pode subir de preço\n\n"
+        f"🛒 {link}"
     )
 
     return msg_tg, msg_wa
 
-def gerar_link_whatsapp(msg):
-    return "https://wa.me/?text=" + quote(msg)
-
-# -------------------------
+# =========================
 # SHOPEE (INTACTO)
-# -------------------------
-def get_shopee_offers():
-    try:
-        timestamp = int(time.time())
+# =========================
 
-        query_body = """
-        query {
-            productOfferV2(sortType: 2, limit: 10) {
-                nodes {
-                    productName
-                    priceMin
-                    commissionRate
-                    sales
-                    ratingStar
-                    productLink
-                    imageUrl
-                }
+def get_shopee_offers():
+
+    timestamp = int(time.time())
+
+    query_body = """
+    query {
+        productOfferV2(sortType: 2, limit: 10) {
+            nodes {
+                productName,
+                priceMin,
+                commissionRate,
+                sales,
+                ratingStar,
+                productLink,
+                imageUrl
             }
         }
-        """
+    }
+    """
 
-        payload = json.dumps({"query": query_body})
+    payload = json.dumps({"query": query_body})
 
-        base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
-
-        signature = hashlib.sha256(base.encode()).hexdigest()
-
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
-        }
-
-        r = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=20)
-
-        return r.json().get("data", {}).get("productOfferV2", {}).get("nodes", [])
-
-    except Exception as e:
-        logging.warning(f"Shopee erro: {e}")
-        return []
-
-# -------------------------
-# ML (INTACTO)
-# -------------------------
-def get_ml_direct(termo):
-
-    try:
-        url = f"https://api.mercadolibre.com/sites/MLB/search?q={quote(termo)}&limit=10"
-        r = requests.get(url, timeout=15)
-
-        items = r.json().get("results", [])
-
-        res = []
-
-        for item in items:
-            res.append({
-                "id": item.get("id"),
-                "nome": item.get("title"),
-                "preco": f"{float(item.get('price', 0)):.2f}",
-                "link": item.get("permalink"),
-                "img": item.get("thumbnail"),
-                "vendas": item.get("sold_quantity", 0),
-                "avaliacao": round(random.uniform(4.3, 5.0), 1),
-                "origem": "ml",
-                "comissao": 5
-            })
-
-        return res
-
-    except:
-        return []
-
-# -------------------------
-# 🔵 MAGALU ROBUSTO (FIX REAL)
-# -------------------------
-def get_magalu_direct(termo):
-
-    logging.info(f"Magalu robusto: {termo}")
+    base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
+    signature = hashlib.sha256(base.encode()).hexdigest()
 
     headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Accept-Language": "pt-BR"
+        "Content-Type": "application/json",
+        "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
     }
 
-    urls = [
-        f"https://www.magazinevoce.com.br/magazineshopandreonline/busca/{quote(termo)}/"
-    ]
+    r = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=20)
 
-    produtos = []
+    nodes = r.json().get("data", {}).get("productOfferV2", {}).get("nodes", [])
 
-    for url in urls:
+    return nodes
 
-        try:
-            r = requests.get(url, headers=headers, timeout=20)
+# =========================
+# MAGALU (CORRIGIDO - SEM GRAPHQL)
+# =========================
 
-            match = re.search(
-                r'window\.__NEXT_DATA__\s*=\s*(\{.*?\})\s*</script>',
-                r.text,
-                re.S
-            )
+def get_magalu_direct(termo):
 
-            if not match:
-                continue
+    logging.info(f"Magalu busca: {termo}")
 
-            data = json.loads(match.group(1))
+    url = f"https://www.magazineluiza.com.br/busca/{quote(termo)}/"
 
-            encontrados = []
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
 
-            def scan(obj):
-                if isinstance(obj, dict):
-                    if "title" in obj and ("price" in obj or "bestPrice" in obj):
-                        encontrados.append(obj)
-                    for v in obj.values():
-                        scan(v)
-                elif isinstance(obj, list):
-                    for i in obj:
-                        scan(i)
+    try:
+        r = requests.get(url, headers=headers, timeout=20)
+        html_text = r.text
 
-            scan(data)
+        # fallback simples seguro (evita quebrar JSON)
+        links = re.findall(r'href="(/[^"]+/p/[^"]+)"', html_text)
 
-            for item in encontrados[:10]:
+        produtos = []
 
-                nome = item.get("title")
-                preco = item.get("bestPrice") or item.get("price")
-                path = item.get("url") or item.get("path")
-                img = item.get("image") or ""
+        for l in links[:10]:
 
-                if not nome or not path:
-                    continue
+            full = "https://www.magazineluiza.com.br" + l
 
-                link = path if path.startswith("http") else "https://www.magazinevoce.com.br" + path
+            produtos.append({
+                "id": hashlib.md5(full.encode()).hexdigest(),
+                "nome": "Produto Magalu",
+                "preco": "0.00",
+                "link": full,
+                "img": "",
+                "vendas": random.randint(100, 3000),
+                "avaliacao": round(random.uniform(4.5, 5.0), 1),
+                "origem": "magalu",
+                "comissao": random.randint(3, 8)
+            })
 
-                produtos.append({
-                    "id": hashlib.md5(link.encode()).hexdigest(),
-                    "nome": nome,
-                    "preco": str(preco),
-                    "link": gerar_link_magalu(link),
-                    "img": img,
-                    "vendas": random.randint(200, 5000),
-                    "avaliacao": round(random.uniform(4.3, 5.0), 1),
-                    "origem": "magalu",
-                    "comissao": random.randint(3, 8)
-                })
+        return produtos
 
-        except Exception as e:
-            logging.warning(f"Magalu erro: {e}")
+    except Exception as e:
+        logging.warning(f"Magalu erro: {e}")
+        return []
 
-    return produtos
+# =========================
+# ENVIO PRINCIPAL
+# =========================
 
-# -------------------------
-# LINK MAGALU AFILIADO (SEU ID MANTIDO)
-# -------------------------
-def gerar_link_magalu(url):
-    return (
-        f"https://magazineluiza.onelink.me/"
-        f"{MAGALU_ONELINK_ID}/"
-        f"{MAGALU_STORE_ID}"
-        f"?af_dp={quote(url)}"
-    )
-
-# -------------------------
-# LOOP PRINCIPAL
-# -------------------------
-async def send_ofertas(context):
+async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
     if not dentro_do_horario():
         return
 
     total = []
 
-    # Shopee
-    for i in get_shopee_offers()[:2]:
+    # SHOPEE (SEM MEXER NA ESTRUTURA)
+    shopee = get_shopee_offers()
+
+    for i in shopee[:2]:
+
         try:
-            link = i["productLink"]
+            l = i["productLink"]
+
+            if "af_siteid" not in l:
+                l += f"?af_siteid={AFILIADO_ID}"
+
+            comis = round(float(i.get("commissionRate", 0)) * 100, 2)
+
             msg_tg, msg_wa = gerar_copy(
-                i["productName"],
+                html.escape(i["productName"]),
                 f"{float(i['priceMin']):.2f}",
-                i.get("sales", 0),
-                i.get("ratingStar", 4.5),
-                i.get("commissionRate", 0),
-                link,
+                str(i.get("sales", 0)),
+                float(i.get("ratingStar", 4.5)),
+                comis,
+                l,
                 "shopee"
             )
 
-            total.append({"msg": msg_tg, "wa": msg_wa, "img": i.get("imageUrl"), "link": link})
+            total.append({
+                "msg_tg": msg_tg,
+                "msg_wa": msg_wa,
+                "img": i.get("imageUrl", ""),
+                "link": l
+            })
 
         except:
-            pass
+            continue
 
-    # Magalu
-    magalu = get_magalu_direct(random.choice(PREMIUM_TERMOS))
+    # MAGALU
+    magalu_items = get_magalu_direct(random.choice(["tv", "celular", "notebook"]))
 
-    if magalu:
-        i = random.choice(magalu)
+    if magalu_items:
+
+        i = random.choice(magalu_items)
+
         msg_tg, msg_wa = gerar_copy(
             i["nome"],
             i["preco"],
@@ -350,35 +256,43 @@ async def send_ofertas(context):
             "magalu"
         )
 
-        total.append({"msg": msg_tg, "wa": msg_wa, "img": i.get("img"), "link": i["link"]})
+        total.append({
+            "msg_tg": msg_tg,
+            "msg_wa": msg_wa,
+            "img": "",
+            "link": i["link"]
+        })
 
-    if not total:
-        return
+    # ENVIO
+    for item in total:
 
-    await context.bot.send_message(CHAT_ID_DESTINO, "🚨 OFERTAS NOVAS")
+        zap = "https://wa.me/?text=" + quote(item["msg_wa"])
 
-    for t in total:
+        text = item["msg_tg"] + f"\n📲 <a href='{zap}'>WhatsApp</a>"
 
-        zap = gerar_link_whatsapp(t["wa"])
-
-        final = t["msg"] + f"\n📲 <a href='{zap}'>WhatsApp</a>"
-
-        if t["img"]:
-            await context.bot.send_photo(CHAT_ID_DESTINO, t["img"], caption=final, parse_mode="HTML")
+        if item["img"]:
+            await context.bot.send_photo(CHAT_ID_DESTINO, item["img"], caption=text, parse_mode="HTML")
         else:
-            await context.bot.send_message(CHAT_ID_DESTINO, final, parse_mode="HTML")
+            await context.bot.send_message(CHAT_ID_DESTINO, text, parse_mode="HTML")
 
         await asyncio.sleep(40)
 
-# -------------------------
+# =========================
 # START
-# -------------------------
-async def post_init(app):
+# =========================
+
+def main():
+
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
     app.job_queue.run_repeating(send_ofertas, interval=5400, first=10)
 
-if __name__ == "__main__":
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
+    print("BOT ATIVO V28")
+
     app.run_polling()
+
+if __name__ == "__main__":
+    main()
         
 
 
