@@ -15,9 +15,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 
 print("VERSAO FINAL HIBRIDA ESTAVEL V26 - MAGALU AFILIADO/ML/SHOPEE")
 
-TELEGRAMTOKEN = os.getenv("TELEGRAMTOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
-if not TELEGRAMTOKEN:
-    raise RuntimeError("Token do Telegram ausente")
+TELEGRAMTOKEN = os.getenv("TELEGRAMTOKEN")
 SHOPEEPASSWORD = os.getenv("SHOPEEPASSWORD")
 
 MAGALUAPIKEY = os.getenv("MAGALUAPIKEY")
