@@ -194,23 +194,24 @@ def get_shopee_offers():
 MAGALU_LOJA = "magazineshopandreonline"
 
 MAGALU_URLS = [
-    f"https://www.magazinevoce.com.br/{MAGALU_LOJA}/selecao/ofertasdodia/?sortOrientation=desc&sortType=soldQuantity&filters=review---4",
+    "https://www.magazinevoce.com.br/magazineshopandreonline/selecao/ofertasdodia/?sortOrientation=desc&sortType=soldQuantity&filters=review---4"
 ]
 
 def get_magalu_offers():
 
     logging.info("Buscando ofertas Magalu")
 
-   headers = {
-    "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-    "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "Accept-Language":"pt-BR,pt;q=0.9,en-US;q=0.8",
-    "Accept-Encoding":"gzip, deflate, br",
-    "Connection":"keep-alive",
-    "Upgrade-Insecure-Requests":"1",
-    "Cache-Control":"max-age=0",
-    "Referer":"https://www.google.com/"
-}
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/136.0.0.0 Safari/537.36"
+        ),
+        "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language":"pt-BR,pt;q=0.9",
+        "Referer":"https://www.google.com/",
+        "Cache-Control":"no-cache"
+    }
 
     produtos=[]
 
@@ -218,71 +219,77 @@ def get_magalu_offers():
 
         url=random.choice(MAGALU_URLS)
 
-       session = requests.Session()
-
-r=session.get(
-    url,
-    headers=headers,
-    timeout=20
-)
+        r=requests.get(
+            url,
+            headers=headers,
+            timeout=20
+        )
 
         logging.info(
             f"Status Magalu: {r.status_code}"
         )
 
-        logging.info("PRIMEIROS 1000 CHARS:")
-        logging.info(r.text[:1000])
+        texto=r.text.lower()
 
-        if r.status_code!=200:
+        if "captcha" in texto:
+
+            logging.warning(
+                "MAGALU BLOQUEOU COM CAPTCHA"
+            )
+
             return []
 
-        html_text=r.text
-
-        blocos=re.findall(
+        scripts=re.findall(
             r'<script type="application/ld\+json">(.*?)</script>',
-            html_text,
-            re.DOTALL
+            r.text,
+            re.S
         )
 
         logging.info(
-            f"Scripts encontrados: {len(blocos)}"
+            f"Scripts encontrados: {len(scripts)}"
         )
 
-        for bloco in blocos:
+        for script in scripts:
 
             try:
 
-                data=json.loads(bloco)
+                data=json.loads(script)
 
-                graph=data.get("@graph",[])
+                if "@graph" not in data:
+                    continue
 
-                for p in graph:
+                for item in data["@graph"]:
 
-                    if p.get("@type")!="Product":
+                    if item.get("@type")!="Product":
                         continue
 
-                    offer=p.get(
+                    offer=item.get(
                         "offers",
                         {}
                     )
 
                     produtos.append({
 
-                        "nome":p.get(
-                            "name"
+                        "nome":item.get(
+                            "name",
+                            ""
                         ),
 
-                        "preco":offer.get(
-                            "price",
-                            "0"
+                        "preco":float(
+                            offer.get(
+                                "price",
+                                0
+                            )
                         ),
 
                         "link":offer.get(
-                            "url"
+                            "url",
+                            ""
                         ),
 
-                        "img":p.get(
-                            "image"
+                        "img":item.get(
+                            "image",
+                            ""
                         ),
 
                         "vendas":random.randint(
@@ -291,7 +298,7 @@ r=session.get(
                         ),
 
                         "avaliacao":float(
-                            p.get(
+                            item.get(
                                 "aggregateRating",
                                 {}
                             ).get(
@@ -304,7 +311,7 @@ r=session.get(
                     })
 
             except Exception:
-                continue
+                pass
 
     except Exception as e:
 
@@ -316,7 +323,7 @@ r=session.get(
         f"Magalu OK: {len(produtos)}"
     )
 
-    return produtos
+    return produtos[:10]
 
 
 # =========================
