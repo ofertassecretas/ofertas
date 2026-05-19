@@ -211,23 +211,23 @@ def get_magalu_offers():
 
     try:
 
-       url=random.choice(MAGALU_URLS)
+        url=random.choice(MAGALU_URLS)
 
-r=requests.get(
-    url,
-    headers=headers,
-    timeout=20
-)
+        r=requests.get(
+            url,
+            headers=headers,
+            timeout=20
+        )
 
-logging.info(
-    f"Status Magalu: {r.status_code}"
-)
+        logging.info(
+            f"Status Magalu: {r.status_code}"
+        )
 
-logging.info("PRIMEIROS 1000 CHARS:")
-logging.info(r.text[:1000])
+        logging.info("PRIMEIROS 1000 CHARS:")
+        logging.info(r.text[:1000])
 
-if r.status_code != 200:
-    return []
+        if r.status_code!=200:
+            return []
 
         html_text=r.text
 
@@ -294,10 +294,9 @@ if r.status_code != 200:
                         ),
 
                         "origem":"magalu"
-
                     })
 
-            except:
+            except Exception:
                 continue
 
     except Exception as e:
