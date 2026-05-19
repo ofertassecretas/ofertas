@@ -202,7 +202,9 @@ def get_magalu_offers():
     logging.info("Buscando ofertas Magalu")
 
     headers = {
-        "User-Agent":"Mozilla/5.0"
+        "User-Agent":"Mozilla/5.0",
+        "Accept":"text/html,application/xhtml+xml",
+        "Accept-Language":"pt-BR,pt;q=0.9"
     }
 
     produtos=[]
@@ -221,71 +223,79 @@ def get_magalu_offers():
             f"Status Magalu: {r.status_code}"
         )
 
-        if r.status_code != 200:
+        if r.status_code!=200:
             return []
 
-        soup=BeautifulSoup(
-            r.text,
-            "html.parser"
+        html_text=r.text
+
+        blocos=re.findall(
+            r'<script type="application/ld\+json">(.*?)</script>',
+            html_text,
+            re.DOTALL
         )
 
-        script=soup.find(
-            "script",
-            id="__NEXT_DATA__"
+        logging.info(
+            f"Scripts encontrados: {len(blocos)}"
         )
 
-        if not script:
-
-            logging.warning(
-                "NEXT_DATA não encontrado"
-            )
-
-            return []
-
-        data=json.loads(
-            script.string
-        )
-
-        texto=json.dumps(data)
-
-        encontrados=re.finditer(
-            r'"name":"(.*?)".*?"price":"(.*?)".*?"url":"(https.*?)".*?"image":"(https.*?)"',
-            texto
-        )
-
-        for x in encontrados:
+        for bloco in blocos:
 
             try:
 
-                produtos.append({
+                data=json.loads(bloco)
 
-                    "nome":x.group(1),
+                graph=data.get("@graph",[])
 
-                    "preco":x.group(2),
+                for p in graph:
 
-                    "link":x.group(3),
+                    if p.get("@type")!="Product":
+                        continue
 
-                    "img":x.group(4),
+                    offer=p.get(
+                        "offers",
+                        {}
+                    )
 
-                    "vendas":random.randint(
-                        100,
-                        5000
-                    ),
+                    produtos.append({
 
-                    "avaliacao":round(
-                        random.uniform(
-                            4.4,
-                            5
+                        "nome":p.get(
+                            "name"
                         ),
-                        1
-                    ),
 
-                    "origem":"magalu"
+                        "preco":offer.get(
+                            "price",
+                            "0"
+                        ),
 
-                })
+                        "link":offer.get(
+                            "url"
+                        ),
+
+                        "img":p.get(
+                            "image"
+                        ),
+
+                        "vendas":random.randint(
+                            100,
+                            5000
+                        ),
+
+                        "avaliacao":float(
+                            p.get(
+                                "aggregateRating",
+                                {}
+                            ).get(
+                                "ratingValue",
+                                4.5
+                            )
+                        ),
+
+                        "origem":"magalu"
+
+                    })
 
             except:
-                pass
+                continue
 
     except Exception as e:
 
