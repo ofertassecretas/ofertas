@@ -200,51 +200,103 @@ MAGALU_URLS = [
 def get_magalu_offers():
 
     logging.info("Buscando ofertas Magalu")
-    headers={"User-Agent":"Mozilla/5.0"}
+
+    headers = {
+        "User-Agent":"Mozilla/5.0"
+    }
+
     produtos=[]
 
     try:
-        url=random.choice(MAGALU_URLS)
-        r=requests.get(url,headers=headers,timeout=20)
 
-        if r.status_code!=200:
+        url=random.choice(MAGALU_URLS)
+
+        r=requests.get(
+            url,
+            headers=headers,
+            timeout=20
+        )
+
+        logging.info(
+            f"Status Magalu: {r.status_code}"
+        )
+
+        if r.status_code != 200:
             return []
 
-        soup=BeautifulSoup(r.text,"html.parser")
+        soup=BeautifulSoup(
+            r.text,
+            "html.parser"
+        )
 
-        scripts=soup.find_all("script",type="application/ld+json")
+        script=soup.find(
+            "script",
+            id="__NEXT_DATA__"
+        )
 
-        for s in scripts:
+        if not script:
+
+            logging.warning(
+                "NEXT_DATA não encontrado"
+            )
+
+            return []
+
+        data=json.loads(
+            script.string
+        )
+
+        texto=json.dumps(data)
+
+        encontrados=re.finditer(
+            r'"name":"(.*?)".*?"price":"(.*?)".*?"url":"(https.*?)".*?"image":"(https.*?)"',
+            texto
+        )
+
+        for x in encontrados:
+
             try:
-                if not s.string:
-                    continue
 
-                data=json.loads(s.string)
+                produtos.append({
 
-                for item in data.get("@graph",[]):
+                    "nome":x.group(1),
 
-                    if item.get("@type")!="Product":
-                        continue
+                    "preco":x.group(2),
 
-                    offers=item.get("offers",{})
+                    "link":x.group(3),
 
-                    produtos.append({
-                        "nome":item.get("name"),
-                        "preco":offers.get("price","0"),
-                        "link":offers.get("url"),
-                        "img":item.get("image"),
-                        "vendas":random.randint(100,5000),
-                        "avaliacao":float(item.get("aggregateRating",{}).get("ratingValue",4.5)),
-                        "origem":"magalu"
-                    })
+                    "img":x.group(4),
+
+                    "vendas":random.randint(
+                        100,
+                        5000
+                    ),
+
+                    "avaliacao":round(
+                        random.uniform(
+                            4.4,
+                            5
+                        ),
+                        1
+                    ),
+
+                    "origem":"magalu"
+
+                })
 
             except:
-                continue
+                pass
 
     except Exception as e:
-        logging.error(f"ERRO MAGALU: {e}")
 
-    logging.info(f"Magalu OK: {len(produtos)}")
+        logging.error(
+            f"ERRO MAGALU: {e}"
+        )
+
+    logging.info(
+        f"Magalu OK: {len(produtos)}"
+    )
+
     return produtos
 
 
