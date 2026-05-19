@@ -12,6 +12,7 @@ import re
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
+from bs4 import BeautifulSoup
 from telegram.ext import ApplicationBuilder, ContextTypes
 
 print("VERSAO FINAL HIBRIDA ESTAVEL V3")
@@ -185,6 +186,68 @@ def get_shopee_offers():
 
         return []
 
+
+# =========================
+# MAGALU
+# =========================
+
+MAGALU_LOJA = "magazineshopandreonline"
+
+MAGALU_URLS = [
+    f"https://www.magazinevoce.com.br/{MAGALU_LOJA}/selecao/ofertasdodia/?sortOrientation=desc&sortType=soldQuantity&filters=review---4",
+]
+
+def get_magalu_offers():
+
+    logging.info("Buscando ofertas Magalu")
+    headers={"User-Agent":"Mozilla/5.0"}
+    produtos=[]
+
+    try:
+        url=random.choice(MAGALU_URLS)
+        r=requests.get(url,headers=headers,timeout=20)
+
+        if r.status_code!=200:
+            return []
+
+        soup=BeautifulSoup(r.text,"html.parser")
+
+        scripts=soup.find_all("script",type="application/ld+json")
+
+        for s in scripts:
+            try:
+                if not s.string:
+                    continue
+
+                data=json.loads(s.string)
+
+                for item in data.get("@graph",[]):
+
+                    if item.get("@type")!="Product":
+                        continue
+
+                    offers=item.get("offers",{})
+
+                    produtos.append({
+                        "nome":item.get("name"),
+                        "preco":offers.get("price","0"),
+                        "link":offers.get("url"),
+                        "img":item.get("image"),
+                        "vendas":random.randint(100,5000),
+                        "avaliacao":float(item.get("aggregateRating",{}).get("ratingValue",4.5)),
+                        "origem":"magalu"
+                    })
+
+            except:
+                continue
+
+    except Exception as e:
+        logging.error(f"ERRO MAGALU: {e}")
+
+    logging.info(f"Magalu OK: {len(produtos)}")
+    return produtos
+
+
 # =========================
 # MERCADO LIVRE
 # =========================
@@ -265,6 +328,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         usadas_abertura.clear()
 
         shopee_ofertas = get_shopee_offers()
+        magalu_ofertas = get_magalu_offers()
         ml_ofertas = get_ml_offers()
 
         selecionadas = []
@@ -314,6 +378,48 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
             except Exception as e:
                 logging.error(f"Erro Shopee item: {e}")
+
+
+        # =========================
+        # MAGALU (2)
+        # =========================
+
+        for item in magalu_ofertas[:2]:
+
+            try:
+
+                link=item["link"]
+                nome=html.escape(item["nome"])
+                preco=float(item["preco"])
+                img=item["img"]
+                rating=item["avaliacao"]
+                vendas=item["vendas"]
+                comissao=5
+
+                vendas_f=f"{vendas:,}".replace(",", ".")
+
+                msg=gerar_copy(
+                    nome,
+                    f"{preco:.2f}",
+                    vendas_f,
+                    rating,
+                    comissao,
+                    link
+                )
+
+                zap=gerar_link_whatsapp_from_html(msg, link)
+
+                msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
+                msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
+
+                selecionadas.append({
+                    "msg":msg,
+                    "img":img
+                })
+
+            except Exception as e:
+                logging.error(f"Erro Magalu item: {e}")
+
 
         # =========================
         # ML (2)
