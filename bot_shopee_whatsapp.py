@@ -114,7 +114,7 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=Fals
     ]
 
     abertura = random.choice(
-        [a for a a in aberturas if a not in usadas_abertura] or aberturas
+        [a for a in aberturas if a not in usadas_abertura] or aberturas
     )
 
     usadas_abertura.add(abertura)
