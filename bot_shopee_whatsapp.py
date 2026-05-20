@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V10 ESTAVEL")
+print("VERSAO SHOPEE V11 OFFERLINK FILTROS REAIS")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -29,8 +29,9 @@ CHECK_INTERVAL = 5400
 
 PRECO_MIN = 20.0
 PRECO_MAX = 10000.0
-COMISSAO_MIN = 5.0
-VENDAS_MIN = 5
+COMISSAO_MIN = 0.08
+VENDAS_MIN = 10
+RATING_MIN = 4.0
 
 PALAVRAS_BLOQUEIO = [
     "teste",
@@ -110,12 +111,47 @@ def tem_bloqueio(titulo):
     return any(p in t for p in PALAVRAS_BLOQUEIO)
 
 
+def shop_type_score(shop_type):
+    try:
+        if not shop_type:
+            return 0
+        if 1 in shop_type:
+            return 3
+        if 4 in shop_type:
+            return 2
+        if 2 in shop_type:
+            return 1
+        return 0
+    except Exception:
+        return 0
+
+
+def oferta_score(p):
+    try:
+        vendas = int(p.get("sales", 0) or 0)
+        rating = float(p.get("ratingStar", 0) or 0)
+        comissao = float(p.get("commissionRate", 0) or 0)
+        preco = float(p.get("priceMin", 0) or 0)
+        st = p.get("shopType", [])
+
+        score = 0
+        score += min(vendas / 10, 20)
+        score += rating * 2
+        score += comissao * 100
+        score += shop_type_score(st)
+        if 50 <= preco <= 5000:
+            score += 5
+        return score
+    except Exception:
+        return 0
+
+
 def produto_valido(p):
     try:
         titulo = str(p.get("productName", "")).strip()
-        link = str(p.get("productLink", "")).strip()
-        preco = float(p.get("priceMin", 0) or 0)
-        comissao = float(p.get("commissionRate", 0) or 0) * 100
+        link = str(p.get("offerLink") or p.get("productLink") or "").strip()
+        preco_min = float(p.get("priceMin", 0) or 0)
+        comissao = float(p.get("commissionRate", 0) or 0)
         vendas = int(p.get("sales", 0) or 0)
         rating = float(p.get("ratingStar", 0) or 0)
 
@@ -123,13 +159,13 @@ def produto_valido(p):
             return False
         if tem_bloqueio(titulo):
             return False
-        if preco < PRECO_MIN or preco > PRECO_MAX:
+        if preco_min < PRECO_MIN or preco_min > PRECO_MAX:
             return False
         if comissao < COMISSAO_MIN:
             return False
         if vendas < VENDAS_MIN:
             return False
-        if rating and rating < 3.0:
+        if rating and rating < RATING_MIN:
             return False
         if link in ULTIMAS_BUSCAS_SHOPEE or link in usados_no_ciclo:
             return False
@@ -228,15 +264,18 @@ def buscar_produtos_da_categoria(categoria_selecionada):
 
     query_body = f'''
     query {{
-        productOfferV2(sortType: 4, limit: 50, keyword: "{palavra_chave}") {{
+        productOfferV2(sortType: 2, limit: 50, keyword: "{palavra_chave}", isAMSOffer: true) {{
             nodes {{
                 productName
                 priceMin
+                priceMax
                 commissionRate
                 sales
                 ratingStar
                 productLink
+                offerLink
                 imageUrl
+                shopType
             }}
         }}
     }}
@@ -262,55 +301,51 @@ def get_shopee_offers():
     logging.info("Buscando ofertas Shopee")
     usados_no_ciclo = set()
     categorias_ciclo = escolher_categorias_do_ciclo()
-    produtos_gerados = []
+    candidatos = []
 
     for categoria_selecionada in categorias_ciclo:
         try:
             produtos_brutos = buscar_produtos_da_categoria(categoria_selecionada)
+            filtrados = [p for p in produtos_brutos if produto_valido(p)]
+            filtrados.sort(key=oferta_score, reverse=True)
 
-            escolhido = None
-            for p in produtos_brutos:
-                if produto_valido(p):
-                    escolhido = p
-                    break
-
-            if escolhido:
-                link = escolhido["productLink"]
-                produtos_gerados.append(escolhido)
+            if filtrados:
+                escolhido = filtrados[0]
+                link = escolhido.get("offerLink") or escolhido.get("productLink")
+                candidatos.append(escolhido)
                 ULTIMAS_BUSCAS_SHOPEE.append(link)
                 usados_no_ciclo.add(link)
-                if len(ULTIMAS_BUSCAS_SHOPEE) > 100:
+                if len(ULTIMAS_BUSCAS_SHOPEE) > 200:
                     ULTIMAS_BUSCAS_SHOPEE.pop(0)
 
         except Exception as e:
             logging.error(f"Erro na categoria {categoria_selecionada}: {e}")
 
     tentativas_extra = 0
-    while len(produtos_gerados) < 6 and tentativas_extra < 12:
+    while len(candidatos) < 6 and tentativas_extra < 20:
         tentativas_extra += 1
         categoria_extra = random.choice(list(CATEGORIAS.keys()))
         try:
             produtos_brutos = buscar_produtos_da_categoria(categoria_extra)
+            filtrados = [p for p in produtos_brutos if produto_valido(p)]
+            filtrados.sort(key=oferta_score, reverse=True)
 
-            escolhido = None
-            for p in produtos_brutos:
-                if produto_valido(p):
-                    escolhido = p
-                    break
-
-            if escolhido:
-                link = escolhido["productLink"]
-                produtos_gerados.append(escolhido)
-                ULTIMAS_BUSCAS_SHOPEE.append(link)
-                usados_no_ciclo.add(link)
-                if len(ULTIMAS_BUSCAS_SHOPEE) > 100:
-                    ULTIMAS_BUSCAS_SHOPEE.pop(0)
+            if filtrados:
+                escolhido = filtrados[0]
+                link = escolhido.get("offerLink") or escolhido.get("productLink")
+                if link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
+                    candidatos.append(escolhido)
+                    ULTIMAS_BUSCAS_SHOPEE.append(link)
+                    usados_no_ciclo.add(link)
+                    if len(ULTIMAS_BUSCAS_SHOPEE) > 200:
+                        ULTIMAS_BUSCAS_SHOPEE.pop(0)
 
         except Exception as e:
             logging.error(f"Erro extra na categoria {categoria_extra}: {e}")
 
-    logging.info(f"Shopee OK: {len(produtos_gerados)} produtos únicos para envio")
-    return produtos_gerados[:6]
+    candidatos.sort(key=oferta_score, reverse=True)
+    logging.info(f"Shopee OK: {len(candidatos[:6])} produtos únicos para envio")
+    return candidatos[:6]
 
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
@@ -328,7 +363,8 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
         for item in shopee_ofertas[:6]:
             try:
-                link = aplicar_id_afiliado(item["productLink"])
+                link_base = item.get("offerLink") or item.get("productLink")
+                link = aplicar_id_afiliado(link_base)
                 nome = html.escape(item["productName"])
                 preco = float(item["priceMin"])
                 img = item["imageUrl"]
@@ -394,7 +430,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     parse_mode="HTML"
                 )
                 await asyncio.sleep(40)
-
             except Exception as e:
                 logging.error(f"Erro Telegram: {e}")
 
@@ -434,7 +469,6 @@ if __name__ == "__main__":
             )
             app.add_error_handler(error_handler)
             app.run_polling(allowed_updates=None)
-
         except Exception as e:
             logging.error(f"BOT REINICIANDO: {e}")
             time.sleep(15)
