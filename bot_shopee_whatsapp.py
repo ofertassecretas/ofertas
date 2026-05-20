@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO FINAL SHOPEE - ADAPTADA")
+print("VERSAO SHOPEE V6 CATEGORIAS")
 
 # =========================
 # CONFIG
