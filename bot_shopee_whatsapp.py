@@ -158,8 +158,11 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=Fals
 # =========================
 
 def gerar_link_whatsapp_from_html(msg_html, link):
-    texto = re.sub(\'<[^<]+?>\', \'\', msg_html)
+
+    texto = re.sub('<[^<]+?>', '', msg_html)
+
     texto += f"\n\n🛒 {link}"
+
     return f"https://wa.me/?text={quote(texto)}"
 
 # =========================
