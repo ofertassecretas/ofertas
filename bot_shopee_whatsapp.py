@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V8 CATEGORIAS")
+print("VERSAO SHOPEE V9 FILTROS INTELIGENTES")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -26,6 +26,21 @@ AFILIADO_ID = "18349740277"
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 CHECK_INTERVAL = 5400
+
+PRECO_MIN = 20.0
+PRECO_MAX = 10000.0
+COMISSAO_MIN = 8.0
+VENDAS_MIN = 20
+
+PALAVRAS_BLOQUEIO = [
+    "teste",
+    "amostra",
+    "não compre",
+    "nao compre",
+    "produto teste",
+    "exemplo",
+    "dummy"
+]
 
 CATEGORIAS = {
     "Casa": [
@@ -60,9 +75,9 @@ CATEGORIAS = {
 
 NICHOS_CICLO = ["Casa", "Moda feminina", "Moda masculina", "Maternidade", "Motocicleta"]
 
-ULTIMA_CATEGORIA_ENVIADA = None
 ULTIMAS_BUSCAS_SHOPEE = []
 usadas_abertura = set()
+usados_no_ciclo = set()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -94,6 +109,40 @@ def escolher_categorias_do_ciclo():
     return random.sample(NICHOS_CICLO, k=len(NICHOS_CICLO))
 
 
+def tem_bloqueio(titulo):
+    t = titulo.lower()
+    return any(p in t for p in PALAVRAS_BLOQUEIO)
+
+
+def produto_valido(p):
+    try:
+        titulo = str(p.get("productName", "")).strip()
+        link = str(p.get("productLink", "")).strip()
+        preco = float(p.get("priceMin", 0) or 0)
+        comissao = float(p.get("commissionRate", 0) or 0) * 100
+        vendas = int(p.get("sales", 0) or 0)
+        rating = float(p.get("ratingStar", 0) or 0)
+
+        if not titulo or not link:
+            return False
+        if tem_bloqueio(titulo):
+            return False
+        if preco < PRECO_MIN or preco > PRECO_MAX:
+            return False
+        if comissao < COMISSAO_MIN:
+            return False
+        if vendas < VENDAS_MIN:
+            return False
+        if rating and rating < 3.5:
+            return False
+        if link in ULTIMAS_BUSCAS_SHOPEE or link in usados_no_ciclo:
+            return False
+
+        return True
+    except Exception:
+        return False
+
+
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=False):
     aberturas = [
         "🚨 Isso aqui não é comum aparecer assim",
@@ -123,31 +172,28 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=Fals
 
     chamada_grupo = f"📢 Quer mais ofertas assim? Entre no nosso grupo: {LINK_GRUPO_OFERTAS}"
     chamada_acao = random.choice(CHAMADAS_ACAO)
-
     abertura = random.choice([a for a in aberturas if a not in usadas_abertura] or aberturas)
     usadas_abertura.add(abertura)
-
     gatilho = random.choice(gatilhos)
 
     if for_whatsapp:
         return f"""{abertura}
 
-🔥 {nome}
+*🔥 {nome}*
 
 {gatilho}
 
 {chamada_acao}
 
-💰 R$ {preco}
-⭐ {avaliacao} | 🛒 {vendas} vendas
+*💰 R$ {preco}*
+*⭐ {avaliacao} | 🛒 {vendas} vendas*
 
 ⚠️ Pode subir de preço
 
 🛒 COMPRAR AGORA: {link}
 {chamada_grupo}
 """
-    else:
-        return f"""<b>{abertura}</b>
+    return f"""{abertura}
 
 🔥 <b>{nome}</b>
 
@@ -156,13 +202,12 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=Fals
 {chamada_acao}
 
 💰 <b>R$ {preco}</b>
-⭐ {avaliacao} | 🛒 {vendas} vendas
+⭐ <b>{avaliacao} | {vendas} vendas</b>
 💸 Comissão: <b>{comissao}%</b>
 
 ⚠️ Pode subir de preço
 
 <a href="{link}">🛒 COMPRAR AGORA</a>
-
 <a href="{LINK_GRUPO_OFERTAS}">📲 Entrar no grupo de ofertas</a>
 """
 
@@ -187,7 +232,7 @@ def buscar_produtos_da_categoria(categoria_selecionada):
 
     query_body = f'''
     query {{
-        productOfferV2(sortType: 4, limit: 30, keyword: "{palavra_chave}") {{
+        productOfferV2(sortType: 4, limit: 50, keyword: "{palavra_chave}") {{
             nodes {{
                 productName
                 priceMin
@@ -222,9 +267,10 @@ def buscar_produtos_da_categoria(categoria_selecionada):
 
 
 def get_shopee_offers():
-    global ULTIMAS_BUSCAS_SHOPEE
+    global ULTIMAS_BUSCAS_SHOPEE, usados_no_ciclo
 
     logging.info("Buscando ofertas Shopee")
+    usados_no_ciclo = set()
     categorias_ciclo = escolher_categorias_do_ciclo()
     produtos_gerados = []
 
@@ -234,41 +280,44 @@ def get_shopee_offers():
 
             escolhido = None
             for p in produtos_brutos:
-                if p["productLink"] not in ULTIMAS_BUSCAS_SHOPEE:
+                if produto_valido(p):
                     escolhido = p
                     break
 
             if escolhido:
+                link = escolhido["productLink"]
                 produtos_gerados.append(escolhido)
-                ULTIMAS_BUSCAS_SHOPEE.append(escolhido["productLink"])
-                if len(ULTIMAS_BUSCAS_SHOPEE) > 50:
+                ULTIMAS_BUSCAS_SHOPEE.append(link)
+                usados_no_ciclo.add(link)
+                if len(ULTIMAS_BUSCAS_SHOPEE) > 100:
                     ULTIMAS_BUSCAS_SHOPEE.pop(0)
 
         except Exception as e:
             logging.error(f"Erro na categoria {categoria_selecionada}: {e}")
 
-    while len(produtos_gerados) < 6:
+    tentativas_extra = 0
+    while len(produtos_gerados) < 6 and tentativas_extra < 10:
+        tentativas_extra += 1
         categoria_extra = random.choice(list(CATEGORIAS.keys()))
         try:
             produtos_brutos = buscar_produtos_da_categoria(categoria_extra)
 
             escolhido = None
             for p in produtos_brutos:
-                if p["productLink"] not in ULTIMAS_BUSCAS_SHOPEE:
+                if produto_valido(p):
                     escolhido = p
                     break
 
             if escolhido:
+                link = escolhido["productLink"]
                 produtos_gerados.append(escolhido)
-                ULTIMAS_BUSCAS_SHOPEE.append(escolhido["productLink"])
-                if len(ULTIMAS_BUSCAS_SHOPEE) > 50:
+                ULTIMAS_BUSCAS_SHOPEE.append(link)
+                usados_no_ciclo.add(link)
+                if len(ULTIMAS_BUSCAS_SHOPEE) > 100:
                     ULTIMAS_BUSCAS_SHOPEE.pop(0)
 
         except Exception as e:
             logging.error(f"Erro extra na categoria {categoria_extra}: {e}")
-
-        if len(produtos_gerados) >= 6:
-            break
 
     logging.info(f"Shopee OK: {len(produtos_gerados)} produtos únicos para envio")
     return produtos_gerados[:6]
@@ -299,7 +348,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
 
                 vendas_f = f"{vendas:,}".replace(",", ".")
-
                 msg = gerar_copy(
                     nome,
                     f"{preco:.2f}",
@@ -399,7 +447,6 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"BOT REINICIANDO: {e}")
             time.sleep(15)
-
 
 
 
