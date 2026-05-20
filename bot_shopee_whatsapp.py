@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V9 FILTROS INTELIGENTES")
+print("VERSAO SHOPEE V10 ESTAVEL")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -29,8 +29,8 @@ CHECK_INTERVAL = 5400
 
 PRECO_MIN = 20.0
 PRECO_MAX = 10000.0
-COMISSAO_MIN = 8.0
-VENDAS_MIN = 20
+COMISSAO_MIN = 5.0
+VENDAS_MIN = 5
 
 PALAVRAS_BLOQUEIO = [
     "teste",
@@ -79,11 +79,7 @@ ULTIMAS_BUSCAS_SHOPEE = []
 usadas_abertura = set()
 usados_no_ciclo = set()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 CHAMADAS_ACAO = [
@@ -133,7 +129,7 @@ def produto_valido(p):
             return False
         if vendas < VENDAS_MIN:
             return False
-        if rating and rating < 3.5:
+        if rating and rating < 3.0:
             return False
         if link in ULTIMAS_BUSCAS_SHOPEE or link in usados_no_ciclo:
             return False
@@ -255,13 +251,7 @@ def buscar_produtos_da_categoria(categoria_selecionada):
         "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
     }
 
-    r = requests.post(
-        SHOPEE_GRAPHQL_URL,
-        data=payload,
-        headers=headers,
-        timeout=20
-    )
-
+    r = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=20)
     data = r.json()
     return data["data"]["productOfferV2"]["nodes"]
 
@@ -296,7 +286,7 @@ def get_shopee_offers():
             logging.error(f"Erro na categoria {categoria_selecionada}: {e}")
 
     tentativas_extra = 0
-    while len(produtos_gerados) < 6 and tentativas_extra < 10:
+    while len(produtos_gerados) < 6 and tentativas_extra < 12:
         tentativas_extra += 1
         categoria_extra = random.choice(list(CATEGORIAS.keys()))
         try:
@@ -421,13 +411,13 @@ async def keep_alive():
 
 
 async def post_init(app):
-    app.job_queue.run_repeating(
-        send_ofertas,
-        interval=CHECK_INTERVAL,
-        first=10
-    )
+    app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
     asyncio.create_task(keep_alive())
     logging.info("🤖 BOT RODANDO ESTAVEL")
+
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    logging.error(f"ERRO TELEGRAM: {context.error}")
 
 
 if __name__ == "__main__":
@@ -442,7 +432,8 @@ if __name__ == "__main__":
                 .post_init(post_init)
                 .build()
             )
-            app.run_polling()
+            app.add_error_handler(error_handler)
+            app.run_polling(allowed_updates=None)
 
         except Exception as e:
             logging.error(f"BOT REINICIANDO: {e}")
