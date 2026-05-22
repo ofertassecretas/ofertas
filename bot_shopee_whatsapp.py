@@ -8,13 +8,13 @@ import json
 import os
 import html
 import re
-
+from difflib import SequenceMatcher
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V11 OFFERLINK FILTROS REAIS")
+print("VERSAO SHOPEE V12 ANTI-REPETICAO E MOTO FORTE")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -34,49 +34,40 @@ VENDAS_MIN = 10
 RATING_MIN = 4.0
 
 PALAVRAS_BLOQUEIO = [
-    "teste",
-    "amostra",
-    "não compre",
-    "nao compre",
-    "produto teste",
-    "exemplo",
-    "dummy"
+    "teste", "amostra", "não compre", "nao compre", "produto teste", "exemplo", "dummy",
+    "vela led", "vela decorativa", "decorativa", "decoração", "casamento", "festa"
 ]
-
-CATEGORIAS = {
-    "Casa": [
-        "decoração casa", "utensílios cozinha", "organização casa", "eletrônicos casa", "cama mesa banho"
-    ],
-    "Moda feminina": [
-        "roupa feminina", "vestido feminino", "blusa feminina", "calçado feminino", "acessórios femininos"
-    ],
-    "Moda masculina": [
-        "roupa masculina", "camiseta masculina", "bermuda masculina", "calçado masculino", "acessórios masculinos"
-    ],
-    "Maternidade": [
-        "roupa bebê", "brinquedos bebê", "produtos higiene bebê", "carrinho bebê", "quarto bebê"
-    ],
-    "Motocicleta": [
-        "luvas moto", "jaquetas moto", "kit relação moto", "cabos moto", "kit embreagem moto",
-        "pneus moto", "kit freio a disco moto", "guidão moto", "rodas moto", "raios moto",
-        "kit pastilhas de freios moto", "pinças de freio moto", "burrinho de freio moto", "caixa direção moto",
-        "painel moto", "bombas combustivel moto", "refil bomba combustivel moto", "velas iridium moto",
-        "chave ignição moto", "manoplas moto", "kit motor moto", "vacinas pneu moto", "reparo pneu moto",
-        "carenagens moto", "tanques moto", "chave luz moto", "manicotos moto", "filtro de ar moto",
-        "filtro de combustivel moto", "boia de tanque moto", "aros moto", "coluna direção moto",
-        "bacalhau moto", "aba tanque moto", "tranca moto", "setas moto", "estator moto",
-        "chicote principal moto", "cdi moto", "carburador moto", "sensor de lenta moto", "tbi moto",
-        "corpo de injeção moto", "sensor tps moto", "correia moto", "corrente comando moto",
-        "honda biz peças", "pop 100 peças", "cg 125 peças", "cg 150 peças", "cg 160 peças",
-        "bros 150 peças", "bros 160 peças", "fazer 150 peças", "fazer 250 peças", "lander peças",
-        "cb 250 peças", "cb 300 peças", "crosser 150 peças", "pcx peças", "tornado peças",
-        "saara 300 peças", "twister 250 peças", "twister 300 peças", "xre 190 peças", "xre 300 peças"
-    ]
-}
 
 NICHOS_CICLO = ["Casa", "Moda feminina", "Moda masculina", "Maternidade", "Motocicleta"]
 
+KEYWORDS = {
+    "Casa": [
+        "organizador premium", "kit cozinha inox", "aspirador portátil", "ferramenta elétrica",
+        "air fryer", "cafeteira elétrica", "liquidificador potente", "panela elétrica",
+        "secador de cabelo profissional", "torradeira inox"
+    ],
+    "Moda feminina": [
+        "vestido feminino", "blusa feminina premium", "calça feminina", "tenis feminino",
+        "bolsa feminina", "kit moda feminina", "conjunto feminino", "sapato feminino"
+    ],
+    "Moda masculina": [
+        "camisa masculina", "tenis masculino", "calça masculina", "relógio masculino",
+        "mochila masculina", "carteira masculina", "kit moda masculina", "sapato masculino"
+    ],
+    "Maternidade": [
+        "carrinho bebê", "cadeirinha bebê", "kit enxoval bebê", "babá eletrônica",
+        "cadeira alimentação bebê", "brinquedo educativo bebê", "berço portátil", "mochila maternidade"
+    ],
+    "Motocicleta": [
+        "amortecedor moto", "freio moto", "pastilha freio moto", "disco freio moto", "pneu moto",
+        "kit relação moto", "embreagem moto", "injeção moto", "painel moto", "farol moto",
+        "seta moto", "retrovisor moto", "carenagem moto", "motor moto", "bateria moto",
+        "stator moto", "regulador moto", "bobina moto", "relé moto", "sensor moto"
+    ]
+}
+
 ULTIMAS_BUSCAS_SHOPEE = []
+ULTIMOS_TITULOS = []
 usadas_abertura = set()
 usados_no_ciclo = set()
 
@@ -106,9 +97,25 @@ def escolher_categorias_do_ciclo():
     return random.sample(NICHOS_CICLO, k=len(NICHOS_CICLO))
 
 
+def normalizar_texto(txt):
+    txt = txt.lower().strip()
+    txt = re.sub(r"[^a-z0-9à-ÿ\s]", " ", txt)
+    txt = re.sub(r"\s+", " ", txt)
+    return txt
+
+
 def tem_bloqueio(titulo):
-    t = titulo.lower()
+    t = normalizar_texto(titulo)
     return any(p in t for p in PALAVRAS_BLOQUEIO)
+
+
+def titulo_semelhante(titulo):
+    t = normalizar_texto(titulo)
+    for prev in ULTIMOS_TITULOS:
+        ratio = SequenceMatcher(None, t, prev).ratio()
+        if ratio >= 0.82:
+            return True
+    return False
 
 
 def shop_type_score(shop_type):
@@ -133,14 +140,17 @@ def oferta_score(p):
         comissao = float(p.get("commissionRate", 0) or 0)
         preco = float(p.get("priceMin", 0) or 0)
         st = p.get("shopType", [])
+        nome = str(p.get("productName", "")).lower()
 
         score = 0
-        score += min(vendas / 10, 20)
+        score += min(vendas / 8, 25)
         score += rating * 2
         score += comissao * 100
         score += shop_type_score(st)
         if 50 <= preco <= 5000:
-            score += 5
+            score += 6
+        if "moto" in nome or "bebe" in nome or "bebê" in nome:
+            score += 2
         return score
     except Exception:
         return 0
@@ -158,6 +168,8 @@ def produto_valido(p):
         if not titulo or not link:
             return False
         if tem_bloqueio(titulo):
+            return False
+        if titulo_semelhante(titulo):
             return False
         if preco_min < PRECO_MIN or preco_min > PRECO_MAX:
             return False
@@ -257,7 +269,7 @@ def aplicar_id_afiliado(link):
 
 
 def buscar_produtos_da_categoria(categoria_selecionada):
-    palavra_chave = random.choice(CATEGORIAS[categoria_selecionada])
+    palavra_chave = random.choice(KEYWORDS[categoria_selecionada])
     logging.info(f"Buscando na categoria: {categoria_selecionada} com palavra-chave: {palavra_chave}")
 
     timestamp = int(time.time())
@@ -296,7 +308,7 @@ def buscar_produtos_da_categoria(categoria_selecionada):
 
 
 def get_shopee_offers():
-    global ULTIMAS_BUSCAS_SHOPEE, usados_no_ciclo
+    global ULTIMAS_BUSCAS_SHOPEE, ULTIMOS_TITULOS, usados_no_ciclo
 
     logging.info("Buscando ofertas Shopee")
     usados_no_ciclo = set()
@@ -315,16 +327,19 @@ def get_shopee_offers():
                 candidatos.append(escolhido)
                 ULTIMAS_BUSCAS_SHOPEE.append(link)
                 usados_no_ciclo.add(link)
-                if len(ULTIMAS_BUSCAS_SHOPEE) > 200:
+                ULTIMOS_TITULOS.append(normalizar_texto(escolhido["productName"]))
+                if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
                     ULTIMAS_BUSCAS_SHOPEE.pop(0)
+                if len(ULTIMOS_TITULOS) > 150:
+                    ULTIMOS_TITULOS.pop(0)
 
         except Exception as e:
             logging.error(f"Erro na categoria {categoria_selecionada}: {e}")
 
     tentativas_extra = 0
-    while len(candidatos) < 6 and tentativas_extra < 20:
+    while len(candidatos) < 6 and tentativas_extra < 24:
         tentativas_extra += 1
-        categoria_extra = random.choice(list(CATEGORIAS.keys()))
+        categoria_extra = random.choice(list(KEYWORDS.keys()))
         try:
             produtos_brutos = buscar_produtos_da_categoria(categoria_extra)
             filtrados = [p for p in produtos_brutos if produto_valido(p)]
@@ -337,8 +352,11 @@ def get_shopee_offers():
                     candidatos.append(escolhido)
                     ULTIMAS_BUSCAS_SHOPEE.append(link)
                     usados_no_ciclo.add(link)
-                    if len(ULTIMAS_BUSCAS_SHOPEE) > 200:
+                    ULTIMOS_TITULOS.append(normalizar_texto(escolhido["productName"]))
+                    if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
                         ULTIMAS_BUSCAS_SHOPEE.pop(0)
+                    if len(ULTIMOS_TITULOS) > 150:
+                        ULTIMOS_TITULOS.pop(0)
 
         except Exception as e:
             logging.error(f"Erro extra na categoria {categoria_extra}: {e}")
@@ -357,7 +375,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             return
 
         usadas_abertura.clear()
-
         shopee_ofertas = get_shopee_offers()
         selecionadas = []
 
@@ -374,34 +391,14 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
 
                 vendas_f = f"{vendas:,}".replace(",", ".")
-                msg = gerar_copy(
-                    nome,
-                    f"{preco:.2f}",
-                    vendas_f,
-                    rating,
-                    comissao,
-                    link,
-                    for_whatsapp=False
-                )
+                msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, rating, comissao, link, for_whatsapp=False)
 
-                zap_msg = gerar_copy(
-                    nome,
-                    f"{preco:.2f}",
-                    vendas_f,
-                    rating,
-                    0,
-                    link,
-                    for_whatsapp=True
-                )
-
+                zap_msg = gerar_copy(nome, f"{preco:.2f}", vendas_f, rating, 0, link, for_whatsapp=True)
                 zap = gerar_link_whatsapp_from_html(zap_msg)
                 msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
                 msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
-                selecionadas.append({
-                    "msg": msg,
-                    "img": img
-                })
+                selecionadas.append({"msg": msg, "img": img})
 
             except Exception as e:
                 logging.error(f"Erro Shopee item: {e}")
