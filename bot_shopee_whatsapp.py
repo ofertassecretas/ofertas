@@ -25,13 +25,13 @@ SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
-CHECK_INTERVAL = 5400
+CHECK_INTERVAL = 7200
 
 PRECO_MIN = 20.0
 PRECO_MAX = 10000.0
 COMISSAO_MIN = 0.08
-VENDAS_MIN = 10
-RATING_MIN = 4.0
+VENDAS_MIN = 50
+RATING_MIN = 4.5
 
 PALAVRAS_BLOQUEIO = [
     "teste", "amostra", "não compre", "nao compre", "produto teste", "exemplo", "dummy",
@@ -41,31 +41,75 @@ PALAVRAS_BLOQUEIO = [
 NICHOS_CICLO = ["Casa", "Moda feminina", "Moda masculina", "Maternidade", "Motocicleta"]
 
 KEYWORDS = {
-    "Casa": [
-        "organizador premium", "kit cozinha inox", "aspirador portátil", "ferramenta elétrica",
-        "air fryer", "cafeteira elétrica", "liquidificador potente", "panela elétrica",
-        "secador de cabelo profissional", "torradeira inox"
+
+    "Casa":[
+        "smart tv",
+        "tv 50 polegadas",
+        "air fryer philips",
+        "robô aspirador",
+        "cafeteira dolce gusto",
+        "aspirador vertical",
+        "microondas",
+        "liquidificador mondial",
+        "ventilador",
+        "cooktop",
+        "forno elétrico",
+        "geladeira",
+        "lavadora alta pressão",
+        "caixa de som jbl",
+        "echo alexa",
+        "notebook"
     ],
-    "Moda feminina": [
-        "vestido feminino", "blusa feminina premium", "calça feminina", "tenis feminino",
-        "bolsa feminina", "kit moda feminina", "conjunto feminino", "sapato feminino"
+
+    "Moda feminina":[
+        "vestido feminino",
+        "conjunto feminino",
+        "tenis feminino",
+        "bolsa feminina",
+        "sandália feminina",
+        "kit maquiagem"
     ],
-    "Moda masculina": [
-        "camisa masculina", "tenis masculino", "calça masculina", "relógio masculino",
-        "mochila masculina", "carteira masculina", "kit moda masculina", "sapato masculino"
+
+    "Moda masculina":[
+        "tenis masculino",
+        "camisa polo",
+        "relógio masculino",
+        "mochila masculina",
+        "perfume masculino",
+        "camiseta premium"
     ],
-    "Maternidade": [
-        "carrinho bebê", "cadeirinha bebê", "kit enxoval bebê", "babá eletrônica",
-        "cadeira alimentação bebê", "brinquedo educativo bebê", "berço portátil", "mochila maternidade"
+
+    "Maternidade":[
+        "carrinho bebê",
+        "babá eletrônica",
+        "berço portátil",
+        "cadeira alimentação bebê",
+        "fralda",
+        "kit bebê"
     ],
-    "Motocicleta": [
-        "amortecedor moto", "freio moto", "pastilha freio moto", "disco freio moto", "pneu moto",
-        "kit relação moto", "embreagem moto", "injeção moto", "painel moto", "farol moto",
-        "seta moto", "retrovisor moto", "carenagem moto", "motor moto", "bateria moto",
-        "stator moto", "regulador moto", "bobina moto", "relé moto", "sensor moto"
+
+    "Motocicleta":[
+
+        "capacete ls2",
+        "capacete pro tork",
+        "escapamento cg 160",
+        "kit relação cg 160",
+        "retrovisor cg",
+        "pneu moto",
+        "farol led moto",
+        "painel titan",
+        "carenagem titan",
+        "bateria moto",
+        "óleo moto",
+        "pastilha freio cg",
+        "baú moto",
+        "suporte celular moto",
+        "manete esportivo",
+        "protetor motor moto",
+        "corrente moto",
+        "paralama cg"
     ]
 }
-
 ULTIMAS_BUSCAS_SHOPEE = []
 ULTIMOS_TITULOS = []
 usadas_abertura = set()
@@ -134,25 +178,59 @@ def shop_type_score(shop_type):
 
 
 def oferta_score(p):
-    try:
-        vendas = int(p.get("sales", 0) or 0)
-        rating = float(p.get("ratingStar", 0) or 0)
-        comissao = float(p.get("commissionRate", 0) or 0)
-        preco = float(p.get("priceMin", 0) or 0)
-        st = p.get("shopType", [])
-        nome = str(p.get("productName", "")).lower()
 
-        score = 0
-        score += min(vendas / 8, 25)
-        score += rating * 2
-        score += comissao * 100
-        score += shop_type_score(st)
-        if 50 <= preco <= 5000:
-            score += 6
-        if "moto" in nome or "bebe" in nome or "bebê" in nome:
-            score += 2
+    try:
+
+        vendas = int(p.get("sales",0))
+        rating = float(p.get("ratingStar",0))
+        comissao=float(p.get("commissionRate",0))
+        preco=float(p.get("priceMin",0))
+
+        score=0
+
+        # vendas tem peso forte
+        score += min(vendas/50,40)
+
+        # avaliação
+        score += rating*6
+
+        # comissão
+        score += comissao*100
+
+        # ticket médio melhor
+        if 80 <= preco <= 5000:
+            score += 15
+
+        # boost produtos fortes
+        nome=str(
+            p.get("productName","")
+        ).lower()
+
+        palavras_quentes=[
+
+            "tv",
+            "iphone",
+            "samsung",
+            "xiaomi",
+            "capacete",
+            "cg",
+            "titan",
+            "jbl",
+            "notebook",
+            "air fryer",
+            "alexa",
+            "moto"
+
+        ]
+
+        for palavra in palavras_quentes:
+
+            if palavra in nome:
+                score+=10
+
         return score
-    except Exception:
+
+    except:
         return 0
 
 
@@ -221,21 +299,31 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=Fals
     gatilho = random.choice(gatilhos)
 
     if for_whatsapp:
-        return f"""{abertura}
+        return f"""🚨 *OFERTA ENCONTRADA* 🚨
 
-*🔥 {nome}*
+*🔥 PRODUTO:*
+{nome}
 
+📌 *DETALHES*
 {gatilho}
+
+💰 *PREÇO:* R$ {preco}
+
+⭐ *AVALIAÇÃO:* {avaliacao}
+
+🛒 *VENDAS:* {vendas}
 
 {chamada_acao}
 
-*💰 R$ {preco}*
-*⭐ {avaliacao} | 🛒 {vendas} vendas*
+⚠️ *Pode subir de preço a qualquer momento*
 
-⚠️ Pode subir de preço
+🛒 *COMPRAR AGORA:*
+{link}
 
-🛒 COMPRAR AGORA: {link}
-{chamada_grupo}
+━━━━━━━━━━━━━━━
+
+📢 *Quer mais ofertas?*
+{LINK_GRUPO_OFERTAS}
 """
     return f"""{abertura}
 
@@ -268,102 +356,160 @@ def aplicar_id_afiliado(link):
     return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
 
 
-def buscar_produtos_da_categoria(categoria_selecionada):
-    palavra_chave = random.choice(KEYWORDS[categoria_selecionada])
-    logging.info(f"Buscando na categoria: {categoria_selecionada} com palavra-chave: {palavra_chave}")
+def buscar_produtos_da_categoria(categoria):
 
-    timestamp = int(time.time())
+    keyword=random.choice(
+        KEYWORDS[categoria]
+    )
 
-    query_body = f'''
+    logging.info(
+        f"Buscando {categoria}: {keyword}"
+    )
+
+    timestamp=int(time.time())
+
+    query=f'''
     query {{
-        productOfferV2(sortType: 2, limit: 50, keyword: "{palavra_chave}", isAMSOffer: true) {{
-            nodes {{
-                productName
-                priceMin
-                priceMax
-                commissionRate
-                sales
-                ratingStar
-                productLink
-                offerLink
-                imageUrl
-                shopType
-            }}
+
+    productOfferV2(
+
+    sortType:2,
+    limit:100,
+    keyword:"{keyword}",
+    isAMSOffer:true
+
+    ){{
+        nodes{
+
+        productName
+        priceMin
+        commissionRate
+        sales
+        ratingStar
+        productLink
+        offerLink
+        imageUrl
+        shopType
+
         }}
+    }}
+
     }}
     '''
 
-    payload = json.dumps({"query": query_body})
-    base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
-    signature = hashlib.sha256(base.encode()).hexdigest()
+    payload=json.dumps({
+        "query":query
+    })
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
+    base=SHOPEE_APP_ID+str(timestamp)+payload+SHOPEE_PASSWORD
+
+    signature=hashlib.sha256(
+        base.encode()
+    ).hexdigest()
+
+    headers={
+
+        "Content-Type":"application/json",
+
+        "Authorization":
+        f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
     }
 
-    r = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=20)
-    data = r.json()
+    r=requests.post(
+        SHOPEE_GRAPHQL_URL,
+        data=payload,
+        headers=headers,
+        timeout=20
+    )
+
+    data=r.json()
+
     return data["data"]["productOfferV2"]["nodes"]
 
 
 def get_shopee_offers():
-    global ULTIMAS_BUSCAS_SHOPEE, ULTIMOS_TITULOS, usados_no_ciclo
+
+    global usados_no_ciclo
 
     logging.info("Buscando ofertas Shopee")
-    usados_no_ciclo = set()
-    categorias_ciclo = escolher_categorias_do_ciclo()
-    candidatos = []
 
-    for categoria_selecionada in categorias_ciclo:
+    usados_no_ciclo=set()
+
+    candidatos=[]
+
+    categorias=escolher_categorias_do_ciclo()
+
+    for categoria in categorias:
+
         try:
-            produtos_brutos = buscar_produtos_da_categoria(categoria_selecionada)
-            filtrados = [p for p in produtos_brutos if produto_valido(p)]
-            filtrados.sort(key=oferta_score, reverse=True)
 
-            if filtrados:
-                escolhido = filtrados[0]
-                link = escolhido.get("offerLink") or escolhido.get("productLink")
-                candidatos.append(escolhido)
-                ULTIMAS_BUSCAS_SHOPEE.append(link)
-                usados_no_ciclo.add(link)
-                ULTIMOS_TITULOS.append(normalizar_texto(escolhido["productName"]))
-                if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
-                    ULTIMAS_BUSCAS_SHOPEE.pop(0)
-                if len(ULTIMOS_TITULOS) > 150:
-                    ULTIMOS_TITULOS.pop(0)
+            produtos=buscar_produtos_da_categoria(
+                categoria
+            )
+
+            validos=[
+
+                p for p in produtos
+                if produto_valido(p)
+
+            ]
+
+            validos.sort(
+                key=oferta_score,
+                reverse=True
+            )
+
+            # pega 2 produtos por nicho
+            escolhidos=validos[:2]
+
+            for produto in escolhidos:
+
+                link=(
+                    produto.get("offerLink")
+                    or
+                    produto.get("productLink")
+                )
+
+                if link not in usados_no_ciclo:
+
+                    candidatos.append(
+                        produto
+                    )
+
+                    usados_no_ciclo.add(
+                        link
+                    )
+
+                    ULTIMOS_TITULOS.append(
+                        normalizar_texto(
+                            produto["productName"]
+                        )
+                    )
+
+                    if len(
+                        ULTIMOS_TITULOS
+                    ) > 300:
+
+                        ULTIMOS_TITULOS.pop(
+                            0
+                        )
 
         except Exception as e:
-            logging.error(f"Erro na categoria {categoria_selecionada}: {e}")
 
-    tentativas_extra = 0
-    while len(candidatos) < 6 and tentativas_extra < 24:
-        tentativas_extra += 1
-        categoria_extra = random.choice(list(KEYWORDS.keys()))
-        try:
-            produtos_brutos = buscar_produtos_da_categoria(categoria_extra)
-            filtrados = [p for p in produtos_brutos if produto_valido(p)]
-            filtrados.sort(key=oferta_score, reverse=True)
+            logging.error(
+                f"Erro {categoria}: {e}"
+            )
 
-            if filtrados:
-                escolhido = filtrados[0]
-                link = escolhido.get("offerLink") or escolhido.get("productLink")
-                if link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
-                    candidatos.append(escolhido)
-                    ULTIMAS_BUSCAS_SHOPEE.append(link)
-                    usados_no_ciclo.add(link)
-                    ULTIMOS_TITULOS.append(normalizar_texto(escolhido["productName"]))
-                    if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
-                        ULTIMAS_BUSCAS_SHOPEE.pop(0)
-                    if len(ULTIMOS_TITULOS) > 150:
-                        ULTIMOS_TITULOS.pop(0)
+    candidatos.sort(
+        key=oferta_score,
+        reverse=True
+    )
 
-        except Exception as e:
-            logging.error(f"Erro extra na categoria {categoria_extra}: {e}")
+    logging.info(
+        f"{len(candidatos)} produtos encontrados"
+    )
 
-    candidatos.sort(key=oferta_score, reverse=True)
-    logging.info(f"Shopee OK: {len(candidatos[:6])} produtos únicos para envio")
-    return candidatos[:6]
+    return candidatos
 
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
@@ -378,7 +524,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         shopee_ofertas = get_shopee_offers()
         selecionadas = []
 
-        for item in shopee_ofertas[:6]:
+        for item in shopee_ofertas:
             try:
                 link_base = item.get("offerLink") or item.get("productLink")
                 link = aplicar_id_afiliado(link_base)
