@@ -88,7 +88,7 @@ PALAVRAS_BLOQUEIO = ["teste", "amostra", "não compre", "dummy", "fake", "usado"
 
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
-    return dt_time(6, 0) <= agora <= dt_time(23, 59)
+    return dt_time(5, 30) <= agora <= dt_time(21, 30)
 
 def normalizar_texto(txt):
     txt = txt.lower().strip()
