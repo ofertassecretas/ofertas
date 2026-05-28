@@ -9,7 +9,7 @@ import os
 import html
 import re
 from difflib import SequenceMatcher
-from datetime import datetime, time as dt_time
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V16 - VARIEDADE TOTAL & ANTI-REPETIÇÃO")
+print("VERSAO SHOPEE V17 - MEMÓRIA PERSISTENTE & MOTO PESADA")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -27,60 +27,111 @@ CHAT_ID_DESTINO = -1003848415150
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
+# Caminho para o arquivo de memória (Salva mesmo se o bot reiniciar)
+HISTORICO_FILE = "historico_envios.json"
+
 # Intervalo entre ciclos (em segundos) - 5400s = 1h30
 CHECK_INTERVAL = 5400
 
-# Filtros de Qualidade
-PRECO_MIN = 25.0
+# Filtros de Qualidade (Aumentados para evitar "produtos pobres")
+PRECO_MIN = 35.0 # Aumentado para evitar quinquilharias
 PRECO_MAX = 15000.0
 COMISSAO_MIN = 0.07
-VENDAS_MIN = 50
-RATING_MIN = 4.5
-
-# Memória do Bot (Anti-Repetição)
-ULTIMOS_PRODUTOS_ENVIADOS = [] 
-ULTIMOS_TITULOS_ENVIADOS = []  
+VENDAS_MIN = 100 # Aumentado para pegar apenas o que vende muito
+RATING_MIN = 4.6 # Aumentado para pegar só os melhores avaliados
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # ==========================================
-# NICHOS E SUBCATEGORIAS (PARA GARANTIR VARIEDADE)
+# NICHOS E SUBCATEGORIAS (TURBINADOS)
 # ==========================================
-# Agora os nichos são divididos em subcategorias. 
-# O bot vai escolher 2 subcategorias DIFERENTES por ciclo para cada nicho.
 
 KEYWORDS_ESTRUTURADAS = {
     "Casa e Eletro": {
-        "TV": ["Smart TV 50 polegadas", "TV 4K Samsung", "TV LG ThinQ"],
-        "Celulares": ["iPhone 14", "iPhone 13", "Samsung S23 Ultra", "Xiaomi Redmi Note"],
-        "Eletrodomesticos": ["Geladeira Frost Free", "Fogão 4 bocas", "Máquina de Lavar", "Micro-ondas"],
-        "Cozinha": ["Air Fryer Philips", "Batedeira Planetária", "Cafeteira Dolce Gusto"],
-        "Tecnologia": ["Notebook Gamer", "Playstation 5", "Caixa JBL Original", "Alexa Echo Dot"]
+        "TV": ["Smart TV 50 4k", "TV Samsung Crystal", "TV LG 55", "Monitor Gamer 144hz"],
+        "Celulares": ["iPhone 14 Pro", "Samsung Galaxy S23", "Xiaomi Poco X6", "iPhone 13 128gb"],
+        "Eletrodomesticos": ["Geladeira Frost Free", "Fogão Brastemp", "Máquina Lavar 12kg", "Ar Condicionado Inverter"],
+        "Cozinha": ["Air Fryer Mondial Family", "Cafeteira Espresso", "Micro-ondas 30L", "Mixer Profissional"],
+        "Tecnologia": ["Notebook Dell", "Playstation 5", "Caixa JBL Boombox", "Tablet Samsung S9"]
     },
     "Moda Feminina": {
-        "Roupas": ["Vestido Midi", "Conjunto Canelado", "Calça Pantalona", "Blusa Feminina"],
-        "Calcados": ["Tênis Feminino Casual", "Sandália Salto Bloco", "Rasteirinha"],
-        "Acessorios": ["Bolsa de Couro Feminina", "Relógio Feminino Dourado", "Óculos de Sol"]
+        "Roupas": ["Vestido Festa", "Conjunto Alfaiataria", "Calça Jeans Levanta Bumbum", "Jaqueta Puffer"],
+        "Calcados": ["Tênis Vert Feminino", "Bota Cano Curto", "Sandália Salto Taça"],
+        "Acessorios": ["Bolsa Michael Kors Style", "Relógio Technos Feminino", "Kit Maquiagem Ruby Rose"]
     },
     "Moda Masculina": {
-        "Roupas": ["Camisa Polo Premium", "Camiseta Algodão Egípcio", "Calça Jeans Masculina"],
-        "Calcados": ["Tênis Masculino Esportivo", "Sapato Social Couro", "Sapatênis"],
-        "Acessorios": ["Relógio Masculino Luxo", "Mochila Impermeável", "Carteira de Couro"]
+        "Roupas": ["Camisa Reserva", "Calça Sarja Masculina", "Jaqueta Masculina Couro", "Kit Cueca Calvin Klein"],
+        "Calcados": ["Tênis Nike Shox", "Tênis Adidas Casual", "Bota Adventure Couro"],
+        "Acessorios": ["Relógio Invicta", "Mochila Notebook Impermeável", "Perfume Sauvage Style"]
     },
     "Maternidade": {
-        "Moveis": ["Carrinho de Bebê Reclinável", "Berço Portátil", "Cadeira de Alimentação"],
-        "Seguranca": ["Babá Eletrônica com Câmera", "Grade de Proteção"],
-        "Higiene": ["Fralda Pampers Atacado", "Kit Enxoval Completo", "Mochila Maternidade"]
+        "Moveis": ["Carrinho Bebê Galzerano", "Berço Americano", "Cadeira Auto 0-36kg"],
+        "Seguranca": ["Babá Eletrônica Motorola", "Câmera Wi-Fi 360"],
+        "Utilidades": ["Extrator Leite Elétrico", "Kit Higiene Bebê", "Mochila Maternidade Premium"]
     },
     "Motocicleta": {
-        "Seguranca": ["Capacete LS2 FF358", "Capacete Norisk", "Capa de Chuva Moto"],
-        "Pecas": ["Pneu Pirelli Moto", "Kit Relação DID", "Amortecedor Pro Link", "Escapamento Fortuna"],
-        "Acessorios": ["Intercomunicador Moto", "Baú Givi", "Suporte Celular Alumínio", "Guidão Esportivo"]
+        "Capacetes": ["Capacete LS2 FF358", "Capacete Norisk Razor", "Capacete MT Helmets", "Capacete Bell"],
+        "Pecas_Pesadas": ["Kit Relação DID Gold", "Pneu Pirelli Diablo", "Pneu Metzeler", "Amortecedor Cofap Moto"],
+        "Performance": ["Escapamento Fortuna Tri", "Carburador Koso", "Vela Iridium NGK", "Filtro K&N Moto"],
+        "Acessorios_Top": ["Intercomunicador Sena", "Baú Givi 45L", "Suporte Celular Garra", "Farol Auxiliar LED"]
     }
 }
 
-PALAVRAS_BLOQUEIO = ["teste", "amostra", "não compre", "dummy", "fake", "usado", "defeito", "viseira"] # Adicionei viseira no bloqueio temporário se estiver vindo muito
+# Bloqueios para limpar o feed de itens chatos
+PALAVRAS_BLOQUEIO = [
+    "teste", "amostra", "não compre", "dummy", "viseira", "adesivo", "película", 
+    "capinha", "case", "filtro de papel", "brinde", "usado", "defeito"
+]
+
+# ==========================================
+# GESTÃO DE MEMÓRIA PERSISTENTE
+# ==========================================
+
+def carregar_historico():
+    if os.path.exists(HISTORICO_FILE):
+        try:
+            with open(HISTORICO_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def salvar_historico(historico):
+    with open(HISTORICO_FILE, 'w') as f:
+        json.dump(historico, f)
+
+def limpar_historico_antigo():
+    """Remove itens que foram enviados há mais de 10 dias."""
+    historico = carregar_historico()
+    agora = datetime.now()
+    novo_historico = {}
+    
+    for link, data_str in historico.items():
+        try:
+            data_envio = datetime.fromisoformat(data_str)
+            if agora - data_envio < timedelta(days=10):
+                novo_historico[link] = data_str
+        except:
+            continue
+            
+    salvar_historico(novo_historico)
+    return novo_historico
+
+def eh_repetido_persistente(titulo, link, historico, lista_ciclo_atual):
+    # 1. Verifica se está no histórico de 10 dias
+    if link in historico:
+        return True
+    
+    t_novo = normalizar_texto(titulo)
+    
+    # 2. Verifica similaridade com o que já foi escolhido NESTE ciclo
+    for p_atual in lista_ciclo_atual:
+        t_atual = normalizar_texto(p_atual.get("productName", ""))
+        if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.45:
+            return True
+            
+    return False
 
 # ==========================================
 # UTILITÁRIOS
@@ -88,7 +139,7 @@ PALAVRAS_BLOQUEIO = ["teste", "amostra", "não compre", "dummy", "fake", "usado"
 
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
-    return dt_time(5, 30) <= agora <= dt_time(21, 30)
+    return dt_time(5, 30) <= agora <= dt_time(21, 00)
 
 def normalizar_texto(txt):
     txt = txt.lower().strip()
@@ -96,42 +147,8 @@ def normalizar_texto(txt):
     txt = re.sub(r"\s+", " ", txt)
     return txt
 
-def eh_repetido(titulo, link, lista_ciclo_atual):
-    # 1. Verifica se o link já foi enviado recentemente
-    if link in ULTIMOS_PRODUTOS_ENVIADOS:
-        return True
-    
-    t_novo = normalizar_texto(titulo)
-    
-    # 2. Verifica similaridade com o histórico
-    for t_antigo in ULTIMOS_TITULOS_ENVIADOS:
-        if SequenceMatcher(None, t_novo, t_antigo).ratio() > 0.60:
-            return True
-            
-    # 3. Verifica similaridade com o que já foi escolhido NESTE ciclo (evita 2 iguais no mesmo envio)
-    for p_atual in lista_ciclo_atual:
-        t_atual = normalizar_texto(p_atual.get("productName", ""))
-        # Se compartilhar palavras muito comuns como "viseira", "capinha", "película" no mesmo ciclo, bloqueia
-        palavras_comuns = ["viseira", "capinha", "película", "filtro", "adesivo", "suporte"]
-        for pc in palavras_comuns:
-            if pc in t_novo and pc in t_atual:
-                return True
-        
-        if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.45: # Threshold mais baixo para o mesmo ciclo
-            return True
-            
-    return False
-
-def registrar_envio(titulo, link):
-    ULTIMOS_PRODUTOS_ENVIADOS.append(link)
-    ULTIMOS_TITULOS_ENVIADOS.append(normalizar_texto(titulo))
-    if len(ULTIMOS_PRODUTOS_ENVIADOS) > 300:
-        ULTIMOS_PRODUTOS_ENVIADOS.pop(0)
-    if len(ULTIMOS_TITULOS_ENVIADOS) > 300:
-        ULTIMOS_TITULOS_ENVIADOS.pop(0)
-
 # ==========================================
-# LÓGICA DE CÓPIA E MENSAGENS
+# LÓGICA DE MENSAGENS
 # ==========================================
 
 def gerar_copy_base(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=False):
@@ -179,7 +196,6 @@ def gerar_copy_base(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp
 📢 *Quer mais ofertas assim?*
 {LINK_GRUPO_OFERTAS}"""
 
-    # Para o Telegram (HTML)
     zap_msg = gerar_copy_base(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=True)
     zap_link = f"https://wa.me/?text={quote(zap_msg)}"
 
@@ -214,7 +230,7 @@ def buscar_shopee(keyword):
     timestamp = int(time.time())
     query_body = f'''
     query {{
-        productOfferV2(sortType: 2, limit: 40, keyword: "{keyword}", isAMSOffer: true) {{
+        productOfferV2(sortType: 2, limit: 50, keyword: "{keyword}", isAMSOffer: true) {{
             nodes {{
                 productName
                 priceMin
@@ -255,22 +271,18 @@ def aplicar_afiliado(link):
         return link
 
 def get_melhores_ofertas():
+    historico = limpar_historico_antigo()
     ofertas_finais = []
     
-    # Embaralha os nichos para não mandar sempre na mesma ordem
     nichos = list(KEYWORDS_ESTRUTURADAS.keys())
     random.shuffle(nichos)
     
     for nicho in nichos:
         logging.info(f"Processando nicho: {nicho}")
-        
-        # Pega as subcategorias deste nicho
         subs = list(KEYWORDS_ESTRUTURADAS[nicho].keys())
-        # Escolhe 2 subcategorias DIFERENTES
-        subs_escolhidas = random.sample(subs, k=2)
+        subs_escolhidas = random.sample(subs, k=min(2, len(subs)))
         
         for sub in subs_escolhidas:
-            # Pega uma keyword aleatória dentro da subcategoria
             kw = random.choice(KEYWORDS_ESTRUTURADAS[nicho][sub])
             produtos = buscar_shopee(kw)
             
@@ -290,20 +302,17 @@ def get_melhores_ofertas():
                 if rating < RATING_MIN: continue
                 if comissao < COMISSAO_MIN: continue
                 
-                # Validação de repetição (histórico + ciclo atual)
-                if eh_repetido(nome, link, ofertas_finais): continue
+                if eh_repetido_persistente(nome, link, historico, ofertas_finais): continue
                 
-                # Score de qualidade
-                score = (vendas / 50) + (rating * 10) + (comissao * 100)
-                # Boost para palavras-chave de desejo
-                palavras_quentes = ["tv", "iphone", "geladeira", "fogão", "moto", "ls2", "jbl", "ps5"]
-                if any(pq in nome.lower() for pq in palavras_quentes):
-                    score += 30
+                # Score de qualidade com foco em marcas e produtos quentes
+                score = (vendas / 100) + (rating * 15) + (comissao * 100)
+                palavras_premium = ["iphone", "brastemp", "lg", "samsung", "ls2", "pirelli", "did", "givi", "jbl", "ps5", "reserva"]
+                if any(pp in nome.lower() for pp in palavras_premium):
+                    score += 50
                 
                 p["score"] = score
                 candidatos_sub.append(p)
             
-            # Se achou algo na subcategoria, pega o melhor
             if candidatos_sub:
                 candidatos_sub.sort(key=lambda x: x["score"], reverse=True)
                 ofertas_finais.append(candidatos_sub[0])
@@ -317,24 +326,25 @@ def get_melhores_ofertas():
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     if not dentro_do_horario():
-        logging.info("Fora do horário de funcionamento.")
+        logging.info("Fora do horário.")
         return
 
-    logging.info("Iniciando ciclo de envio...")
+    logging.info("Iniciando ciclo V17...")
     ofertas = get_melhores_ofertas()
     
     if not ofertas:
-        logging.warning("Nenhuma oferta qualificada encontrada neste ciclo.")
+        logging.warning("Sem ofertas qualificadas.")
         return
 
-    # Mensagem de introdução do ciclo
     await context.bot.send_message(
         chat_id=CHAT_ID_DESTINO,
-        text="🚨 <b>AS MELHORES OFERTAS DE AGORA!</b>\n<i>Variedade e preço baixo garantidos!</i>",
+        text="🚨 <b>OFERTAS SELECIONADAS DE HOJE!</b>\n<i>Produtos de alta qualidade e com o melhor preço.</i>",
         parse_mode="HTML"
     )
     await asyncio.sleep(3)
 
+    historico = carregar_historico()
+    
     for item in ofertas:
         try:
             nome = html.escape(item["productName"])
@@ -355,23 +365,22 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="HTML"
             )
             
-            # Registrar para evitar repetição futura
-            registrar_envio(nome, link_original)
+            # Registrar no histórico persistente
+            historico[link_original] = datetime.now().isoformat()
+            salvar_historico(historico)
             
-            # Espera entre produtos para evitar spam e respeitar limites do Telegram
             await asyncio.sleep(45)
             
         except Exception as e:
-            logging.error(f"Erro ao enviar produto: {e}")
+            logging.error(f"Erro envio: {e}")
 
 async def post_init(app):
-    # Executa a primeira vez após 10 segundos, depois a cada CHECK_INTERVAL
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V16 Inicializado com Sucesso!")
+    logging.info("Bot Shopee V17 Pronto!")
 
 if __name__ == "__main__":
     if not TELEGRAM_TOKEN:
-        print("ERRO: TELEGRAM_TOKEN não configurado!")
+        print("ERRO: TELEGRAM_TOKEN ausente!")
     else:
         app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
         app.run_polling()
