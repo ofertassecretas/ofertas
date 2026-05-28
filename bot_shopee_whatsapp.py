@@ -9,7 +9,7 @@ import os
 import html
 import re
 from difflib import SequenceMatcher
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V17 - MEMÓRIA PERSISTENTE & MOTO PESADA")
+print("VERSAO SHOPEE V18 - ESTABILIDADE & VARIEDADE")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -33,12 +33,12 @@ HISTORICO_FILE = "historico_envios.json"
 # Intervalo entre ciclos (em segundos) - 5400s = 1h30
 CHECK_INTERVAL = 5400
 
-# Filtros de Qualidade (Aumentados para evitar "produtos pobres")
-PRECO_MIN = 35.0 # Aumentado para evitar quinquilharias
+# Filtros de Qualidade (Ajustados para garantir que o bot encontre produtos)
+PRECO_MIN = 25.0 
 PRECO_MAX = 15000.0
-COMISSAO_MIN = 0.07
-VENDAS_MIN = 100 # Aumentado para pegar apenas o que vende muito
-RATING_MIN = 4.6 # Aumentado para pegar só os melhores avaliados
+COMISSAO_MIN = 0.07 # Reduzi um pouco para aumentar a chance de encontrar produtos quentes
+VENDAS_MIN = 50     # Reduzi de 100 para 50 para dar mais margem ao bot
+RATING_MIN = 4.5    # Reduzi de 4.6 para 4.5 para ser mais flexível
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
@@ -49,39 +49,38 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 KEYWORDS_ESTRUTURADAS = {
     "Casa e Eletro": {
-        "TV": ["Smart TV 50 4k", "TV Samsung Crystal", "TV LG 55", "Monitor Gamer 144hz"],
-        "Celulares": ["iPhone 14 Pro", "Samsung Galaxy S23", "Xiaomi Poco X6", "iPhone 13 128gb"],
-        "Eletrodomesticos": ["Geladeira Frost Free", "Fogão Brastemp", "Máquina Lavar 12kg", "Ar Condicionado Inverter"],
-        "Cozinha": ["Air Fryer Mondial Family", "Cafeteira Espresso", "Micro-ondas 30L", "Mixer Profissional"],
-        "Tecnologia": ["Notebook Dell", "Playstation 5", "Caixa JBL Boombox", "Tablet Samsung S9"]
+        "TV": ["Smart TV 50", "TV Samsung", "TV LG", "Monitor Gamer"],
+        "Celulares": ["iPhone 14", "Samsung S23", "Xiaomi Redmi", "iPhone 13"],
+        "Eletrodomesticos": ["Geladeira", "Fogão", "Máquina Lavar", "Ar Condicionado"],
+        "Cozinha": ["Air Fryer", "Cafeteira", "Micro-ondas", "Liquidificador"],
+        "Tecnologia": ["Notebook", "Playstation 5", "JBL", "Tablet"]
     },
     "Moda Feminina": {
-        "Roupas": ["Vestido Festa", "Conjunto Alfaiataria", "Calça Jeans Levanta Bumbum", "Jaqueta Puffer"],
-        "Calcados": ["Tênis Vert Feminino", "Bota Cano Curto", "Sandália Salto Taça"],
-        "Acessorios": ["Bolsa Michael Kors Style", "Relógio Technos Feminino", "Kit Maquiagem Ruby Rose"]
+        "Roupas": ["Vestido", "Conjunto Feminino", "Calça Jeans Feminina", "Blusa"],
+        "Calcados": ["Tênis Feminino", "Bota Feminina", "Sandália"],
+        "Acessorios": ["Bolsa Feminina", "Relógio Feminino", "Maquiagem"]
     },
     "Moda Masculina": {
-        "Roupas": ["Camisa Reserva", "Calça Sarja Masculina", "Jaqueta Masculina Couro", "Kit Cueca Calvin Klein"],
-        "Calcados": ["Tênis Nike Shox", "Tênis Adidas Casual", "Bota Adventure Couro"],
-        "Acessorios": ["Relógio Invicta", "Mochila Notebook Impermeável", "Perfume Sauvage Style"]
+        "Roupas": ["Camisa Masculina", "Calça Masculina", "Cueca Box"],
+        "Calcados": ["Tênis Masculino", "Sapato Masculino", "Bota Masculina"],
+        "Acessorios": ["Relógio Masculino", "Mochila Masculina", "Perfume Masculino"]
     },
     "Maternidade": {
-        "Moveis": ["Carrinho Bebê Galzerano", "Berço Americano", "Cadeira Auto 0-36kg"],
-        "Seguranca": ["Babá Eletrônica Motorola", "Câmera Wi-Fi 360"],
-        "Utilidades": ["Extrator Leite Elétrico", "Kit Higiene Bebê", "Mochila Maternidade Premium"]
+        "Moveis": ["Carrinho Bebê", "Berço", "Cadeira Alimentação"],
+        "Seguranca": ["Babá Eletrônica", "Câmera Wi-Fi"],
+        "Utilidades": ["Fralda", "Kit Enxoval", "Mochila Maternidade"]
     },
     "Motocicleta": {
-        "Capacetes": ["Capacete LS2 FF358", "Capacete Norisk Razor", "Capacete MT Helmets", "Capacete Bell"],
-        "Pecas_Pesadas": ["Kit Relação DID Gold", "Pneu Pirelli Diablo", "Pneu Metzeler", "Amortecedor Cofap Moto"],
-        "Performance": ["Escapamento Fortuna Tri", "Carburador Koso", "Vela Iridium NGK", "Filtro K&N Moto"],
-        "Acessorios_Top": ["Intercomunicador Sena", "Baú Givi 45L", "Suporte Celular Garra", "Farol Auxiliar LED"]
+        "Capacetes": ["Capacete LS2", "Capacete Norisk", "Capacete MT", "Capacete Pro Tork"],
+        "Pecas_Pesadas": ["Kit Relação", "Pneu Moto", "Amortecedor Moto"],
+        "Performance": ["Escapamento Moto", "Vela Iridium", "Filtro Ar Moto"],
+        "Acessorios_Top": ["Intercomunicador", "Baú Moto", "Suporte Celular Moto", "Luva Moto"]
     }
 }
 
-# Bloqueios para limpar o feed de itens chatos
 PALAVRAS_BLOQUEIO = [
-    "teste", "amostra", "não compre", "dummy", "viseira", "adesivo", "película", 
-    "capinha", "case", "filtro de papel", "brinde", "usado", "defeito"
+    "teste", "amostra", "não compre", "dummy", "adesivo", "película", 
+    "case", "filtro de papel", "brinde", "usado", "defeito"
 ]
 
 # ==========================================
@@ -93,16 +92,19 @@ def carregar_historico():
         try:
             with open(HISTORICO_FILE, 'r') as f:
                 return json.load(f)
-        except:
+        except Exception as e:
+            logging.error(f"Erro ao carregar histórico: {e}")
             return {}
     return {}
 
 def salvar_historico(historico):
-    with open(HISTORICO_FILE, 'w') as f:
-        json.dump(historico, f)
+    try:
+        with open(HISTORICO_FILE, 'w') as f:
+            json.dump(historico, f, indent=4)
+    except Exception as e:
+        logging.error(f"Erro ao salvar histórico: {e}")
 
 def limpar_historico_antigo():
-    """Remove itens que foram enviados há mais de 10 dias."""
     historico = carregar_historico()
     agora = datetime.now()
     novo_historico = {}
@@ -112,25 +114,24 @@ def limpar_historico_antigo():
             data_envio = datetime.fromisoformat(data_str)
             if agora - data_envio < timedelta(days=10):
                 novo_historico[link] = data_str
-        except:
+        except Exception as e:
+            logging.warning(f"Erro ao processar item no histórico: {link} - {e}")
             continue
             
     salvar_historico(novo_historico)
     return novo_historico
 
 def eh_repetido_persistente(titulo, link, historico, lista_ciclo_atual):
-    # 1. Verifica se está no histórico de 10 dias
     if link in historico:
+        logging.info(f"Produto '{titulo}' bloqueado por estar no histórico persistente.")
         return True
     
     t_novo = normalizar_texto(titulo)
-    
-    # 2. Verifica similaridade com o que já foi escolhido NESTE ciclo
     for p_atual in lista_ciclo_atual:
         t_atual = normalizar_texto(p_atual.get("productName", ""))
         if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.45:
+            logging.info(f"Produto '{titulo}' bloqueado por similaridade com '{p_atual.get('productName', '')}' no ciclo atual.")
             return True
-            
     return False
 
 # ==========================================
@@ -139,7 +140,8 @@ def eh_repetido_persistente(titulo, link, historico, lista_ciclo_atual):
 
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
-    return dt_time(5, 30) <= agora <= dt_time(21, 00)
+    # Horário ajustado conforme solicitado: 05:30 às 21:00
+    return dt_time(5, 30) <= agora <= dt_time(21, 0)
 
 def normalizar_texto(txt):
     txt = txt.lower().strip()
@@ -267,7 +269,8 @@ def aplicar_afiliado(link):
         query = parse_qs(parsed.query)
         query["af_siteid"] = AFILIADO_ID
         return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
-    except:
+    except Exception as e:
+        logging.error(f"Erro ao aplicar ID de afiliado ao link {link}: {e}")
         return link
 
 def get_melhores_ofertas():
@@ -280,12 +283,19 @@ def get_melhores_ofertas():
     for nicho in nichos:
         logging.info(f"Processando nicho: {nicho}")
         subs = list(KEYWORDS_ESTRUTURADAS[nicho].keys())
+        # Garante que não vai tentar pegar mais subcategorias do que existem
         subs_escolhidas = random.sample(subs, k=min(2, len(subs)))
         
         for sub in subs_escolhidas:
             kw = random.choice(KEYWORDS_ESTRUTURADAS[nicho][sub])
+            logging.info(f"Buscando em '{nicho}' -> Subcategoria '{sub}' com palavra-chave: '{kw}'")
             produtos = buscar_shopee(kw)
+            logging.info(f"Encontrados {len(produtos)} produtos brutos para '{kw}'.")
             
+            if not produtos:
+                logging.warning(f"Nenhum produto encontrado para: {kw}")
+                continue
+
             candidatos_sub = []
             for p in produtos:
                 nome = p.get("productName", "")
@@ -295,18 +305,30 @@ def get_melhores_ofertas():
                 rating = float(p.get("ratingStar", 0))
                 comissao = float(p.get("commissionRate", 0))
 
-                if not nome or not link: continue
-                if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO): continue
-                if preco < PRECO_MIN or preco > PRECO_MAX: continue
-                if vendas < VENDAS_MIN: continue
-                if rating < RATING_MIN: continue
-                if comissao < COMISSAO_MIN: continue
+                if not nome or not link:
+                    logging.debug(f"Produto ignorado (nome ou link ausente): {p}")
+                    continue
+                if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO):
+                    logging.debug(f"Produto '{nome}' bloqueado por palavra-chave de bloqueio.")
+                    continue
+                if preco < PRECO_MIN or preco > PRECO_MAX:
+                    logging.debug(f"Produto '{nome}' bloqueado por preço ({preco}). Min: {PRECO_MIN}, Max: {PRECO_MAX}")
+                    continue
+                if vendas < VENDAS_MIN:
+                    logging.debug(f"Produto '{nome}' bloqueado por vendas ({vendas}). Min: {VENDAS_MIN}")
+                    continue
+                if rating < RATING_MIN:
+                    logging.debug(f"Produto '{nome}' bloqueado por avaliação ({rating}). Min: {RATING_MIN}")
+                    continue
+                if comissao < COMISSAO_MIN:
+                    logging.debug(f"Produto '{nome}' bloqueado por comissão ({comissao}). Min: {COMISSAO_MIN}")
+                    continue
                 
-                if eh_repetido_persistente(nome, link, historico, ofertas_finais): continue
+                if eh_repetido_persistente(nome, link, historico, ofertas_finais):
+                    continue
                 
-                # Score de qualidade com foco em marcas e produtos quentes
-                score = (vendas / 100) + (rating * 15) + (comissao * 100)
-                palavras_premium = ["iphone", "brastemp", "lg", "samsung", "ls2", "pirelli", "did", "givi", "jbl", "ps5", "reserva"]
+                score = (vendas / 50) + (rating * 15) + (comissao * 100)
+                palavras_premium = ["iphone", "brastemp", "lg", "samsung", "ls2", "pirelli", "did", "givi", "jbl", "ps5"]
                 if any(pp in nome.lower() for pp in palavras_premium):
                     score += 50
                 
@@ -316,8 +338,11 @@ def get_melhores_ofertas():
             if candidatos_sub:
                 candidatos_sub.sort(key=lambda x: x["score"], reverse=True)
                 ofertas_finais.append(candidatos_sub[0])
-                logging.info(f"Selecionado: {candidatos_sub[0]['productName']} (Sub: {sub})")
+                logging.info(f"Selecionado: {candidatos_sub[0]['productName']} (Sub: {sub}, Score: {candidatos_sub[0]['score']:.2f})")
+            else:
+                logging.info(f"Nenhum produto da busca '{kw}' passou nos filtros ou foi considerado único.")
                 
+    logging.info(f"Total de {len(ofertas_finais)} ofertas qualificadas para envio neste ciclo.")
     return ofertas_finais
 
 # ==========================================
@@ -325,17 +350,19 @@ def get_melhores_ofertas():
 # ==========================================
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
+    logging.info("Verificando horário...")
     if not dentro_do_horario():
-        logging.info("Fora do horário.")
+        logging.info("Fora do horário de envio.")
         return
 
-    logging.info("Iniciando ciclo V17...")
+    logging.info("Iniciando ciclo de busca de ofertas...")
     ofertas = get_melhores_ofertas()
     
     if not ofertas:
-        logging.warning("Sem ofertas qualificadas.")
+        logging.warning("Nenhuma oferta qualificada encontrada neste ciclo.")
         return
 
+    logging.info(f"Enviando {len(ofertas)} ofertas...")
     await context.bot.send_message(
         chat_id=CHAT_ID_DESTINO,
         text="🚨 <b>OFERTAS SELECIONADAS DE HOJE!</b>\n<i>Produtos de alta qualidade e com o melhor preço.</i>",
@@ -365,18 +392,20 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="HTML"
             )
             
-            # Registrar no histórico persistente
             historico[link_original] = datetime.now().isoformat()
             salvar_historico(historico)
             
             await asyncio.sleep(45)
             
         except Exception as e:
-            logging.error(f"Erro envio: {e}")
+            logging.error(f"Erro no envio do item: {e}")
 
 async def post_init(app):
+    # Garante que o histórico é limpo ao iniciar o bot, caso tenha ficado algum lixo
+    limpar_historico_antigo()
+    # Executa a primeira vez após 10 segundos, depois a cada CHECK_INTERVAL
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V17 Pronto!")
+    logging.info("Bot Shopee V18 Inicializado e Agendado!")
 
 if __name__ == "__main__":
     if not TELEGRAM_TOKEN:
@@ -384,6 +413,7 @@ if __name__ == "__main__":
     else:
         app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
         app.run_polling()
+
 
 
         
