@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V20 - MEMÓRIA ABSOLUTA (HASHING)")
+print("VERSAO SHOPEE V21 - DIVERSIDADE E ANTI-REPETIÇÃO")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -27,8 +27,9 @@ CHAT_ID_DESTINO = -1003848415150
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-# Arquivo de memória persistente
-HISTORICO_FILE = "historico_envios_v20.json"
+# Arquivos de memória
+HISTORICO_FILE = "historico_envios_v21.json"
+COOLDOWN_FILE = "cooldown_categorias.json"
 
 # Intervalo entre ciclos (em segundos)
 CHECK_INTERVAL = 5400
@@ -44,47 +45,48 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # ==========================================
-# NICHOS E SUBCATEGORIAS
+# NICHOS E SUBCATEGORIAS EXPANDIDAS (RESOLVENDO REPETIÇÃO)
 # ==========================================
 
 KEYWORDS_ESTRUTURADAS = {
     "Casa e Eletro": {
-        "TV": ["Smart TV 50", "TV Samsung", "TV LG", "Monitor Gamer"],
-        "Celulares": ["iPhone 14", "Samsung S23", "Xiaomi Redmi", "iPhone 13"],
-        "Eletrodomesticos": ["Geladeira", "Fogão", "Máquina Lavar", "Ar Condicionado"],
-        "Cozinha": ["Air Fryer", "Cafeteira", "Micro-ondas", "Liquidificador"],
-        "Tecnologia": ["Notebook", "Playstation 5", "JBL", "Tablet"]
+        "TV_Acessórios": ["Suporte TV Articulado", "Painel TV", "Luz LED TV"], # Removido controle remoto por reclamação
+        "Eletrodomesticos": ["Geladeira Frost Free", "Fogão 4 bocas", "Máquina Lavar 12kg", "Ar Condicionado Split", "Micro-ondas Inox"],
+        "Cozinha_Premium": ["Air Fryer Mondial", "Cafeteira Dolce Gusto", "Liquidificador potente", "Batedeira Planetária", "Jogo Panelas Cerâmica"],
+        "Tecnologia": ["Notebook i5", "Playstation 5", "Caixa Som JBL", "Tablet Samsung", "Monitor 144hz"]
     },
     "Moda Feminina": {
-        "Roupas": ["Vestido", "Conjunto Feminino", "Calça Jeans Feminina", "Blusa"],
-        "Calcados": ["Tênis Feminino", "Bota Feminina", "Sandália"],
-        "Acessorios": ["Bolsa Feminina", "Relógio Feminino", "Maquiagem"]
+        "Roupas": ["Vestido Midi", "Conjunto Alfaiataria", "Calça Wide Leg", "Blazer Feminino", "Macacão Elegante"],
+        "Calcados": ["Tênis Casual Feminino", "Bota Cano Curto", "Sandália Salto Bloco", "Scarpin"],
+        "Acessorios": ["Bolsa Transversal", "Relógio Digital Feminino", "Kit Maquiagem Profissional", "Óculos de Sol"]
     },
     "Moda Masculina": {
-        "Roupas": ["Camisa Masculina", "Calça Masculina", "Cueca Box"],
-        "Calcados": ["Tênis Masculino", "Sapato Masculino", "Bota Masculina"],
-        "Acessorios": ["Relógio Masculino", "Mochila Masculina", "Perfume Masculino"]
+        "Roupas": ["Camisa Polo Algodão", "Calça Sarja", "Jaqueta Corta Vento", "Bermuda Cargo"],
+        "Calcados": ["Tênis Esportivo Masculino", "Sapato Social Couro", "Bota Adventure", "Sapatênis"],
+        "Acessorios": ["Relógio Analógico", "Mochila Notebook", "Perfume Importado Masculino", "Carteira Couro"]
     },
-    "Maternidade": {
-        "Moveis": ["Carrinho Bebê", "Berço", "Cadeira Alimentação"],
-        "Seguranca": ["Babá Eletrônica", "Câmera Wi-Fi"],
-        "Utilidades": ["Fralda", "Kit Enxoval", "Mochila Maternidade"]
+    "Maternidade_e_Bebe": {
+        "Puericultura": ["Carrinho Bebê Reclinável", "Cadeira Auto 0-36kg", "Banheira Bebê", "Andador Infantil"],
+        "Higiene_Saude": ["Kit Higiene Bebê", "Termômetro Infantil", "Aspirador Nasal", "Umidificador de Ar"],
+        "Enxoval_Essencial": ["Jogo de Lençol Berço", "Toalha com Capuz", "Kit Body Bebê", "Saída de Maternidade"],
+        "Brinquedos_Educativos": ["Tapete Atividades", "Móbile Musical", "Brinquedo Pedagógico"]
     },
-    "Motocicleta": {
-        "Capacetes": ["Capacete LS2", "Capacete Norisk", "Capacete MT", "Capacete Pro Tork"],
-        "Pecas_Pesadas": ["Kit Relação", "Pneu Moto", "Amortecedor Moto"],
-        "Performance": ["Escapamento Moto", "Vela Iridium", "Filtro Ar Moto"],
-        "Acessorios_Top": ["Intercomunicador", "Baú Moto", "Suporte Celular Moto", "Luva Moto"]
+    "Motocicleta_Especialista": {
+        "Equipamento_Piloto": ["Capacete LS2 Rapid", "Jaqueta Motoqueiro Proteção", "Luva Couro Moto", "Bota Motociclista"],
+        "Manutencao_Performance": ["Kit Relação DID", "Pneu Pirelli Moto", "Amortecedor Cofap", "Pastilha Freio EBC", "Vela Iridium NGK"],
+        "Estilo_Cuidado": ["Capa de Moto Impermeável", "Cera Cristalizadora", "Kit Limpeza Corrente"],
+        "Acessorios_Viagem": ["Baú Givi", "Suporte Celular Alumínio", "Intercomunicador Bluetooth", "Bolsa de Tanque"]
     }
 }
 
 PALAVRAS_BLOQUEIO = [
     "teste", "amostra", "não compre", "dummy", "adesivo", "película", 
-    "case", "filtro de papel", "brinde", "usado", "defeito", "capinha"
+    "case", "filtro de papel", "brinde", "usado", "defeito", "capinha",
+    "controle remoto", "controle tv" # Bloqueio explícito conforme pedido
 ]
 
 # ==========================================
-# GESTÃO DE MEMÓRIA ABSOLUTA
+# GESTÃO DE MEMÓRIA E COOLDOWN
 # ==========================================
 
 def normalizar_texto(txt):
@@ -95,69 +97,62 @@ def normalizar_texto(txt):
     return txt
 
 def gerar_hash_produto(titulo):
-    """Gera um hash único baseado no título ultra-normalizado para pegar repetições de vendedores diferentes."""
     texto_limpo = normalizar_texto(titulo)
     return hashlib.md5(texto_limpo.encode()).hexdigest()
 
-def carregar_historico():
-    if os.path.exists(HISTORICO_FILE):
+def carregar_json(filename):
+    if os.path.exists(filename):
         try:
-            with open(HISTORICO_FILE, 'r') as f:
+            with open(filename, 'r') as f:
                 return json.load(f)
         except:
             return {}
     return {}
 
-def salvar_historico(historico):
+def salvar_json(data, filename):
     try:
-        with open(HISTORICO_FILE, 'w') as f:
-            json.dump(historico, f, indent=4)
+        with open(filename, 'w') as f:
+            json.dump(data, f, indent=4)
     except Exception as e:
-        logging.error(f"Erro ao salvar histórico: {e}")
+        logging.error(f"Erro ao salvar {filename}: {e}")
 
-def limpar_historico_antigo():
-    historico = carregar_historico()
-    agora = datetime.now()
-    novo_historico = {}
-    
-    for key, info in historico.items():
+def registrar_cooldown(categoria):
+    cooldowns = carregar_json(COOLDOWN_FILE)
+    cooldowns[categoria] = datetime.now().isoformat()
+    salvar_json(cooldowns, COOLDOWN_FILE)
+
+def esta_em_cooldown(categoria):
+    cooldowns = carregar_json(COOLDOWN_FILE)
+    if categoria in cooldowns:
         try:
-            data_envio = datetime.fromisoformat(info.get("data"))
-            if agora - data_envio < timedelta(days=10):
-                novo_historico[key] = info
+            ultima_vez = datetime.fromisoformat(cooldowns[categoria])
+            # Se postou essa subcategoria nas últimas 6 horas, evita
+            if datetime.now() - ultima_vez < timedelta(hours=6):
+                return True
         except:
-            continue
-            
-    salvar_historico(novo_historico)
-    return novo_historico
+            pass
+    return False
 
 def eh_repetido_absoluto(titulo, link, historico, lista_ciclo_atual):
-    # 1. Verificação por HASH (Título ultra-normalizado)
     h = gerar_hash_produto(titulo)
     if h in historico:
-        logging.info(f"BLOQUEADO (Hash Repetido): {titulo}")
         return True
     
-    # 2. Verificação por Similaridade de Título (Histórico 10 dias)
     t_novo = normalizar_texto(titulo)
     for key, info in historico.items():
         t_hist = normalizar_texto(info.get("titulo", ""))
-        # Se os títulos forem 80% parecidos, bloqueia
-        if SequenceMatcher(None, t_novo, t_hist).ratio() > 0.80:
-            logging.info(f"BLOQUEADO (Similaridade Histórico): {titulo} vs {info.get('titulo')}")
+        if SequenceMatcher(None, t_novo, t_hist).ratio() > 0.75: # Mais rigoroso
             return True
 
-    # 3. Verificação no Ciclo Atual
     for p_atual in lista_ciclo_atual:
         t_atual = normalizar_texto(p_atual.get("productName", ""))
-        if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.60:
-            logging.info(f"BLOQUEADO (Ciclo Atual): {titulo}")
+        if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.50:
             return True
             
     return False
 
 # ==========================================
-# LÓGICA DE MENSAGENS
+# LÓGICA DE MENSAGENS (COPIES DINÂMICAS)
 # ==========================================
 
 def gerar_copy_base(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=False):
@@ -199,7 +194,7 @@ def gerar_copy_base(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp
 📢 <b>Ofertas Secretas</b>"""
 
 # ==========================================
-# INTEGRAÇÃO SHOPEE
+# INTEGRAÇÃO SHOPEE E SELEÇÃO INTELIGENTE
 # ==========================================
 
 def buscar_shopee(keyword):
@@ -225,18 +220,26 @@ def aplicar_afiliado(link):
         return link
 
 def get_melhores_ofertas():
-    historico = limpar_historico_antigo()
+    historico = carregar_json(HISTORICO_FILE)
     ofertas_finais = []
+    
+    # Sorteia nichos para garantir que todos apareçam
     nichos = list(KEYWORDS_ESTRUTURADAS.keys())
     random.shuffle(nichos)
     
     for nicho in nichos:
         subs = list(KEYWORDS_ESTRUTURADAS[nicho].keys())
-        subs_escolhidas = random.sample(subs, k=min(2, len(subs)))
-        for sub in subs_escolhidas:
+        random.shuffle(subs)
+        
+        for sub in subs:
+            # Pula se já postou algo desse tipo recentemente
+            if esta_em_cooldown(sub):
+                continue
+                
             kw = random.choice(KEYWORDS_ESTRUTURADAS[nicho][sub])
             produtos = buscar_shopee(kw)
             if not produtos: continue
+            
             candidatos_sub = []
             for p in produtos:
                 nome = p.get("productName", "")
@@ -255,16 +258,23 @@ def get_melhores_ofertas():
                 
                 if eh_repetido_absoluto(nome, link, historico, ofertas_finais): continue
                 
-                score = (vendas / 50) + (rating * 15) + (comissao * 100)
-                if any(pp in nome.lower() for pp in ["iphone", "brastemp", "lg", "samsung", "ls2", "pirelli", "did", "jbl", "ps5"]):
-                    score += 50
+                # Sistema de Score com Bônus para Marcas de Confiança
+                score = (vendas / 100) + (rating * 20) + (comissao * 150)
+                marcas_premium = ["iphone", "brastemp", "lg", "samsung", "ls2", "pirelli", "did", "jbl", "ps5", "mondial", "givi", "ngk", "cofap"]
+                if any(mp in nome.lower() for mp in marcas_premium):
+                    score += 100
+                
                 p["score"] = score
+                p["subcategoria"] = sub
                 candidatos_sub.append(p)
             
             if candidatos_sub:
                 candidatos_sub.sort(key=lambda x: x["score"], reverse=True)
                 ofertas_finais.append(candidatos_sub[0])
-    return ofertas_finais
+                # Limita a 1 produto por nicho principal por ciclo para máxima variedade
+                break 
+
+    return ofertas_finais[:10] # Garante no máximo 10 ofertas variadas
 
 # ==========================================
 # EXECUÇÃO DO BOT
@@ -272,16 +282,17 @@ def get_melhores_ofertas():
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
-    if not (dt_time(5, 30) <= agora <= dt_time(21, 0)): return
+    # Horário de funcionamento: 06:00 às 22:30
+    if not (dt_time(6, 0) <= agora <= dt_time(22, 30)): return
 
-    logging.info("Iniciando ciclo V20...")
+    logging.info("Iniciando ciclo V21 Diversificado...")
     ofertas = get_melhores_ofertas()
     if not ofertas: return
 
     await context.bot.send_message(chat_id=CHAT_ID_DESTINO, text="🚨 <b>OFERTAS SELECIONADAS DE HOJE!</b>\n<i>Produtos de alta qualidade e com o melhor preço.</i>", parse_mode="HTML")
     await asyncio.sleep(3)
 
-    historico = carregar_historico()
+    historico = carregar_json(HISTORICO_FILE)
     for item in ofertas:
         try:
             nome = html.escape(item["productName"])
@@ -292,21 +303,26 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             
             await context.bot.send_photo(chat_id=CHAT_ID_DESTINO, photo=item.get("imageUrl"), caption=msg, parse_mode="HTML")
             
-            # Registro de Hash Único
+            # Registro de Memória e Cooldown
             h = gerar_hash_produto(item["productName"])
             historico[h] = {"data": datetime.now().isoformat(), "titulo": item["productName"]}
-            salvar_historico(historico)
-            await asyncio.sleep(45)
+            registrar_cooldown(item["subcategoria"])
+            
+            salvar_json(historico, HISTORICO_FILE)
+            await asyncio.sleep(60) # Intervalo maior para não cansar o usuário
         except Exception as e:
-            logging.error(f"Erro: {e}")
+            logging.error(f"Erro no envio: {e}")
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V20 Ativo!")
+    logging.info("Bot Shopee V21 Ativo e Diversificado!")
 
 if __name__ == "__main__":
     if TELEGRAM_TOKEN:
         ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build().run_polling()
+    else:
+        print("Erro: TELEGRAM_TOKEN não configurado.")
+
 
 
 
