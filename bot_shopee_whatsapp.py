@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V21 - DIVERSIDADE E ANTI-REPETIÇÃO")
+print("VERSAO SHOPEE V21.1 - CORREÇÃO DE QUANTIDADE")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -34,23 +34,22 @@ COOLDOWN_FILE = "cooldown_categorias.json"
 # Intervalo entre ciclos (em segundos)
 CHECK_INTERVAL = 5400
 
-# Filtros de Qualidade
-PRECO_MIN = 25.0 
-PRECO_MAX = 15000.0
-COMISSAO_MIN = 0.05
-VENDAS_MIN = 50
-RATING_MIN = 4.5
+# Filtros de Qualidade (Levemente relaxados para garantir volume)
+PRECO_MIN = 20.0 
+PRECO_MAX = 20000.0
+COMISSAO_MIN = 0.03
+VENDAS_MIN = 30
+RATING_MIN = 4.3
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # ==========================================
-# NICHOS E SUBCATEGORIAS EXPANDIDAS (RESOLVENDO REPETIÇÃO)
+# NICHOS E SUBCATEGORIAS
 # ==========================================
 
 KEYWORDS_ESTRUTURADAS = {
     "Casa e Eletro": {
-        "TV_Acessórios": ["Suporte TV Articulado", "Painel TV", "Luz LED TV"], # Removido controle remoto por reclamação
         "Eletrodomesticos": ["Geladeira Frost Free", "Fogão 4 bocas", "Máquina Lavar 12kg", "Ar Condicionado Split", "Micro-ondas Inox"],
         "Cozinha_Premium": ["Air Fryer Mondial", "Cafeteira Dolce Gusto", "Liquidificador potente", "Batedeira Planetária", "Jogo Panelas Cerâmica"],
         "Tecnologia": ["Notebook i5", "Playstation 5", "Caixa Som JBL", "Tablet Samsung", "Monitor 144hz"]
@@ -82,7 +81,7 @@ KEYWORDS_ESTRUTURADAS = {
 PALAVRAS_BLOQUEIO = [
     "teste", "amostra", "não compre", "dummy", "adesivo", "película", 
     "case", "filtro de papel", "brinde", "usado", "defeito", "capinha",
-    "controle remoto", "controle tv" # Bloqueio explícito conforme pedido
+    "controle remoto", "controle tv"
 ]
 
 # ==========================================
@@ -92,7 +91,6 @@ PALAVRAS_BLOQUEIO = [
 def normalizar_texto(txt):
     if not txt: return ""
     txt = txt.lower().strip()
-    # Remove caracteres especiais e espaços duplos
     txt = re.sub(r"[^a-z0-9à-ÿ]", "", txt) 
     return txt
 
@@ -126,8 +124,8 @@ def esta_em_cooldown(categoria):
     if categoria in cooldowns:
         try:
             ultima_vez = datetime.fromisoformat(cooldowns[categoria])
-            # Se postou essa subcategoria nas últimas 6 horas, evita
-            if datetime.now() - ultima_vez < timedelta(hours=6):
+            # Reduzido cooldown para 3 horas para garantir que tenhamos produtos suficientes
+            if datetime.now() - ultima_vez < timedelta(hours=3):
                 return True
         except:
             pass
@@ -141,18 +139,18 @@ def eh_repetido_absoluto(titulo, link, historico, lista_ciclo_atual):
     t_novo = normalizar_texto(titulo)
     for key, info in historico.items():
         t_hist = normalizar_texto(info.get("titulo", ""))
-        if SequenceMatcher(None, t_novo, t_hist).ratio() > 0.75: # Mais rigoroso
+        if SequenceMatcher(None, t_novo, t_hist).ratio() > 0.80:
             return True
 
     for p_atual in lista_ciclo_atual:
         t_atual = normalizar_texto(p_atual.get("productName", ""))
-        if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.50:
+        if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.60:
             return True
             
     return False
 
 # ==========================================
-# LÓGICA DE MENSAGENS (COPIES DINÂMICAS)
+# LÓGICA DE MENSAGENS
 # ==========================================
 
 def gerar_copy_base(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=False):
@@ -194,7 +192,7 @@ def gerar_copy_base(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp
 📢 <b>Ofertas Secretas</b>"""
 
 # ==========================================
-# INTEGRAÇÃO SHOPEE E SELEÇÃO INTELIGENTE
+# INTEGRAÇÃO SHOPEE
 # ==========================================
 
 def buscar_shopee(keyword):
@@ -223,20 +221,27 @@ def get_melhores_ofertas():
     historico = carregar_json(HISTORICO_FILE)
     ofertas_finais = []
     
-    # Sorteia nichos para garantir que todos apareçam
-    nichos = list(KEYWORDS_ESTRUTURADAS.keys())
-    random.shuffle(nichos)
+    # Coleta todas as subcategorias possíveis
+    todas_subs = []
+    for nicho, subs in KEYWORDS_ESTRUTURADAS.items():
+        for sub_nome in subs.keys():
+            todas_subs.append((nicho, sub_nome))
     
-    for nicho in nichos:
-        subs = list(KEYWORDS_ESTRUTURADAS[nicho].keys())
-        random.shuffle(subs)
+    random.shuffle(todas_subs)
+    
+    # Tenta preencher 10 vagas
+    for nicho, sub in todas_subs:
+        if len(ofertas_finais) >= 10:
+            break
+            
+        # Pula se já postou algo desse tipo recentemente (cooldown relaxado)
+        if esta_em_cooldown(sub):
+            continue
+            
+        kws = KEYWORDS_ESTRUTURADAS[nicho][sub]
+        random.shuffle(kws)
         
-        for sub in subs:
-            # Pula se já postou algo desse tipo recentemente
-            if esta_em_cooldown(sub):
-                continue
-                
-            kw = random.choice(KEYWORDS_ESTRUTURADAS[nicho][sub])
+        for kw in kws:
             produtos = buscar_shopee(kw)
             if not produtos: continue
             
@@ -258,8 +263,7 @@ def get_melhores_ofertas():
                 
                 if eh_repetido_absoluto(nome, link, historico, ofertas_finais): continue
                 
-                # Sistema de Score com Bônus para Marcas de Confiança
-                score = (vendas / 100) + (rating * 20) + (comissao * 150)
+                score = (vendas / 50) + (rating * 20) + (comissao * 150)
                 marcas_premium = ["iphone", "brastemp", "lg", "samsung", "ls2", "pirelli", "did", "jbl", "ps5", "mondial", "givi", "ngk", "cofap"]
                 if any(mp in nome.lower() for mp in marcas_premium):
                     score += 100
@@ -271,10 +275,25 @@ def get_melhores_ofertas():
             if candidatos_sub:
                 candidatos_sub.sort(key=lambda x: x["score"], reverse=True)
                 ofertas_finais.append(candidatos_sub[0])
-                # Limita a 1 produto por nicho principal por ciclo para máxima variedade
-                break 
+                break # Encontrou um produto para esta subcategoria, passa para a próxima
 
-    return ofertas_finais[:10] # Garante no máximo 10 ofertas variadas
+    # Se ainda não chegou em 10, tenta novamente ignorando o cooldown
+    if len(ofertas_finais) < 10:
+        logging.info("Aviso: Volume baixo, ignorando cooldown para completar 10 ofertas.")
+        for nicho, sub in todas_subs:
+            if len(ofertas_finais) >= 10: break
+            kw = random.choice(KEYWORDS_ESTRUTURADAS[nicho][sub])
+            produtos = buscar_shopee(kw)
+            if not produtos: continue
+            for p in produtos:
+                nome = p.get("productName", "")
+                if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO): continue
+                if eh_repetido_absoluto(nome, p.get("productLink"), historico, ofertas_finais): continue
+                p["subcategoria"] = sub
+                ofertas_finais.append(p)
+                if len(ofertas_finais) >= 10: break
+
+    return ofertas_finais[:10]
 
 # ==========================================
 # EXECUÇÃO DO BOT
@@ -282,13 +301,16 @@ def get_melhores_ofertas():
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
-    # Horário de funcionamento: 06:00 às 22:30
     if not (dt_time(6, 0) <= agora <= dt_time(22, 30)): return
 
-    logging.info("Iniciando ciclo V21 Diversificado...")
+    logging.info("Iniciando ciclo V21.1...")
     ofertas = get_melhores_ofertas()
-    if not ofertas: return
+    
+    if not ofertas:
+        logging.warning("Nenhuma oferta encontrada no ciclo.")
+        return
 
+    logging.info(f"Enviando {len(ofertas)} ofertas...")
     await context.bot.send_message(chat_id=CHAT_ID_DESTINO, text="🚨 <b>OFERTAS SELECIONADAS DE HOJE!</b>\n<i>Produtos de alta qualidade e com o melhor preço.</i>", parse_mode="HTML")
     await asyncio.sleep(3)
 
@@ -303,25 +325,25 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             
             await context.bot.send_photo(chat_id=CHAT_ID_DESTINO, photo=item.get("imageUrl"), caption=msg, parse_mode="HTML")
             
-            # Registro de Memória e Cooldown
             h = gerar_hash_produto(item["productName"])
             historico[h] = {"data": datetime.now().isoformat(), "titulo": item["productName"]}
-            registrar_cooldown(item["subcategoria"])
+            registrar_cooldown(item.get("subcategoria", "Geral"))
             
             salvar_json(historico, HISTORICO_FILE)
-            await asyncio.sleep(60) # Intervalo maior para não cansar o usuário
+            await asyncio.sleep(45) # Reduzido para 45s para o ciclo não demorar tanto
         except Exception as e:
             logging.error(f"Erro no envio: {e}")
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V21 Ativo e Diversificado!")
+    logging.info("Bot Shopee V21.1 Ativo!")
 
 if __name__ == "__main__":
     if TELEGRAM_TOKEN:
         ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build().run_polling()
     else:
         print("Erro: TELEGRAM_TOKEN não configurado.")
+
 
 
 
