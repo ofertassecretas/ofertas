@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V31 - PRIORIDADE MOTOS (2 POR CICLO)")
+print("VERSAO SHOPEE V32 - CORREÇÃO LINK WHATSAPP")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -28,7 +28,7 @@ LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 # Arquivos de memória
-HISTORICO_FILE = "historico_envios_v31.json"
+HISTORICO_FILE = "historico_envios_v32.json"
 COOLDOWN_FILE = "cooldown_categorias.json"
 
 # Intervalo entre ciclos (em segundos)
@@ -37,14 +37,14 @@ CHECK_INTERVAL = 5400
 # Filtros de Qualidade
 PRECO_MIN = 15.0 
 PRECO_MAX = 25000.0
-VENDAS_MIN = 80   # Levemente ajustado para garantir volume em motos
-RATING_MIN = 4.5   # Levemente ajustado para garantir volume em motos
+VENDAS_MIN = 80
+RATING_MIN = 4.5
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # ==========================================
-# NICHOS E BUSCA (COM FOCO EM MOTOS)
+# NICHOS E BUSCA
 # ==========================================
 
 KEYWORDS_ESTRUTURADAS = {
@@ -60,7 +60,7 @@ KEYWORDS_ESTRUTURADAS = {
         "Bebê_Utilidades": ["Copo de Treinamento", "Prato com Ventosa", "Kit Colher Silicone", "Babador Impermeável"],
         "Bebê_Seguranca": ["Trava de Gaveta", "Protetor de Quina", "Babá Eletrônica Visão Noturna"]
     },
-    "Motos_Especial": { # NICHO PRIORITÁRIO
+    "Motos_Especial": {
         "Equipamento": ["Capa de Chuva Motoqueiro", "Bota Impermeável Moto", "Luva de Proteção", "Balaclava", "Capacete LS2", "Jaqueta Moto"],
         "Manutencao": ["Lubrificante Corrente", "Kit Reparo Pneu", "Cera para Moto", "Escova Limpeza Corrente", "Kit Relação", "Pneu Moto"],
         "Gadgets": ["Intercomunicador V6", "Suporte Celular Antivibração", "Carregador USB Moto", "Baú Moto", "Alarme Moto"]
@@ -74,7 +74,7 @@ PALAVRAS_BLOQUEIO = [
 ]
 
 # ==========================================
-# GESTÃO DE MEMÓRIA E REDUNDÂNCIA
+# GESTÃO DE MEMÓRIA
 # ==========================================
 
 def normalizar_texto(txt):
@@ -113,7 +113,7 @@ def esta_em_cooldown(categoria):
     if categoria in cooldowns:
         try:
             ultima_vez = datetime.fromisoformat(cooldowns[categoria])
-            if datetime.now() - ultima_vez < timedelta(hours=3): # Reduzido para 3h para facilitar busca
+            if datetime.now() - ultima_vez < timedelta(hours=3):
                 return True
         except:
             pass
@@ -138,7 +138,7 @@ def eh_repetido_ciclo_ou_hist(titulo, historico, lista_ciclo_atual):
     return False
 
 # ==========================================
-# LÓGICA DE MENSAGENS
+# LÓGICA DE MENSAGENS (CORREÇÃO WHATSAPP)
 # ==========================================
 
 def gerar_copy_base(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=False):
@@ -151,8 +151,10 @@ def gerar_copy_base(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp
     chamada = random.choice(chamadas_acao)
 
     if for_whatsapp:
-        return f"{abertura}\n\n*🔥 {nome}*\n\n📌 {gatilho}\n\n{chamada}\n\n💰 *R$ {preco}*\n⭐ *{avaliacao}* | 🛒 *{vendas} vendas*\n\n⚠️ *Pode subir de preço*\n\n🛒 *COMPRAR:* {link}"
+        # MENSAGEM QUE SERÁ ENVIADA PARA O WHATSAPP (INCLUINDO LINK DO GRUPO)
+        return f"{abertura}\n\n*🔥 {nome}*\n\n📌 {gatilho}\n\n{chamada}\n\n💰 *R$ {preco}*\n⭐ *{avaliacao}* | 🛒 *{vendas} vendas*\n\n⚠️ *Pode subir de preço*\n\n🛒 *COMPRAR:* {link}\n\n📲 *ENTRE NO NOSSO GRUPO:* {LINK_GRUPO_OFERTAS}"
 
+    # Gera a versão para o link de partilha
     zap_msg = gerar_copy_base(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=True)
     zap_link = f"https://wa.me/?text={quote(zap_msg)}"
 
@@ -209,59 +211,49 @@ def get_melhores_ofertas():
     historico = carregar_json(HISTORICO_FILE)
     ofertas_finais = []
     
-    # --- FASE 1: GARANTIR 2 PRODUTOS DE MOTOS ---
+    # GARANTIR 2 MOTOS
     subs_moto = list(KEYWORDS_ESTRUTURADAS["Motos_Especial"].keys())
     random.shuffle(subs_moto)
-    
     for sub in subs_moto:
         if len(ofertas_finais) >= 2: break
         kw = random.choice(KEYWORDS_ESTRUTURADAS["Motos_Especial"][sub])
         produtos = buscar_shopee(kw)
         if not produtos: continue
-        
         candidatos = []
         for p in produtos:
             nome = p.get("productName", "")
             if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO): continue
-            if int(p.get("sales", 0)) < 30: continue # Filtro relaxado para motos para garantir volume
+            if int(p.get("sales", 0)) < 30: continue
             if eh_repetido_ciclo_ou_hist(nome, historico, ofertas_finais): continue
-            
             p["score"] = (int(p.get("sales", 0)) / 10) + (float(p.get("ratingStar", 0)) * 50)
             p["subcategoria"] = sub
             candidatos.append(p)
-        
         if candidatos:
             candidatos.sort(key=lambda x: x["score"], reverse=True)
             ofertas_finais.append(candidatos[0])
 
-    # --- FASE 2: COMPLETAR COM OUTROS NICHOS ---
+    # COMPLETAR 10
     outros_nichos = ["Casa e Tech", "Beleza e Maternidade"]
     todas_outras_subs = []
     for n in outros_nichos:
         for s in KEYWORDS_ESTRUTURADAS[n].keys():
             todas_outras_subs.append((n, s))
-    
     random.shuffle(todas_outras_subs)
-    
     for nicho, sub in todas_outras_subs:
         if len(ofertas_finais) >= 10: break
         if esta_em_cooldown(sub): continue
-            
         kw = random.choice(KEYWORDS_ESTRUTURADAS[nicho][sub])
         produtos = buscar_shopee(kw)
         if not produtos: continue
-        
         candidatos = []
         for p in produtos:
             nome = p.get("productName", "")
             if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO): continue
             if int(p.get("sales", 0)) < VENDAS_MIN: continue
             if eh_repetido_ciclo_ou_hist(nome, historico, ofertas_finais): continue
-            
             p["score"] = (int(p.get("sales", 0)) / 20) + (float(p.get("ratingStar", 0)) * 50)
             p["subcategoria"] = sub
             candidatos.append(p)
-            
         if candidatos:
             candidatos.sort(key=lambda x: x["score"], reverse=True)
             ofertas_finais.append(candidatos[0])
@@ -276,12 +268,9 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
     if not (dt_time(6, 0) <= agora <= dt_time(22, 30)): return
 
-    logging.info("Iniciando ciclo V31 com Prioridade Motos...")
+    logging.info("Iniciando ciclo V32 com Correção WhatsApp...")
     ofertas = get_melhores_ofertas()
-    
-    if not ofertas:
-        logging.warning("Nenhuma oferta encontrada.")
-        return
+    if not ofertas: return
 
     await context.bot.send_message(chat_id=CHAT_ID_DESTINO, text="🚨 <b>OFERTAS SELECIONADAS DE HOJE!</b>\n<i>Produtos de alta qualidade e com o melhor preço.</i>", parse_mode="HTML")
     await asyncio.sleep(3)
@@ -301,7 +290,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             h = gerar_hash_produto(item["productName"])
             historico[h] = {"data": datetime.now().isoformat(), "titulo": item["productName"]}
             registrar_cooldown(item.get("subcategoria", "Geral"))
-            
             salvar_json(historico, HISTORICO_FILE)
             await asyncio.sleep(60) 
         except Exception as e:
@@ -309,13 +297,14 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V31 Ativo!")
+    logging.info("Bot Shopee V32 Ativo!")
 
 if __name__ == "__main__":
     if TELEGRAM_TOKEN:
         ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build().run_polling()
     else:
         print("Erro: TELEGRAM_TOKEN não configurado.")
+
 
 
 
