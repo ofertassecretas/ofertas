@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V40 - BUSCA PREMIUM E ANTI-REPETIÇÃO BLINDADO")
+print("VERSAO SHOPEE V41 - FILTRO ADAPTATIVO (GARANTE 10 OFERTAS)")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -28,23 +28,22 @@ LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 # Arquivos de memória persistente
-HISTORICO_FILE = "historico_envios_v40.json"
-COOLDOWN_FILE = "cooldown_categorias_v40.json"
+HISTORICO_FILE = "historico_envios_v41.json"
+COOLDOWN_FILE = "cooldown_categorias_v41.json"
 
 # Intervalo entre ciclos (em segundos)
 CHECK_INTERVAL = 5400
 
-# FILTROS DE ELITE (PARA ACABAR COM PRODUTOS BARATOS E RUINS)
-PRECO_MIN = 35.0   # Aumentado para evitar "quinquilharias" de 10-20 reais
-PRECO_MAX = 30000.0
-VENDAS_MIN = 150   # Aumentado para garantir apenas sucessos de venda
-RATING_MIN = 4.7   # Aumentado para o topo da satisfação
+# FILTROS DE ELITE (BASE)
+PRECO_MIN_BASE = 35.0
+VENDAS_MIN_BASE = 150
+RATING_MIN_BASE = 4.7
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # ==========================================
-# NICHOS DE DESEJO (PRODUTOS QUE AS PESSOAS REALMENTE QUEREM)
+# NICHOS DE DESEJO
 # ==========================================
 
 KEYWORDS_ESTRUTURADAS = {
@@ -66,7 +65,7 @@ KEYWORDS_ESTRUTURADAS = {
         "Puericultura_Pesada": ["Carrinho de Bebê Chicco", "Cadeira Auto 360 Fisher Price", "Berço Portátil Burigotto", "Andador Safety 1st"],
         "Tecno_Bebe": ["Babá Eletrônica Motorola", "Extrator de Leite Elétrico Medela", "Esterilizador de Mamadeira Philips Avent"]
     },
-    "Motos_Elite": { # NICHO PRIORITÁRIO COM PRODUTOS DE VALOR
+    "Motos_Elite": {
         "Protecao_Alta": ["Capacete LS2 FF353", "Jaqueta Alpinestars", "Bota de Proteção Macboot", "Luva de Couro X11"],
         "Performance_e_Viagem": ["Kit Relação DID com Retentor", "Pneu Pirelli Angel ST", "Baú Givi 45 Litros", "Intercomunicador Sena", "Cavalete Central"]
     }
@@ -75,11 +74,11 @@ KEYWORDS_ESTRUTURADAS = {
 PALAVRAS_BLOQUEIO = [
     "teste", "amostra", "não compre", "dummy", "adesivo", "película", 
     "case", "filtro de papel", "brinde", "usado", "defeito", "capinha",
-    "controle remoto", "controle tv", "narigueira", "rede elastica", "fecho trava", "organizador de gaveta" # Bloqueio de itens baratos e repetitivos
+    "controle remoto", "controle tv", "narigueira", "rede elastica", "fecho trava"
 ]
 
 # ==========================================
-# GESTÃO DE MEMÓRIA BLINDADA
+# GESTÃO DE MEMÓRIA
 # ==========================================
 
 def normalizar_texto(txt):
@@ -98,8 +97,7 @@ def carregar_json(filename):
             with open(filename, 'r') as f:
                 content = f.read()
                 return json.loads(content) if content else {}
-        except Exception as e:
-            logging.error(f"Erro ao carregar {filename}: {e}")
+        except:
             return {}
     return {}
 
@@ -108,7 +106,7 @@ def salvar_json(data, filename):
         with open(filename, 'w') as f:
             json.dump(data, f, indent=4)
             f.flush()
-            os.fsync(f.fileno()) # Garante que o arquivo foi escrito no disco
+            os.fsync(f.fileno())
     except Exception as e:
         logging.error(f"Erro ao salvar {filename}: {e}")
 
@@ -122,34 +120,27 @@ def esta_em_cooldown(categoria):
     if categoria in cooldowns:
         try:
             ultima_vez = datetime.fromisoformat(cooldowns[categoria])
-            # Cooldown de 6 horas para forçar a rotação de produtos
-            if datetime.now() - ultima_vez < timedelta(hours=6):
+            if datetime.now() - ultima_vez < timedelta(hours=4):
                 return True
         except:
             pass
     return False
 
-def eh_repetido_absoluto(titulo, link, historico, lista_ciclo_atual):
+def eh_repetido_absoluto(titulo, historico, lista_ciclo_atual):
     h = gerar_hash_produto(titulo)
-    if h in historico: 
-        logging.info(f"BLOQUEIO HISTÓRICO: {titulo}")
-        return True
+    if h in historico: return True
     
     t_novo = normalizar_texto(titulo)
-    # Similaridade no ciclo atual (envio de 10)
     for p_atual in lista_ciclo_atual:
         t_atual = normalizar_texto(p_atual.get("productName", ""))
-        if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.35: # Super rigoroso
-            logging.info(f"BLOQUEIO SIMILARIDADE CICLO: {titulo}")
+        if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.40:
             return True
             
-    # Bloqueio de palavras-chave repetidas no mesmo ciclo
     termos_proibidos_repetir = ["conjunto", "monitor", "bota", "tenis", "capacete", "geladeira", "mochila", "vestido", "relogio", "kit", "bolsa", "air fryer", "fone", "caixa", "smartwatch"]
     for termo in termos_proibidos_repetir:
         if termo in t_novo:
             for p_ja_escolhido in lista_ciclo_atual:
                 if termo in normalizar_texto(p_ja_escolhido.get("productName", "")):
-                    logging.info(f"BLOQUEIO TERMO REPETIDO: {termo}")
                     return True
     return False
 
@@ -196,7 +187,7 @@ def gerar_copy_base(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp
 📢 <b>Ofertas Secretas</b>"""
 
 # ==========================================
-# INTEGRAÇÃO SHOPEE E BUSCA DE ELITE
+# INTEGRAÇÃO SHOPEE
 # ==========================================
 
 def buscar_shopee(keyword):
@@ -225,58 +216,63 @@ def get_melhores_ofertas():
     historico = carregar_json(HISTORICO_FILE)
     ofertas_finais = []
     
-    # --- FASE 1: GARANTIR 2 PRODUTOS DE MOTOS ELITE ---
-    subs_moto = list(KEYWORDS_ESTRUTURADAS["Motos_Elite"].keys())
-    random.shuffle(subs_moto)
-    for sub in subs_moto:
-        if len(ofertas_finais) >= 2: break
-        kw = random.choice(KEYWORDS_ESTRUTURADAS["Motos_Elite"][sub])
-        produtos = buscar_shopee(kw)
-        if not produtos: continue
-        candidatos = []
-        for p in produtos:
-            nome = p.get("productName", "")
-            preco = float(p.get("priceMin", 0))
-            if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO): continue
-            if preco < PRECO_MIN: continue
-            if int(p.get("sales", 0)) < 50: continue # Mínimo para motos elite
-            if eh_repetido_absoluto(nome, p.get("productLink"), historico, ofertas_finais): continue
-            p["score"] = (int(p.get("sales", 0)) / 5) + (float(p.get("ratingStar", 0)) * 100)
-            p["subcategoria"] = sub
-            candidatos.append(p)
-        if candidatos:
-            candidatos.sort(key=lambda x: x["score"], reverse=True)
-            ofertas_finais.append(candidatos[0])
+    # Tentativas adaptativas: se não encontrar com filtros de elite, relaxa gradualmente
+    for tentativa in range(3):
+        p_min = PRECO_MIN_BASE * (0.8 ** tentativa)
+        v_min = int(VENDAS_MIN_BASE * (0.7 ** tentativa))
+        r_min = RATING_MIN_BASE - (0.1 * tentativa)
+        
+        logging.info(f"Tentativa {tentativa+1}: Filtros (Preço: {p_min:.1f}, Vendas: {v_min}, Rating: {r_min:.1f})")
 
-    # --- FASE 2: COMPLETAR COM NICHOS DE DESEJO ---
-    outros_nichos = [n for n in KEYWORDS_ESTRUTURADAS.keys() if n != "Motos_Elite"]
-    todas_outras_subs = []
-    for n in outros_nichos:
-        for s in KEYWORDS_ESTRUTURADAS[n].keys():
-            todas_outras_subs.append((n, s))
-    
-    random.shuffle(todas_outras_subs)
-    for nicho, sub in todas_outras_subs:
+        # --- FASE 1: GARANTIR 2 MOTOS ---
+        if len([o for o in ofertas_finais if o.get("nicho") == "Motos_Elite"]) < 2:
+            subs_moto = list(KEYWORDS_ESTRUTURADAS["Motos_Elite"].keys())
+            random.shuffle(subs_moto)
+            for sub in subs_moto:
+                if len([o for o in ofertas_finais if o.get("nicho") == "Motos_Elite"]) >= 2: break
+                kw = random.choice(KEYWORDS_ESTRUTURADAS["Motos_Elite"][sub])
+                produtos = buscar_shopee(kw)
+                if not produtos: continue
+                for p in produtos:
+                    nome = p.get("productName", "")
+                    if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO): continue
+                    if float(p.get("priceMin", 0)) < p_min: continue
+                    if int(p.get("sales", 0)) < (v_min / 2): continue # Motos sempre tem menos volume
+                    if eh_repetido_absoluto(nome, historico, ofertas_finais): continue
+                    
+                    p["nicho"] = "Motos_Elite"
+                    p["subcategoria"] = sub
+                    ofertas_finais.append(p)
+                    break
+
+        # --- FASE 2: COMPLETAR 10 ---
+        outros_nichos = [n for n in KEYWORDS_ESTRUTURADAS.keys() if n != "Motos_Elite"]
+        todas_outras_subs = []
+        for n in outros_nichos:
+            for s in KEYWORDS_ESTRUTURADAS[n].keys():
+                todas_outras_subs.append((n, s))
+        random.shuffle(todas_outras_subs)
+
+        for nicho, sub in todas_outras_subs:
+            if len(ofertas_finais) >= 10: break
+            if esta_em_cooldown(sub): continue
+            kw = random.choice(KEYWORDS_ESTRUTURADAS[nicho][sub])
+            produtos = buscar_shopee(kw)
+            if not produtos: continue
+            for p in produtos:
+                nome = p.get("productName", "")
+                if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO): continue
+                if float(p.get("priceMin", 0)) < p_min: continue
+                if int(p.get("sales", 0)) < v_min: continue
+                if float(p.get("ratingStar", 0)) < r_min: continue
+                if eh_repetido_absoluto(nome, historico, ofertas_finais): continue
+                
+                p["nicho"] = nicho
+                p["subcategoria"] = sub
+                ofertas_finais.append(p)
+                break
+        
         if len(ofertas_finais) >= 10: break
-        if esta_em_cooldown(sub): continue
-        kw = random.choice(KEYWORDS_ESTRUTURADAS[nicho][sub])
-        produtos = buscar_shopee(kw)
-        if not produtos: continue
-        candidatos = []
-        for p in produtos:
-            nome = p.get("productName", "")
-            preco = float(p.get("priceMin", 0))
-            if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO): continue
-            if preco < PRECO_MIN: continue
-            if int(p.get("sales", 0)) < VENDAS_MIN: continue
-            if float(p.get("ratingStar", 0)) < RATING_MIN: continue
-            if eh_repetido_absoluto(nome, p.get("productLink"), historico, ofertas_finais): continue
-            p["score"] = (int(p.get("sales", 0)) / 10) + (float(p.get("ratingStar", 0)) * 100)
-            p["subcategoria"] = sub
-            candidatos.append(p)
-        if candidatos:
-            candidatos.sort(key=lambda x: x["score"], reverse=True)
-            ofertas_finais.append(candidatos[0])
 
     return ofertas_finais[:10]
 
@@ -288,7 +284,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
     if not (dt_time(6, 0) <= agora <= dt_time(22, 30)): return
 
-    logging.info("Iniciando ciclo V40 Elite...")
+    logging.info("Iniciando ciclo V41 Adaptativo...")
     ofertas = get_melhores_ofertas()
     if not ofertas: return
 
@@ -307,7 +303,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             
             await context.bot.send_photo(chat_id=CHAT_ID_DESTINO, photo=item.get("imageUrl"), caption=msg, parse_mode="HTML")
             
-            # Gravação forçada de histórico
             h = gerar_hash_produto(item["productName"])
             historico[h] = {"data": datetime.now().isoformat(), "titulo": item["productName"]}
             registrar_cooldown(item.get("subcategoria", "Geral"))
@@ -319,7 +314,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V40 Ativo!")
+    logging.info("Bot Shopee V41 Ativo!")
 
 if __name__ == "__main__":
     if TELEGRAM_TOKEN:
