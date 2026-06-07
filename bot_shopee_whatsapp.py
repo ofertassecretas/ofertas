@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V70 - TOTAL MEMORY & KEYWORD ROTATION")
+print("VERSAO SHOPEE V71 - INFINITE SEARCH (GARANTE 10 OFERTAS)")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -27,8 +27,8 @@ CHAT_ID_DESTINO = -1003848415150
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-# Arquivos de memória persistente (Global)
-HISTORICO_FILE = "historico_global_v70.json"
+# Arquivos de memória persistente
+HISTORICO_FILE = "historico_global_v71.json"
 
 # Intervalo entre ciclos (em segundos)
 CHECK_INTERVAL = 5400
@@ -41,7 +41,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # ==========================================
-# ESTRATÉGIA DE ROTAÇÃO DE BUSCA
+# ESTRATÉGIA DE BUSCA
 # ==========================================
 
 KEYWORDS_POOL = {
@@ -76,7 +76,7 @@ PALAVRAS_BLOQUEIO = [
 ]
 
 # ==========================================
-# GESTÃO DE MEMÓRIA GLOBAL (BLINDADA)
+# GESTÃO DE MEMÓRIA
 # ==========================================
 
 def normalizar_texto(txt):
@@ -86,8 +86,6 @@ def normalizar_texto(txt):
     return txt
 
 def gerar_hash_produto(titulo):
-    # Usamos os primeiros 30 caracteres do título normalizado para o hash
-    # Isso evita que variações mínimas (ex: "Cor: Azul") burlem o bloqueio
     texto_limpo = normalizar_texto(titulo)[:30]
     return hashlib.md5(texto_limpo.encode()).hexdigest()
 
@@ -102,11 +100,9 @@ def carregar_historico():
 
 def salvar_historico(historico):
     try:
-        # Mantém apenas os últimos 500 produtos para não crescer infinitamente
         if len(historico) > 500:
             chaves_ordenadas = sorted(historico.keys(), key=lambda k: historico[k].get("data", ""), reverse=True)
             historico = {k: historico[k] for k in chaves_ordenadas[:500]}
-            
         with open(HISTORICO_FILE, 'w') as f:
             json.dump(historico, f, indent=4)
             f.flush()
@@ -117,21 +113,11 @@ def salvar_historico(historico):
 def eh_repetido_global(titulo, historico_global, lista_ciclo_atual):
     h = gerar_hash_produto(titulo)
     if h in historico_global: return True
-    
     t_novo = normalizar_texto(titulo)
-    # Bloqueio de similaridade agressivo (40%)
     for p_atual in lista_ciclo_atual:
         t_atual = normalizar_texto(p_atual.get("productName", ""))
         if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.40:
             return True
-            
-    # Bloqueio por palavras-chave já enviadas no ciclo (evita 2 pneus, 2 capacetes, etc)
-    termos_unicos = ["pneu", "capacete", "jaqueta", "bau", "kit relação", "cadeira", "bicicleta", "air fryer", "geladeira", "iphone", "ps5"]
-    for termo in termos_unicos:
-        if termo in t_novo:
-            for p_ja_escolhido in lista_ciclo_atual:
-                if termo in normalizar_texto(p_ja_escolhido.get("productName", "")):
-                    return True
     return False
 
 # ==========================================
@@ -206,23 +192,30 @@ def get_melhores_ofertas():
     historico_global = carregar_historico()
     ofertas_finais = []
     
-    # 1. Escolhe 10 categorias aleatórias para garantir rotação (sempre incluindo Motos)
-    categorias_para_ciclo = ["Motos", "Motos"] # Garante 2 vagas de motos
-    outras_opcoes = ["Tecnologia", "Eletro", "Casa_Lazer", "Bebe_Elite"]
-    while len(categorias_para_ciclo) < 10:
-        categorias_para_ciclo.append(random.choice(outras_opcoes))
+    # Pool de categorias disponíveis
+    pool_disponivel = []
+    for cat, kws in KEYWORDS_POOL.items():
+        for kw in kws:
+            pool_disponivel.append((cat, kw))
     
-    random.shuffle(categorias_para_ciclo)
-
-    for cat in categorias_para_ciclo:
-        # Pega uma keyword aleatória daquela categoria
-        kw = random.choice(KEYWORDS_POOL[cat])
+    random.shuffle(pool_disponivel)
+    
+    # Tenta preencher as 10 vagas
+    tentativas_totais = 0
+    while len(ofertas_finais) < 10 and tentativas_totais < 50:
+        tentativas_totais += 1
+        
+        # Prioriza 2 motos se ainda não tiver
+        if len([o for o in ofertas_finais if o.get("cat") == "Motos"]) < 2:
+            cat = "Motos"
+            kw = random.choice(KEYWORDS_POOL["Motos"])
+        else:
+            cat, kw = random.choice(pool_disponivel)
+            
         produtos = buscar_shopee(kw)
         if not produtos: continue
         
-        # Embaralha os resultados da Shopee para não pegar sempre o primeiro
         random.shuffle(produtos)
-        
         for p in produtos:
             nome = p.get("productName", "")
             preco = float(p.get("priceMin", 0))
@@ -238,8 +231,9 @@ def get_melhores_ofertas():
             
             if eh_repetido_global(nome, historico_global, ofertas_finais): continue
             
+            p["cat"] = cat
             ofertas_finais.append(p)
-            break # Encontrou um bom para esta vaga, pula para a próxima categoria
+            break
             
     return ofertas_finais[:10]
 
@@ -249,9 +243,9 @@ def get_melhores_ofertas():
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
-    if not (dt_time(5, 30) <= agora <= dt_time(21, 00)): return
+    if not (dt_time(5, 30) <= agora <= dt_time(21, 30)): return
 
-    logging.info("Iniciando ciclo V70 Total Memory...")
+    logging.info("Iniciando ciclo V71 Infinite Search...")
     ofertas = get_melhores_ofertas()
     if not ofertas: return
 
@@ -280,13 +274,14 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V70 Ativo!")
+    logging.info("Bot Shopee V71 Ativo!")
 
 if __name__ == "__main__":
     if TELEGRAM_TOKEN:
         ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build().run_polling()
     else:
         print("Erro: TELEGRAM_TOKEN não configurado.")
+
 
 
 
