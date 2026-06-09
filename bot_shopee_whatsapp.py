@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V71 - INFINITE SEARCH (GARANTE 10 OFERTAS)")
+print("VERSAO SHOPEE V80 - REAL MOTO & TOTAL MEMORY")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -28,41 +28,42 @@ LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 # Arquivos de memória persistente
-HISTORICO_FILE = "historico_global_v71.json"
+HISTORICO_FILE = "historico_global_v80.json"
 
 # Intervalo entre ciclos (em segundos)
 CHECK_INTERVAL = 5400
 
-# FILTROS VIP
-PRECO_MIN_VIP = 50.0
-RATING_MIN_VIP = 4.6
+# FILTROS BASE
+PRECO_MIN_BASE = 30.0
+RATING_MIN_BASE = 4.6
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # ==========================================
-# ESTRATÉGIA DE BUSCA
+# ESTRATÉGIA DE BUSCA (FOCO EM MOTOQUEIRO REAL)
 # ==========================================
 
 KEYWORDS_POOL = {
-    "Tecnologia": [
-        "iPhone 15", "Samsung S24", "Playstation 5", "Nintendo Switch", "Macbook M2", 
-        "iPad Pro", "JBL Partybox", "Sony WH-1000XM5", "Monitor Gamer 144hz", "Placa Video RTX"
+    "Motos_Real": [
+        "Capacete EBF", "Capacete Pro Tork", "Capa de Chuva Motoqueiro", "Bota Impermeável Moto",
+        "Kit Relação Vaz", "Pneu Levorin Moto", "Pneu Maggion Moto", "Óleo Mobil Moto",
+        "Retrovisor Esportivo Moto", "Luva Motoqueiro Couro", "Baú Pro Tork", "Cadeado Corrente Moto"
     ],
-    "Eletro": [
-        "Geladeira Frost Free", "Lava e Seca", "Ar Condicionado Inverter", "Microondas Inox",
-        "Air Fryer Mondial", "Robo Aspirador Xiaomi", "Lava Louças", "Purificador Agua"
+    "Tecnologia_Util": [
+        "Fone Bluetooth Barato", "Smartwatch Barato", "Carregador Celular Moto", "Suporte Celular Moto",
+        "Caixa Som Portátil", "Lanterna Potente", "Power Bank"
     ],
-    "Motos": [
-        "Pneu Pirelli Moto", "Capacete LS2", "Jaqueta Alpinestars", "Bau Givi", "Intercomunicador V6",
-        "Kit Relação DID", "Pneu Metzeler", "Capacete Norisk", "Luva Couro Moto", "Bota Macboot"
+    "Eletro_Desejo": [
+        "Air Fryer Mondial", "Batedeira Arno", "Liquidificador Philips", "Ferro de Passar",
+        "Ventilador Turbo", "Panela de Pressão Elétrica"
     ],
-    "Casa_Lazer": [
-        "Cadeira Escritorio Ergonômica", "Bicicleta Aro 29", "Piscina Estruturada", "Churrasqueira Gourmet",
-        "Cama Box Queen", "Barraca Camping 4 pessoas", "Mesa Dobravel Maleta", "Bicicleta Spinning"
+    "Casa_e_Utilidades": [
+        "Jogo de Ferramentas", "Furadeira Bosch", "Kit Chave de Fenda", "Lâmpada LED Inteligente",
+        "Mochila Reforçada", "Tênis Casual Masculino"
     ],
-    "Bebe_Elite": [
-        "Carrinho Chicco", "Cadeira Auto Fisher Price", "Baba Eletronica Motorola", "Berço Burigotto"
+    "Bebe_Util": [
+        "Fralda Pampers G", "Carrinho de Bebê Barato", "Cadeira Auto Barata", "Babá Eletrônica"
     ]
 }
 
@@ -72,11 +73,12 @@ PALAVRAS_BLOQUEIO = [
     "pano de prato", "meia", "cueca", "calcinha", "mini processador", "ralador manual",
     "spray de pum", "pegadinha", "sal marinho", "esponja magica", "adesivo retalho",
     "bico desentupidor", "ventosa", "barra estabilizadora", "coxim", "cavalete lateral",
-    "filtro refil", "tampa geladeira", "suporte celular moto", "capa banco moto", "balaclava"
+    "filtro refil", "tampa geladeira", "narigueira", "rede elastica", "fecho porta",
+    "organizador gaveta", "caneca infantil"
 ]
 
 # ==========================================
-# GESTÃO DE MEMÓRIA
+# GESTÃO DE MEMÓRIA GLOBAL
 # ==========================================
 
 def normalizar_texto(txt):
@@ -86,7 +88,8 @@ def normalizar_texto(txt):
     return txt
 
 def gerar_hash_produto(titulo):
-    texto_limpo = normalizar_texto(titulo)[:30]
+    # Hash baseado nos primeiros 35 caracteres para evitar variações de vendedor
+    texto_limpo = normalizar_texto(titulo)[:35]
     return hashlib.md5(texto_limpo.encode()).hexdigest()
 
 def carregar_historico():
@@ -100,9 +103,10 @@ def carregar_historico():
 
 def salvar_historico(historico):
     try:
-        if len(historico) > 500:
+        # Mantém histórico de 1000 itens para evitar repetição por semanas
+        if len(historico) > 1000:
             chaves_ordenadas = sorted(historico.keys(), key=lambda k: historico[k].get("data", ""), reverse=True)
-            historico = {k: historico[k] for k in chaves_ordenadas[:500]}
+            historico = {k: historico[k] for k in chaves_ordenadas[:1000]}
         with open(HISTORICO_FILE, 'w') as f:
             json.dump(historico, f, indent=4)
             f.flush()
@@ -113,11 +117,21 @@ def salvar_historico(historico):
 def eh_repetido_global(titulo, historico_global, lista_ciclo_atual):
     h = gerar_hash_produto(titulo)
     if h in historico_global: return True
+    
     t_novo = normalizar_texto(titulo)
+    # Bloqueio de similaridade (45%)
     for p_atual in lista_ciclo_atual:
         t_atual = normalizar_texto(p_atual.get("productName", ""))
-        if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.40:
+        if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.45:
             return True
+            
+    # Bloqueio de 2 produtos do mesmo tipo no mesmo ciclo
+    termos_unicos = ["capacete", "pneu", "jaqueta", "bota", "kit relação", "air fryer", "celular", "fone", "carregador", "mochila"]
+    for termo in termos_unicos:
+        if termo in t_novo:
+            for p_ja_escolhido in lista_ciclo_atual:
+                if termo in normalizar_texto(p_ja_escolhido.get("productName", "")):
+                    return True
     return False
 
 # ==========================================
@@ -192,49 +206,44 @@ def get_melhores_ofertas():
     historico_global = carregar_historico()
     ofertas_finais = []
     
-    # Pool de categorias disponíveis
-    pool_disponivel = []
-    for cat, kws in KEYWORDS_POOL.items():
-        for kw in kws:
-            pool_disponivel.append((cat, kw))
+    # 2 de cada grupo (Motos, Tech, Eletro, Casa, Bebe)
+    categorias_alvo = ["Motos_Real", "Tecnologia_Util", "Eletro_Desejo", "Casa_e_Utilidades", "Bebe_Util"]
     
-    random.shuffle(pool_disponivel)
-    
-    # Tenta preencher as 10 vagas
-    tentativas_totais = 0
-    while len(ofertas_finais) < 10 and tentativas_totais < 50:
-        tentativas_totais += 1
+    for cat_name in categorias_alvo:
+        vagas_preenchidas = 0
+        tentativas_cat = 0
         
-        # Prioriza 2 motos se ainda não tiver
-        if len([o for o in ofertas_finais if o.get("cat") == "Motos"]) < 2:
-            cat = "Motos"
-            kw = random.choice(KEYWORDS_POOL["Motos"])
-        else:
-            cat, kw = random.choice(pool_disponivel)
+        # Tenta preencher 2 vagas para cada categoria
+        while vagas_preenchidas < 2 and tentativas_cat < 15:
+            tentativas_cat += 1
+            kw = random.choice(KEYWORDS_POOL[cat_name])
+            produtos = buscar_shopee(kw)
+            if not produtos: continue
             
-        produtos = buscar_shopee(kw)
-        if not produtos: continue
-        
-        random.shuffle(produtos)
-        for p in produtos:
-            nome = p.get("productName", "")
-            preco = float(p.get("priceMin", 0))
-            vendas = int(p.get("sales", 0))
-            
-            if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO): continue
-            if preco < PRECO_MIN_VIP: continue
-            
-            # Filtro Proporcional
-            v_necessarias = 5 if preco > 200 else 50
-            if vendas < v_necessarias: continue
-            if float(p.get("ratingStar", 0)) < RATING_MIN_VIP: continue
-            
-            if eh_repetido_global(nome, historico_global, ofertas_finais): continue
-            
-            p["cat"] = cat
-            ofertas_finais.append(p)
-            break
-            
+            random.shuffle(produtos)
+            for p in produtos:
+                nome = p.get("productName", "")
+                preco = float(p.get("priceMin", 0))
+                vendas = int(p.get("sales", 0))
+                
+                if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO): continue
+                if preco < PRECO_MIN_BASE: continue
+                
+                # Motoqueiro Real: Preço justo (abaixo de 400 reais para peças)
+                if cat_name == "Motos_Real" and preco > 450: continue
+                
+                # Filtro de vendas realista
+                v_necessarias = 10 if preco > 150 else 40
+                if vendas < v_necessarias: continue
+                if float(p.get("ratingStar", 0)) < RATING_MIN_BASE: continue
+                
+                if eh_repetido_global(nome, historico_global, ofertas_finais): continue
+                
+                p["cat"] = cat_name
+                ofertas_finais.append(p)
+                vagas_preenchidas += 1
+                break
+                
     return ofertas_finais[:10]
 
 # ==========================================
@@ -245,7 +254,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
     if not (dt_time(5, 30) <= agora <= dt_time(21, 30)): return
 
-    logging.info("Iniciando ciclo V71 Infinite Search...")
+    logging.info("Iniciando ciclo V80 Real Moto...")
     ofertas = get_melhores_ofertas()
     if not ofertas: return
 
@@ -274,13 +283,14 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V71 Ativo!")
+    logging.info("Bot Shopee V80 Ativo!")
 
 if __name__ == "__main__":
     if TELEGRAM_TOKEN:
         ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build().run_polling()
     else:
         print("Erro: TELEGRAM_TOKEN não configurado.")
+
 
 
 
