@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V80 - REAL MOTO & TOTAL MEMORY")
+print("VERSAO SHOPEE V82 - FINAL FIX (COOLDOWN GLOBAL & CATEGORIAS RIGIDAS)")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -28,7 +28,7 @@ LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 # Arquivos de memória persistente
-HISTORICO_FILE = "historico_global_v80.json"
+HISTORICO_FILE = "historico_global_v82.json"
 
 # Intervalo entre ciclos (em segundos)
 CHECK_INTERVAL = 5400
@@ -63,7 +63,7 @@ KEYWORDS_POOL = {
         "Mochila Reforçada", "Tênis Casual Masculino"
     ],
     "Bebe_Util": [
-        "Fralda Pampers G", "Carrinho de Bebê Barato", "Cadeira Auto Barata", "Babá Eletrônica"
+        "Fralda Pampers", "Fralda Huggies", "Carrinho de Bebê Barato", "Cadeira Auto Barata", "Babá Eletrônica"
     ]
 }
 
@@ -78,7 +78,7 @@ PALAVRAS_BLOQUEIO = [
 ]
 
 # ==========================================
-# GESTÃO DE MEMÓRIA GLOBAL
+# GESTÃO DE MEMÓRIA GLOBAL COM COOLDOWN
 # ==========================================
 
 def normalizar_texto(txt):
@@ -86,11 +86,6 @@ def normalizar_texto(txt):
     txt = txt.lower().strip()
     txt = re.sub(r"[^a-z0-9à-ÿ]", "", txt) 
     return txt
-
-def gerar_hash_produto(titulo):
-    # Hash baseado nos primeiros 35 caracteres para evitar variações de vendedor
-    texto_limpo = normalizar_texto(titulo)[:35]
-    return hashlib.md5(texto_limpo.encode()).hexdigest()
 
 def carregar_historico():
     if os.path.exists(HISTORICO_FILE):
@@ -103,35 +98,49 @@ def carregar_historico():
 
 def salvar_historico(historico):
     try:
-        # Mantém histórico de 1000 itens para evitar repetição por semanas
-        if len(historico) > 1000:
-            chaves_ordenadas = sorted(historico.keys(), key=lambda k: historico[k].get("data", ""), reverse=True)
-            historico = {k: historico[k] for k in chaves_ordenadas[:1000]}
+        # Limpar itens com mais de 48 horas para não crescer infinitamente
+        agora = datetime.now()
+        limite = agora - timedelta(hours=48)
+        historico_limpo = {k: v for k, v in historico.items() if datetime.fromisoformat(v.get("data", agora.isoformat())) > limite}
+        
         with open(HISTORICO_FILE, 'w') as f:
-            json.dump(historico, f, indent=4)
+            json.dump(historico_limpo, f, indent=4)
             f.flush()
             os.fsync(f.fileno())
     except Exception as e:
         logging.error(f"Erro ao salvar historico: {e}")
 
-def eh_repetido_global(titulo, historico_global, lista_ciclo_atual):
-    h = gerar_hash_produto(titulo)
+def eh_repetido_ou_cooldown(titulo, historico_global, lista_ciclo_atual):
+    t_novo = normalizar_texto(titulo)
+    h = hashlib.md5(t_novo[:35].encode()).hexdigest()
+    
+    # 1. Bloqueio de ID/Hash Global
     if h in historico_global: return True
     
-    t_novo = normalizar_texto(titulo)
-    # Bloqueio de similaridade (45%)
+    # 2. Bloqueio de Similaridade no Ciclo Atual
     for p_atual in lista_ciclo_atual:
         t_atual = normalizar_texto(p_atual.get("productName", ""))
-        if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.45:
+        if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.40:
             return True
-            
-    # Bloqueio de 2 produtos do mesmo tipo no mesmo ciclo
-    termos_unicos = ["capacete", "pneu", "jaqueta", "bota", "kit relação", "air fryer", "celular", "fone", "carregador", "mochila"]
-    for termo in termos_unicos:
+
+    # 3. COOLDOWN DE TERMOS (Evita fraldas em todos os ciclos)
+    # Se enviou "fralda" nas últimas 8 horas, não envia de novo
+    termos_criticos = ["fralda", "pneu", "capacete", "air fryer", "baba eletronica", "batedeira"]
+    agora = datetime.now()
+    for termo in termos_criticos:
+        if termo in t_novo:
+            for item in historico_global.values():
+                data_envio = datetime.fromisoformat(item.get("data", agora.isoformat()))
+                if termo in normalizar_texto(item.get("titulo", "")) and (agora - data_envio).total_seconds() < 28800: # 8 horas
+                    return True
+                    
+    # 4. Bloqueio de Duplicidade no MESMO CICLO
+    for termo in ["fralda", "capacete", "pneu", "fone", "carregador", "mochila", "batedeira", "ferro"]:
         if termo in t_novo:
             for p_ja_escolhido in lista_ciclo_atual:
                 if termo in normalizar_texto(p_ja_escolhido.get("productName", "")):
                     return True
+                    
     return False
 
 # ==========================================
@@ -206,15 +215,14 @@ def get_melhores_ofertas():
     historico_global = carregar_historico()
     ofertas_finais = []
     
-    # 2 de cada grupo (Motos, Tech, Eletro, Casa, Bebe)
+    # CATEGORIAS RÍGIDAS: 2 de cada
     categorias_alvo = ["Motos_Real", "Tecnologia_Util", "Eletro_Desejo", "Casa_e_Utilidades", "Bebe_Util"]
     
     for cat_name in categorias_alvo:
         vagas_preenchidas = 0
         tentativas_cat = 0
         
-        # Tenta preencher 2 vagas para cada categoria
-        while vagas_preenchidas < 2 and tentativas_cat < 15:
+        while vagas_preenchidas < 2 and tentativas_cat < 20:
             tentativas_cat += 1
             kw = random.choice(KEYWORDS_POOL[cat_name])
             produtos = buscar_shopee(kw)
@@ -229,15 +237,18 @@ def get_melhores_ofertas():
                 if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO): continue
                 if preco < PRECO_MIN_BASE: continue
                 
-                # Motoqueiro Real: Preço justo (abaixo de 400 reais para peças)
-                if cat_name == "Motos_Real" and preco > 450: continue
+                # Regra de preço para motos (não queremos motos de luxo)
+                if cat_name == "Motos_Real" and preco > 500: continue
                 
-                # Filtro de vendas realista
-                v_necessarias = 10 if preco > 150 else 40
+                # Se for produto de moto aparecendo em outra categoria, bloqueia para não estourar o limite de 2
+                if cat_name != "Motos_Real" and any(m in nome.lower() for m in ["moto", "capacete", "pneu", "retrovisor"]):
+                    continue
+
+                v_necessarias = 15 if preco > 150 else 40
                 if vendas < v_necessarias: continue
                 if float(p.get("ratingStar", 0)) < RATING_MIN_BASE: continue
                 
-                if eh_repetido_global(nome, historico_global, ofertas_finais): continue
+                if eh_repetido_ou_cooldown(nome, historico_global, ofertas_finais): continue
                 
                 p["cat"] = cat_name
                 ofertas_finais.append(p)
@@ -254,7 +265,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
     if not (dt_time(5, 30) <= agora <= dt_time(21, 30)): return
 
-    logging.info("Iniciando ciclo V80 Real Moto...")
+    logging.info("Iniciando ciclo V82 Final Fix...")
     ofertas = get_melhores_ofertas()
     if not ofertas: return
 
@@ -273,7 +284,8 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             
             await context.bot.send_photo(chat_id=CHAT_ID_DESTINO, photo=item.get("imageUrl"), caption=msg, parse_mode="HTML")
             
-            h = gerar_hash_produto(item["productName"])
+            t_norm = normalizar_texto(item["productName"])
+            h = hashlib.md5(t_norm[:35].encode()).hexdigest()
             historico_global[h] = {"data": datetime.now().isoformat(), "titulo": item["productName"]}
             salvar_historico(historico_global)
             
@@ -283,13 +295,14 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V80 Ativo!")
+    logging.info("Bot Shopee V82 Ativo!")
 
 if __name__ == "__main__":
     if TELEGRAM_TOKEN:
         ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build().run_polling()
     else:
         print("Erro: TELEGRAM_TOKEN não configurado.")
+
 
 
 
