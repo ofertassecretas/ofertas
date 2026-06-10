@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V91 - FIX ERROR (BANIMENTO 24H & ROTACAO DE NICHOS)")
+print("VERSAO SHOPEE V110 - THE GOD MODE (API OPTIMIZED)")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -28,7 +28,7 @@ LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 # Arquivos de memória persistente
-HISTORICO_FILE = "historico_global_v91.json"
+HISTORICO_FILE = "historico_global_v110.json"
 
 # Intervalo entre ciclos (em segundos)
 CHECK_INTERVAL = 5400
@@ -41,45 +41,56 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # ==========================================
-# ESTRATÉGIA DE BUSCA EXPERT (ROTATIVA)
+# ESTRATÉGIA DE BUSCA (API OPTIMIZED)
 # ==========================================
 
 KEYWORDS_POOL = {
     "Motos_Real": [
-        ["Capacete EBF", "Capacete Pro Tork", "Capacete Mixs"],
-        ["Pneu Levorin", "Pneu Maggion", "Pneu Technic"],
-        ["Kit Relação Vaz", "Kit Transmissão KMC", "Corrente Did"],
-        ["Capa de Chuva Pantaneiro", "Bota Impermeável", "Luva Couro"],
-        ["Óleo Mobil 10w30", "Óleo Yamalube", "Filtro Óleo Vedamotors"],
-        ["Baú Pro Tork", "Retrovisor Esportivo", "Alarme Pósitron"]
+        ["Capacete EBF", "Capacete Pro Tork", "Capacete LS2", "Capacete Norisk"],
+        ["Pneu Levorin", "Pneu Maggion", "Pneu Pirelli", "Pneu Metzeler"],
+        ["Kit Relação Vaz", "Kit Transmissão KMC", "Corrente Did", "Relação RIFFEL"],
+        ["Capa de Chuva Pantaneiro", "Bota Impermeável", "Luva Couro", "Jaqueta Proteção"],
+        ["Burrinho Freio", "Cilindro Mestre Moto", "Manete Esportivo", "Amortecedor Titan"],
+        ["Pisca LED Moto", "Farol LED H4", "Luz Estroboscópica", "Lâmpada Farol Moto"],
+        ["Baú Pro Tork", "Retrovisor Esportivo", "Alarme Pósitron", "Cadeado Disco"],
+        ["Capa Banco Térmica", "Protetor Carenagem", "Slider Moto", "Adesivo Tanque Moto"]
     ],
     "Tecnologia_Util": [
-        ["Fone Bluetooth JBL", "Fone Lenovo LP40", "Fone QCY"],
-        ["Smartwatch Iwo", "Relógio Digital Casio", "Mi Band"],
-        ["Carregador Turbo Samsung", "Power Bank Pineng", "Cabo USB-C Baseus"],
-        ["Suporte Celular Imã", "Suporte Guidão Moto", "Intercomunicador V6"]
+        ["Fone Bluetooth JBL", "Fone Lenovo LP40", "Fone QCY", "Fone Haylou"],
+        ["Smartwatch Iwo", "Relógio Digital Casio", "Caixa Som JBL", "Alexa Echo Dot"],
+        ["Carregador Turbo", "Power Bank Pineng", "Cabo Baseus", "Carregador Veicular"],
+        ["Intercomunicador V6", "Câmera Segurança", "Roteador Wifi", "Adaptador Bluetooth"]
     ],
     "Eletro_Desejo": [
-        ["Air Fryer Mondial", "Fritadeira Philco", "Air Fryer Britânia"],
-        ["Batedeira Arno", "Liquidificador Oster", "Mixer Philips"],
-        ["Ferro de Passar Elgin", "Vaporizador de Roupas", "Ferro Black Decker"],
-        ["Ventilador Turbo Arno", "Climatizador Ventisol", "Circulador de Ar"]
+        ["Air Fryer Mondial", "Fritadeira Philco", "Air Fryer Britânia", "Air Fryer Oster"],
+        ["Batedeira Arno", "Liquidificador Oster", "Mixer Philips", "Processador Alimentos"],
+        ["Ferro de Passar Elgin", "Vaporizador de Roupas", "Ferro Black Decker", "Ferro Philips"],
+        ["Ventilador Turbo Arno", "Climatizador Ventisol", "Máquina de Café", "Sanduicheira"]
     ],
     "Casa_e_Ferramentas": [
-        ["Jogo de Chaves", "Furadeira Impacto", "Parafusadeira Vonder"],
-        ["Mochila Notebook", "Mochila Motoboy", "Bolsa Térmica"],
-        ["Lâmpada Inteligente", "Fita LED RGB", "Sensor de Presença"],
-        ["Tênis Olympikus", "Sapato Social", "Bota de Segurança"]
+        ["Jogo de Chaves", "Furadeira Impacto", "Parafusadeira Vonder", "Serra Tico Tico"],
+        ["Mochila Notebook", "Mochila Motoboy", "Mala Viagem", "Mochila Impermeável"],
+        ["Lâmpada Inteligente", "Fita LED RGB", "Refletor LED", "Luz de Emergência"],
+        ["Tênis Olympikus", "Sapato Social", "Bota de Segurança", "Tênis Nike Original"]
     ],
     "Bebe_Util": [
-        ["Fralda Pampers G", "Fralda Huggies M", "Fralda Babysec"],
-        ["Babá Eletrônica VB601", "Câmera Monitoramento", "Babá Visão Noturna"],
-        ["Carrinho Galzerano", "Cadeira de Descanso", "Cadeira Auto"],
-        ["Kit Higiene Bebê", "Termômetro Digital", "Aspirador Nasal"]
+        ["Fralda Pampers", "Fralda Huggies", "Fralda Babysec", "Fralda Mamypoko"],
+        ["Babá Eletrônica", "Monitor Bebê", "Câmera Bebê", "Monitor de Vídeo"],
+        ["Carrinho Galzerano", "Cadeira de Descanso", "Cadeira Auto", "Patinete Infantil"],
+        ["Kit Higiene Bebê", "Termômetro Digital", "Aspirador Nasal", "Copo Treinamento"],
+        ["Blocos de Montar", "Quebra Cabeça Madeira", "Lousa Mágica", "Pista Carrinho"],
+        ["Barraca Infantil", "Tapete Atividades", "Toalha Capuz Bebê", "Mictório Sapinho"]
     ]
 }
 
-PALAVRAS_BLOQUEIO = [
+BLOQUEIO_REPETICAO_CICLO = [
+    "fralda", "fone", "capacete", "pneu", "air fryer", "baba eletronica", 
+    "ferro", "batedeira", "mochila", "tenis", "sapato", "suporte", "cabo", 
+    "carregador", "retrovisor", "bau", "kit relação", "furadeira", "parafusadeira",
+    "barraca", "tapete", "patinete", "blocos de montar", "quebra cabeça", "pisca", "manete"
+]
+
+PALAVRAS_BLOQUEIO_GERAL = [
     "teste", "amostra", "não compre", "dummy", "adesivo", "película", 
     "case", "filtro de papel", "brinde", "usado", "defeito", "capinha",
     "pano de prato", "meia", "cueca", "calcinha", "mini processador", "ralador manual",
@@ -90,14 +101,14 @@ PALAVRAS_BLOQUEIO = [
 ]
 
 # ==========================================
-# GESTÃO DE MEMÓRIA EXPERT (BANIMENTO 24H)
+# GESTÃO DE MEMÓRIA (IRON FIST)
 # ==========================================
 
 def normalizar_texto(txt):
     if not txt: return ""
     txt = txt.lower().strip()
-    txt = re.sub(r"[^a-z0-9à-ÿ]", "", txt) 
-    return txt
+    txt = re.sub(r"[^a-z0-9à-ÿ]", " ", txt) 
+    return " ".join(txt.split())
 
 def carregar_historico():
     if os.path.exists(HISTORICO_FILE):
@@ -120,26 +131,32 @@ def salvar_historico(historico):
     except Exception as e:
         logging.error(f"Erro ao salvar historico: {e}")
 
-def eh_repetido_expert(titulo, historico_global, lista_ciclo_atual):
+def eh_repetido_iron_fist(titulo, historico_global, lista_ciclo_atual):
     t_novo = normalizar_texto(titulo)
-    h = hashlib.md5(t_novo[:40].encode()).hexdigest()
     
-    if h in historico_global: return True
-    
+    for termo in BLOQUEIO_REPETICAO_CICLO:
+        if termo in t_novo:
+            for p_ja_escolhido in lista_ciclo_atual:
+                if termo in normalizar_texto(p_ja_escolhido.get("productName", "")):
+                    return True
+
     for p_atual in lista_ciclo_atual:
         t_atual = normalizar_texto(p_atual.get("productName", ""))
-        if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.35:
+        if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.30:
             return True
 
-    termos_banidos = ["fralda", "baba eletronica", "suporte", "pneu", "capacete", "air fryer", "fone", "carregador"]
+    termos_24h = ["fralda", "baba eletronica", "fone", "capacete", "pneu", "air fryer"]
     agora = datetime.now()
-    for termo in termos_banidos:
+    for termo in termos_24h:
         if termo in t_novo:
             for item in historico_global.values():
                 data_envio = datetime.fromisoformat(item.get("data", agora.isoformat()))
                 if termo in normalizar_texto(item.get("titulo", "")) and (agora - data_envio).total_seconds() < 86400:
                     return True
                     
+    h = hashlib.md5(t_novo[:45].encode()).hexdigest()
+    if h in historico_global: return True
+
     return False
 
 # ==========================================
@@ -185,20 +202,55 @@ def gerar_copy_base(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp
 📢 <b>Ofertas Secretas</b>"""
 
 # ==========================================
-# INTEGRAÇÃO SHOPEE
+# INTEGRAÇÃO SHOPEE (GOD MODE)
 # ==========================================
 
-def buscar_shopee(keyword):
+def buscar_shopee_god_mode(keyword):
+    """
+    Usa os novos parâmetros descobertos na documentação:
+    - sortType: 2 (ITEM_SOLD_DESC) - Ordena pelos mais vendidos
+    - isKeySeller: true - Filtra apenas vendedores de confiança
+    - isAMSOffer: true - Filtra apenas ofertas com comissão extra
+    """
     timestamp = int(time.time())
-    query_body = f'query {{ productOfferV2(sortType: 2, limit: 50, keyword: "{keyword}", isAMSOffer: true) {{ nodes {{ productName priceMin commissionRate sales ratingStar productLink offerLink imageUrl }} }} }}'
+    # Query otimizada com os novos campos da documentação
+    query_body = f"""
+    query {{
+        productOfferV2(
+            keyword: "{keyword}",
+            sortType: 2,
+            isAMSOffer: true,
+            isKeySeller: true,
+            limit: 50
+        ) {{
+            nodes {{
+                productName
+                priceMin
+                commissionRate
+                sales
+                ratingStar
+                productLink
+                offerLink
+                imageUrl
+                shopName
+                shopType
+            }}
+        }}
+    }}
+    """
     payload = json.dumps({"query": query_body})
     base_str = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
     signature = hashlib.sha256(base_str.encode()).hexdigest()
-    headers = {"Content-Type": "application/json", "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"}
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
+    }
     try:
-        r = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=20)
-        return r.json().get("data", {}).get("productOfferV2", {}).get("nodes", [])
-    except:
+        r = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=25)
+        data = r.json()
+        return data.get("data", {}).get("productOfferV2", {}).get("nodes", [])
+    except Exception as e:
+        logging.error(f"Erro na API Shopee: {e}")
         return []
 
 def aplicar_afiliado(link):
@@ -214,12 +266,10 @@ def get_melhores_ofertas():
     historico_global = carregar_historico()
     ofertas_finais = []
     
-    # CORRIGIDO: Nomes das categorias agora coincidem com o dicionário
     categorias_alvo = ["Motos_Real", "Tecnologia_Util", "Eletro_Desejo", "Casa_e_Ferramentas", "Bebe_Util"]
     
     for cat_name in categorias_alvo:
         vagas_preenchidas = 0
-        
         sub_listas = KEYWORDS_POOL[cat_name].copy()
         random.shuffle(sub_listas)
         
@@ -227,31 +277,33 @@ def get_melhores_ofertas():
             if vagas_preenchidas >= 2: break
             
             tentativas_sub = 0
-            while tentativas_sub < 5 and vagas_preenchidas < 2:
+            while tentativas_sub < 12 and vagas_preenchidas < 2:
                 tentativas_sub += 1
                 kw = random.choice(sub_lista)
-                produtos = buscar_shopee(kw)
+                produtos = buscar_shopee_god_mode(kw)
                 if not produtos: continue
                 
-                random.shuffle(produtos)
-                for p in produtos:
+                # Sorteia entre os top 20 mais vendidos daquela busca
+                top_produtos = produtos[:20]
+                random.shuffle(top_produtos)
+                
+                for p in top_produtos:
                     nome = p.get("productName", "")
                     preco = float(p.get("priceMin", 0))
                     vendas = int(p.get("sales", 0))
                     
-                    if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO): continue
+                    if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO_GERAL): continue
                     if preco < PRECO_MIN_BASE: continue
                     
-                    if cat_name == "Motos_Real" and preco > 480: continue
-                    
-                    if cat_name != "Motos_Real" and any(m in nome.lower() for m in ["moto", "capacete", "pneu"]):
+                    if cat_name == "Motos_Real" and preco > 500: continue
+                    if cat_name != "Motos_Real" and any(m in nome.lower() for m in ["moto", "capacete", "pneu", "retrovisor"]):
                         continue
 
-                    v_necessarias = 15 if preco > 150 else 40
+                    v_necessarias = 10 if preco > 200 else 35
                     if vendas < v_necessarias: continue
                     if float(p.get("ratingStar", 0)) < RATING_MIN_BASE: continue
                     
-                    if eh_repetido_expert(nome, historico_global, ofertas_finais): continue
+                    if eh_repetido_iron_fist(nome, historico_global, ofertas_finais): continue
                     
                     p["cat"] = cat_name
                     ofertas_finais.append(p)
@@ -268,7 +320,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
     if not (dt_time(5, 30) <= agora <= dt_time(21, 30)): return
 
-    logging.info("Iniciando ciclo V91 Fix Error...")
+    logging.info("Iniciando ciclo V110 God Mode...")
     ofertas = get_melhores_ofertas()
     if not ofertas: return
 
@@ -288,7 +340,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_photo(chat_id=CHAT_ID_DESTINO, photo=item.get("imageUrl"), caption=msg, parse_mode="HTML")
             
             t_norm = normalizar_texto(item["productName"])
-            h = hashlib.md5(t_norm[:40].encode()).hexdigest()
+            h = hashlib.md5(t_norm[:45].encode()).hexdigest()
             historico_global[h] = {"data": datetime.now().isoformat(), "titulo": item["productName"]}
             salvar_historico(historico_global)
             
@@ -298,13 +350,14 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V91 Ativo!")
+    logging.info("Bot Shopee V110 Ativo!")
 
 if __name__ == "__main__":
     if TELEGRAM_TOKEN:
         ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build().run_polling()
     else:
         print("Erro: TELEGRAM_TOKEN não configurado.")
+
 
 
 
