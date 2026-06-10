@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V112 - MASTER MECHANIC FIX (ANTI-REPETICAO TOTAL)")
+print("VERSAO SHOPEE V111 - MECHANIC EYE (FOCO EM PECAS TECNICAS)")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -28,33 +28,35 @@ LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 # Arquivos de memória persistente
-HISTORICO_FILE = "historico_global_v112.json"
+HISTORICO_FILE = "historico_global_v111.json"
 
 # Intervalo entre ciclos (em segundos)
 CHECK_INTERVAL = 5400
 
 # FILTROS BASE
-PRECO_MIN_BASE = 35.0 # Aumentado ligeiramente para evitar quinquilharias
+PRECO_MIN_BASE = 30.0
 RATING_MIN_BASE = 4.6
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # ==========================================
-# ESTRATÉGIA DE BUSCA (REFINO TÉCNICO)
+# ESTRATÉGIA DE BUSCA (OLHAR DE MECÂNICO)
 # ==========================================
 
 KEYWORDS_POOL = {
     "Motos_Real": [
-        # Peças Técnicas de Manutenção (Foco Mecânico)
+        # Peças de Motor e Manutenção (O que o mecânico troca)
         ["Vela NGK Iridium", "Vela Moto NGK", "Filtro Ar Vedamotors", "Filtro Óleo Honda"],
         ["Pastilha Freio Cobreq", "Pastilha Freio Fischer", "Lona Freio Cobreq", "Disco Freio"],
         ["Kit Relação Vaz", "Kit Transmissão KMC", "Corrente DID", "Relação Riffel"],
         ["Óleo Mobil 10w30", "Óleo Motul 5100", "Óleo Yamalube", "Graxa Corrente"],
+        ["Cabo Acelerador", "Cabo Embreagem", "Manete Esportivo", "Burrinho Freio"],
         ["Bateria Moura Moto", "Bateria Yuasa", "Retificador Voltagem", "CDI Racing"],
+        # Pneus e Rodas
         ["Pneu Levorin Matrix", "Pneu Maggion VIP", "Pneu Pirelli Angel", "Pneu Metzeler"],
-        ["Câmara de Ar Pirelli", "Kit Reparo Pneu", "Burrinho Freio", "Amortecedor Titan"],
-        # Segurança e Acessórios Úteis
+        ["Câmara de Ar Pirelli", "Válvula Pneu Alumínio", "Kit Reparo Pneu"],
+        # Equipamento de Segurança
         ["Capacete LS2", "Capacete Norisk", "Capacete EBF", "Capacete Pro Tork"],
         ["Capa Chuva Pantaneiro", "Bota Impermeável", "Luva Proteção", "Baú Pro Tork"]
     ],
@@ -86,15 +88,11 @@ KEYWORDS_POOL = {
     ]
 }
 
-# BANIMENTO POR RADICAL (Se enviou 'Serra', bloqueia tudo com 'Serra' por 24h)
-BLOQUEIO_RADICAL_24H = [
-    "serra", "tico tico", "fralda", "fone", "capacete", "pneu", "air fryer", 
-    "baba eletronica", "ferro", "batedeira", "mochila", "tenis", "sapato", 
-    "furadeira", "parafusadeira", "barraca", "tapete", "patinete", "fone de ouvido"
-]
-
 BLOQUEIO_REPETICAO_CICLO = [
-    "suporte", "cabo", "carregador", "retrovisor", "bau", "kit relação", "pisca", "manete"
+    "fralda", "fone", "capacete", "pneu", "air fryer", "baba eletronica", 
+    "ferro", "batedeira", "mochila", "tenis", "sapato", "suporte", "cabo", 
+    "carregador", "retrovisor", "bau", "kit relação", "furadeira", "parafusadeira",
+    "barraca", "tapete", "patinete", "blocos de montar", "quebra cabeça", "pisca", "manete"
 ]
 
 PALAVRAS_BLOQUEIO_GERAL = [
@@ -108,7 +106,7 @@ PALAVRAS_BLOQUEIO_GERAL = [
 ]
 
 # ==========================================
-# GESTÃO DE MEMÓRIA (MASTER FIX)
+# GESTÃO DE MEMÓRIA (IRON FIST)
 # ==========================================
 
 def normalizar_texto(txt):
@@ -138,29 +136,27 @@ def salvar_historico(historico):
     except Exception as e:
         logging.error(f"Erro ao salvar historico: {e}")
 
-def eh_repetido_master_fix(titulo, historico_global, lista_ciclo_atual):
+def eh_repetido_iron_fist(titulo, historico_global, lista_ciclo_atual):
     t_novo = normalizar_texto(titulo)
     
-    # 1. BLOQUEIO DE TERMOS NO MESMO CICLO
-    for termo in BLOQUEIO_REPETICAO_CICLO + BLOQUEIO_RADICAL_24H:
+    for termo in BLOQUEIO_REPETICAO_CICLO:
         if termo in t_novo:
             for p_ja_escolhido in lista_ciclo_atual:
                 if termo in normalizar_texto(p_ja_escolhido.get("productName", "")):
                     return True
 
-    # 2. BLOQUEIO DE SIMILARIDADE (30%)
     for p_atual in lista_ciclo_atual:
         t_atual = normalizar_texto(p_atual.get("productName", ""))
         if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.30:
             return True
 
-    # 3. BANIMENTO GLOBAL DE 24 HORAS POR RADICAL (CRÍTICO)
+    termos_24h = ["fralda", "baba eletronica", "fone", "capacete", "pneu", "air fryer"]
     agora = datetime.now()
-    for radical in BLOQUEIO_RADICAL_24H:
-        if radical in t_novo:
+    for termo in termos_24h:
+        if termo in t_novo:
             for item in historico_global.values():
                 data_envio = datetime.fromisoformat(item.get("data", agora.isoformat()))
-                if radical in normalizar_texto(item.get("titulo", "")) and (agora - data_envio).total_seconds() < 86400:
+                if termo in normalizar_texto(item.get("titulo", "")) and (agora - data_envio).total_seconds() < 86400:
                     return True
                     
     h = hashlib.md5(t_novo[:45].encode()).hexdigest()
@@ -279,7 +275,7 @@ def get_melhores_ofertas():
             if vagas_preenchidas >= 2: break
             
             tentativas_sub = 0
-            while tentativas_sub < 15 and vagas_preenchidas < 2:
+            while tentativas_sub < 12 and vagas_preenchidas < 2:
                 tentativas_sub += 1
                 kw = random.choice(sub_lista)
                 produtos = buscar_shopee_god_mode(kw)
@@ -304,7 +300,7 @@ def get_melhores_ofertas():
                     if vendas < v_necessarias: continue
                     if float(p.get("ratingStar", 0)) < RATING_MIN_BASE: continue
                     
-                    if eh_repetido_master_fix(nome, historico_global, ofertas_finais): continue
+                    if eh_repetido_iron_fist(nome, historico_global, ofertas_finais): continue
                     
                     p["cat"] = cat_name
                     ofertas_finais.append(p)
@@ -321,7 +317,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
     if not (dt_time(5, 30) <= agora <= dt_time(21, 30)): return
 
-    logging.info("Iniciando ciclo V112 Master Mechanic Fix...")
+    logging.info("Iniciando ciclo V111 Mechanic Eye...")
     ofertas = get_melhores_ofertas()
     if not ofertas: return
 
@@ -351,13 +347,14 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V112 Ativo!")
+    logging.info("Bot Shopee V111 Ativo!")
 
 if __name__ == "__main__":
     if TELEGRAM_TOKEN:
         ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build().run_polling()
     else:
         print("Erro: TELEGRAM_TOKEN não configurado.")
+
 
 
 
