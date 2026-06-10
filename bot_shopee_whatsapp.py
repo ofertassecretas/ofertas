@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V90 - EXPERT (BANIMENTO 24H & ROTACAO DE NICHOS)")
+print("VERSAO SHOPEE V91 - FIX ERROR (BANIMENTO 24H & ROTACAO DE NICHOS)")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -28,7 +28,7 @@ LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 # Arquivos de memória persistente
-HISTORICO_FILE = "historico_global_v90.json"
+HISTORICO_FILE = "historico_global_v91.json"
 
 # Intervalo entre ciclos (em segundos)
 CHECK_INTERVAL = 5400
@@ -44,7 +44,6 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 # ESTRATÉGIA DE BUSCA EXPERT (ROTATIVA)
 # ==========================================
 
-# Dividi os grupos em sub-listas para forçar o bot a mudar de assunto
 KEYWORDS_POOL = {
     "Motos_Real": [
         ["Capacete EBF", "Capacete Pro Tork", "Capacete Mixs"],
@@ -87,7 +86,7 @@ PALAVRAS_BLOQUEIO = [
     "spray de pum", "pegadinha", "sal marinho", "esponja magica", "adesivo retalho",
     "bico desentupidor", "ventosa", "barra estabilizadora", "coxim", "cavalete lateral",
     "filtro refil", "tampa geladeira", "narigueira", "rede elastica", "fecho porta",
-    "organizador gaveta", "caneca infantil", "suporte de baba" # Bloqueio específico para suporte de babá
+    "organizador gaveta", "caneca infantil", "suporte de baba"
 ]
 
 # ==========================================
@@ -111,7 +110,6 @@ def carregar_historico():
 
 def salvar_historico(historico):
     try:
-        # Limpar apenas o que tem mais de 72h
         agora = datetime.now()
         limite = agora - timedelta(hours=72)
         historico_limpo = {k: v for k, v in historico.items() if datetime.fromisoformat(v.get("data", agora.isoformat())) > limite}
@@ -126,24 +124,20 @@ def eh_repetido_expert(titulo, historico_global, lista_ciclo_atual):
     t_novo = normalizar_texto(titulo)
     h = hashlib.md5(t_novo[:40].encode()).hexdigest()
     
-    # 1. Bloqueio de ID Global (48h)
     if h in historico_global: return True
     
-    # 2. Bloqueio de Similaridade (Muito sensível: 35%)
     for p_atual in lista_ciclo_atual:
         t_atual = normalizar_texto(p_atual.get("productName", ""))
         if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.35:
             return True
 
-    # 3. BANIMENTO DE TERMOS (24 HORAS)
-    # Se enviou esse termo nas últimas 24h, tchau.
     termos_banidos = ["fralda", "baba eletronica", "suporte", "pneu", "capacete", "air fryer", "fone", "carregador"]
     agora = datetime.now()
     for termo in termos_banidos:
         if termo in t_novo:
             for item in historico_global.values():
                 data_envio = datetime.fromisoformat(item.get("data", agora.isoformat()))
-                if termo in normalizar_texto(item.get("titulo", "")) and (agora - data_envio).total_seconds() < 86400: # 24 HORAS
+                if termo in normalizar_texto(item.get("titulo", "")) and (agora - data_envio).total_seconds() < 86400:
                     return True
                     
     return False
@@ -220,14 +214,12 @@ def get_melhores_ofertas():
     historico_global = carregar_historico()
     ofertas_finais = []
     
-    # 2 de cada grupo principal
-    categorias_alvo = ["Motos_Real", "Tecnologia_Util", "Eletro_Desejo", "Casa_e_Utilidades", "Bebe_Util"]
+    # CORRIGIDO: Nomes das categorias agora coincidem com o dicionário
+    categorias_alvo = ["Motos_Real", "Tecnologia_Util", "Eletro_Desejo", "Casa_e_Ferramentas", "Bebe_Util"]
     
     for cat_name in categorias_alvo:
         vagas_preenchidas = 0
-        tentativas_cat = 0
         
-        # Sorteia uma sub-lista para garantir que o bot mude de assunto dentro da categoria
         sub_listas = KEYWORDS_POOL[cat_name].copy()
         random.shuffle(sub_listas)
         
@@ -252,7 +244,6 @@ def get_melhores_ofertas():
                     
                     if cat_name == "Motos_Real" and preco > 480: continue
                     
-                    # Se for item de moto em outra categoria, bloqueia
                     if cat_name != "Motos_Real" and any(m in nome.lower() for m in ["moto", "capacete", "pneu"]):
                         continue
 
@@ -277,7 +268,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
     if not (dt_time(5, 30) <= agora <= dt_time(21, 30)): return
 
-    logging.info("Iniciando ciclo V90 Expert...")
+    logging.info("Iniciando ciclo V91 Fix Error...")
     ofertas = get_melhores_ofertas()
     if not ofertas: return
 
@@ -307,7 +298,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V90 Ativo!")
+    logging.info("Bot Shopee V91 Ativo!")
 
 if __name__ == "__main__":
     if TELEGRAM_TOKEN:
