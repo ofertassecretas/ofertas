@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V114 - PROFESSIONAL MECHANIC EDITION (A LISTA DE OURO)")
+print("VERSAO SHOPEE V116 - ALL NICHOS PRO + MOTO FIX")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -27,7 +27,7 @@ CHAT_ID_DESTINO = -1003848415150
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-HISTORICO_FILE = "historico_global_v114.json"
+HISTORICO_FILE = "historico_global_v116.json"
 CHECK_INTERVAL = 5400
 PRECO_MIN_BASE = 35.0
 RATING_MIN_BASE = 4.6
@@ -36,15 +36,21 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # ==========================================
-# A LISTA DE OURO DO MECÂNICO (POOL TÉCNICO)
+# MODELOS DE MOTO (AJUSTADO PARA A SHOPEE)
 # ==========================================
 
 MODELOS_MOTO_BR = [
-    "Titan 125/150/160", "Pop 100/110", "Honda Biz 100/125", "Lander 250", 
-    "Factor 125/150", "YBR 125/150", "Bros 150/160", "Twister 250/300", 
-    "Tornado 250", "Sahara 300", "XRE 190/300", "CB 300", "CB 500", "CB 600",
-    "Crosser 150", "Fazer 150/250", "Neo 115", "Lead 110", "PCX 150", "Dafra Next 250"
+    "Titan 125", "Titan 150", "Titan 160", "CG 100", "CG 110", "Pop 100", "Pop 110",
+    "Biz 100", "Biz 125", "Factor 125", "Factor 150", "YBR 125", "YBR 150",
+    "Bros 150", "Bros 160", "Twister 250", "Twister 300", "Tornado 250",
+    "Sahara 300", "XRE 190", "XRE 300", "CB 300", "CB 400", "CB 500", "CB 600",
+    "Crosser 150", "Fazer 150", "Fazer 250", "Neo 115", "Lead 110", "PCX 150",
+    "Dafra Next 250", "Lander 250"
 ]
+
+# ==========================================
+# A LISTA DE OURO DO MECÂNICO + TODOS OS NICHOS PRO
+# ==========================================
 
 KEYWORDS_POOL = {
     "Motos_Tecnico": [
@@ -85,10 +91,114 @@ KEYWORDS_POOL = {
         ["Fralda Pampers", "Fralda Huggies", "Babá Eletrônica", "Monitor Bebê"],
         ["Carrinho Galzerano", "Cadeira Auto", "Patinete Infantil", "Kit Higiene Bebê"],
         ["Blocos de Montar", "Quebra Cabeça Madeira", "Lousa Mágica", "Barraca Infantil"]
+    ],
+    # =========================
+    # MODA MASCULINA
+    # =========================
+    "Moda_Masculina": [
+        # Roupas
+        ["Camiseta básica masculina", "Camiseta oversized masculina", "Camisa polo masculina", "Camisa social masculina", "Camisa de linho masculina", "Camisa xadrez masculina"],
+        ["Jaqueta jeans masculina", "Jaqueta corta vento masculina", "Moletom masculino", "Blusa de frio masculina"],
+        ["Calça jeans masculina", "Calça cargo masculina", "Calça jogger masculina", "Bermuda jeans masculina", "Bermuda moletom masculina"],
+        ["Cueca boxer masculina", "Cueca sem costura masculina", "Meia esportiva masculina", "Meia social masculina"],
+        # Calçados
+        ["Tênis casual masculino", "Tênis esportivo masculino", "Tênis corrida masculino", "Sapatênis masculino"],
+        ["Chinelo slide masculino", "Chinelo havaiana masculino", "Bota masculina", "Sapato social masculino"],
+        # Acessórios
+        ["Carteira masculina", "Relógio masculino", "Óculos de sol masculino", "Boné masculino", "Cinto de couro masculino"],
+        ["Pulseira masculina", "Mochila masculina", "Bolsa transversal masculina", "Corrente masculina", "Anel masculino"]
+    ],
+    # =========================
+    # MODA FEMININA
+    # =========================
+    "Moda_Feminina": [
+        # Roupas
+        ["Vestido longo feminino", "Vestido midi feminino", "Vestido tubinho feminino", "Vestido floral feminino"],
+        ["Cropped feminino", "Body feminino", "Conjunto feminino", "Macacão feminino"],
+        ["Calça jeans feminina", "Calça flare feminina", "Calça pantalona feminina", "Legging feminina", "Shorts jeans feminino"],
+        ["Saia midi feminina", "Saia plissada feminina", "Blazer feminino", "Jaqueta jeans feminina", "Moletom feminino"],
+        # Calçados
+        ["Tênis feminino", "Sandália rasteira feminina", "Sandália salto feminino", "Tamanco feminino"],
+        ["Chinelo feminino", "Bota feminina", "Sapatilha feminina"],
+        # Acessórios
+        ["Bolsa feminina", "Mochila feminina", "Óculos feminino", "Relógio feminino"],
+        ["Kit brincos feminino", "Colar feminino", "Pulseiras femininas", "Presilhas de cabelo femininas", "Scrunchies femininos", "Necessaire feminina"],
+        # Beleza
+        ["Escova secadora feminina", "Chapinha feminina", "Modelador de cachos feminino", "Kit maquiagem feminino"],
+        ["Espelho LED feminino", "Organizador de maquiagem feminino"]
+    ],
+    # =========================
+    # MATERNIDADE (MÃES E BEBÊS)
+    # =========================
+    "Maternidade_Pro": [
+        # Bebês
+        ["Carrinho de bebê", "Bebê conforto", "Cadeirinha automotiva", "Berço portátil", "Cercadinho infantil"],
+        ["Banheira de bebê", "Trocador portátil", "Bolsa maternidade", "Mochila maternidade"],
+        ["Fralda descartável", "Fralda ecológica", "Babador infantil", "Chupeta infantil", "Mamadeira infantil"],
+        ["Esterilizador de mamadeira", "Aquecedor de mamadeira"],
+        # Alimentação
+        ["Cadeira de alimentação infantil", "Prato infantil", "Copo antivazamento", "Talheres infantis", "Triturador de alimentos"],
+        # Brinquedos
+        ["Tapete educativo infantil", "Piano infantil", "Chocalhos infantis", "Mordedores infantis", "Brinquedos Montessori", "Livros sensoriais"],
+        # Mamães
+        ["Sutiã amamentação", "Almofada amamentação", "Extrator de leite elétrico", "Faixa pós-parto", "Cinta modeladora"]
+    ],
+    # =========================
+    # CASA E ELETRODOMÉSTICOS
+    # =========================
+    "Casa_EletroPro": [
+        # Cozinha
+        ["Air Fryer", "Liquidificador", "Batedeira", "Cafeteira", "Panela elétrica", "Grill elétrico", "Sanduicheira", "Mixer", "Processador de alimentos", "Espremedor de frutas"],
+        # Organização
+        ["Organizador de geladeira", "Organizador de gavetas", "Sapateira", "Organizador multiuso", "Cesto organizador", "Caixa organizadora"],
+        # Limpeza
+        ["Aspirador de pó", "Aspirador robô", "Mop giratório", "Lavadora portátil", "Vassoura mágica", "Escova elétrica limpeza"],
+        # Quarto
+        ["Jogo de cama", "Edredom", "Cobertor", "Travesseiro", "Protetor de colchão", "Cortina blackout"],
+        # Banheiro
+        ["Organizador de banheiro", "Prateleira adesiva", "Toalhas de banho", "Tapete banheiro", "Kit acessórios banheiro"]
+    ],
+    # =========================
+    # ELETROELETRÔNICOS
+    # =========================
+    "EletroEletronicos_Pro": [
+        # TV e Áudio
+        ["Smart TV", "Soundbar", "Caixa de som bluetooth", "Home Theater", "Projetor"],
+        # Informática
+        ["Notebook", "Mouse gamer", "Teclado gamer", "Webcam", "Monitor", "SSD", "HD externo", "Impressora"],
+        # Segurança
+        ["Câmera Wi-Fi", "Fechadura digital", "Vídeo porteiro", "Campainha inteligente"],
+        # Iluminação
+        ["Fita LED", "Lâmpada inteligente", "Refletor solar", "Abajur LED"]
+    ],
+    # =========================
+    # USO PESSOAL
+    # =========================
+    "Uso_Pessoal": [
+        # Celulares
+        ["Smartphone Samsung", "Smartphone Xiaomi", "Smartphone Motorola", "iPhone", "Película celular", "Capinha celular", "Carregador turbo", "Cabo USB"],
+        # Áudio
+        ["Fone Bluetooth", "Fone Gamer", "Headset gamer", "Caixa JBL", "Microfone"],
+        # Fitness
+        ["Halteres", "Corda de pular", "Faixa elástica", "Colchonete", "Roda abdominal", "Smartwatch", "Garrafa térmica", "Balança digital"],
+        # Saúde
+        ["Medidor pressão arterial", "Oxímetro", "Massageador", "Pistola massageadora", "Umidificador"],
+        # Livros
+        ["Livro desenvolvimento pessoal", "Livro finanças", "Livro negócios", "Livro marketing digital", "Livro relacionamentos", "Livro saúde mental", "Livro educação financeira"]
+    ],
+    # =========================
+    # GAMES (VENDE MUITO)
+    # =========================
+    "Games_Pro": [
+        ["Playstation 5", "Playstation 4", "Xbox Series S", "Xbox Series X", "Nintendo Switch"],
+        ["Controle sem fio", "Headset gamer", "Mouse gamer", "Teclado gamer", "Cadeira gamer", "Mesa gamer", "Volante gamer"]
     ]
 }
 
+# ==========================================
 # BANIMENTOS E BLOQUEIOS
+# ==========================================
+
 BLOQUEIO_RADICAL_24H = [
     "serra", "tico tico", "fralda", "fone", "capacete", "pneu", "air fryer", 
     "baba eletronica", "ferro", "batedeira", "mochila", "tenis", "sapato", 
@@ -108,7 +218,7 @@ PALAVRAS_BLOQUEIO_BIKE = [
 PALAVRAS_BLOQUEIO_GERAL = [
     "teste", "amostra", "não compre", "dummy", "adesivo", "película", 
     "case", "filtro de papel", "brinde", "usado", "defeito", "capinha",
-    "pano de prato", "meia", "cueca", "calcinha", "mini processador", "ralador manual",
+    "pano de prato", "mini processador", "ralador manual",
     "spray de pum", "pegadinha", "sal marinho", "esponja magica", "adesivo retalho",
     "bico desentupidor", "ventosa", "barra estabilizadora", "coxim", "cavalete lateral",
     "filtro refil", "tampa geladeira", "narigueira", "rede elastica", "fecho porta",
@@ -263,11 +373,25 @@ def aplicar_afiliado(link):
 def get_melhores_ofertas():
     historico_global = carregar_historico()
     ofertas_finais = []
-    categorias_alvo = ["Motos_Tecnico", "Tecnologia_e_Utilidades", "Eletro_Desejo", "Casa_e_Ferramentas", "Bebe_Util"]
+    
+    categorias_alvo = [
+        "Motos_Tecnico",
+        "Tecnologia_e_Utilidades",
+        "Eletro_Desejo",
+        "Casa_e_Ferramentas",
+        "Bebe_Util",
+        "Moda_Masculina",
+        "Moda_Feminina",
+        "Maternidade_Pro",
+        "Casa_EletroPro",
+        "EletroEletronicos_Pro",
+        "Uso_Pessoal",
+        "Games_Pro"
+    ]
     
     for cat_name in categorias_alvo:
         vagas_preenchidas = 0
-        vagas_limite = 2 if cat_name != "Motos_Tecnico" else 2 # Mantido 2 por categoria para equilíbrio
+        vagas_limite = 2 if cat_name != "Motos_Tecnico" else 2
         sub_listas = KEYWORDS_POOL[cat_name].copy()
         random.shuffle(sub_listas)
         
@@ -277,7 +401,8 @@ def get_melhores_ofertas():
             while tentativas_sub < 15 and vagas_preenchidas < vagas_limite:
                 tentativas_sub += 1
                 kw_base = random.choice(sub_lista)
-                # Se for moto, cruza com um modelo aleatório
+                
+                # Se for moto, cruza com um modelo aleatório (sem barras 125/150/160)
                 kw = f"{kw_base} {random.choice(MODELOS_MOTO_BR)}" if cat_name == "Motos_Tecnico" else kw_base
                 
                 produtos = buscar_shopee_god_mode(kw)
@@ -288,24 +413,38 @@ def get_melhores_ofertas():
                     nome = p.get("productName", "")
                     preco = float(p.get("priceMin", 0))
                     vendas = int(p.get("sales", 0))
+                    
+                    # Bloqueio por palavras
                     if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO_GERAL): continue
+                    
+                    # Preço mínimo
                     if preco < PRECO_MIN_BASE: continue
-                    if cat_name == "Motos_Tecnico" and preco > 850: continue # Teto aumentado para peças pesadas
+                    
+                    # Teto de preço por categoria
+                    if cat_name == "Motos_Tecnico" and preco > 850: continue
                     if cat_name != "Motos_Tecnico" and any(m in nome.lower() for m in ["moto", "capacete", "pneu", "retrovisor"]): continue
+                    
+                    # Mínimo de vendas
                     v_necessarias = 5 if preco > 300 else 35
                     if vendas < v_necessarias: continue
+                    
+                    # Rating mínimo
                     if float(p.get("ratingStar", 0)) < RATING_MIN_BASE: continue
+                    
+                    # Repetidos
                     if eh_repetido_master_fix(nome, historico_global, ofertas_finais): continue
+                    
                     p["cat"] = cat_name
                     ofertas_finais.append(p)
                     vagas_preenchidas += 1
                     break
+    
     return ofertas_finais[:10]
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
     if not (dt_time(5, 30) <= agora <= dt_time(21, 30)): return
-    logging.info("Iniciando ciclo V114 Professional Mechanic...")
+    logging.info("Iniciando ciclo V116 All Nichos Pro...")
     ofertas = get_melhores_ofertas()
     if not ofertas: return
     await context.bot.send_message(chat_id=CHAT_ID_DESTINO, text="🚨 <b>OFERTAS SELECIONADAS DE HOJE!</b>\n<i>Produtos de alta qualidade e com o melhor preço.</i>", parse_mode="HTML")
@@ -330,14 +469,13 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V114 Ativo!")
+    logging.info("Bot Shopee V116 All Nichos Pro Ativo!")
 
 if __name__ == "__main__":
     if TELEGRAM_TOKEN:
         ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build().run_polling()
     else:
         print("Erro: TELEGRAM_TOKEN não configurado.")
-
 
 
 
