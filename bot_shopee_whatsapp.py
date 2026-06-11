@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V112 - MASTER MECHANIC FIX (ANTI-REPETICAO TOTAL)")
+print("VERSAO SHOPEE V113 - MOTO ONLY (ANTI-BIKE SYSTEM)")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -28,35 +28,36 @@ LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 # Arquivos de memória persistente
-HISTORICO_FILE = "historico_global_v112.json"
+HISTORICO_FILE = "historico_global_v113.json"
 
 # Intervalo entre ciclos (em segundos)
 CHECK_INTERVAL = 5400
 
 # FILTROS BASE
-PRECO_MIN_BASE = 35.0 # Aumentado ligeiramente para evitar quinquilharias
+PRECO_MIN_BASE = 35.0
 RATING_MIN_BASE = 4.6
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 # ==========================================
-# ESTRATÉGIA DE BUSCA (REFINO TÉCNICO)
+# ESTRATÉGIA DE BUSCA (FOCO EM MOTO E BLOQUEIO DE BIKE)
 # ==========================================
 
 KEYWORDS_POOL = {
     "Motos_Real": [
-        # Peças Técnicas de Manutenção (Foco Mecânico)
-        ["Vela NGK Iridium", "Vela Moto NGK", "Filtro Ar Vedamotors", "Filtro Óleo Honda"],
-        ["Pastilha Freio Cobreq", "Pastilha Freio Fischer", "Lona Freio Cobreq", "Disco Freio"],
-        ["Kit Relação Vaz", "Kit Transmissão KMC", "Corrente DID", "Relação Riffel"],
-        ["Óleo Mobil 10w30", "Óleo Motul 5100", "Óleo Yamalube", "Graxa Corrente"],
-        ["Bateria Moura Moto", "Bateria Yuasa", "Retificador Voltagem", "CDI Racing"],
-        ["Pneu Levorin Matrix", "Pneu Maggion VIP", "Pneu Pirelli Angel", "Pneu Metzeler"],
-        ["Câmara de Ar Pirelli", "Kit Reparo Pneu", "Burrinho Freio", "Amortecedor Titan"],
-        # Segurança e Acessórios Úteis
+        # Peças Técnicas de Manutenção (Adicionado 'Moto' ou modelo para evitar Bike)
+        ["Vela NGK Moto", "Filtro Ar Moto Vedamotors", "Filtro Óleo Moto Honda"],
+        ["Pastilha Freio Moto Cobreq", "Pastilha Freio Fischer Moto", "Lona Freio Moto Cobreq"],
+        ["Kit Relação Vaz Moto", "Kit Transmissão KMC Moto", "Corrente DID Moto", "Relação Riffel Moto"],
+        ["Óleo Mobil 10w30 Moto", "Óleo Motul 5100 Moto", "Óleo Yamalube Moto", "Graxa Corrente Moto"],
+        ["Bateria Moura Moto", "Bateria Yuasa Moto", "Retificador Voltagem Moto", "CDI Racing Moto"],
+        ["Pneu Moto Levorin Matrix", "Pneu Moto Maggion VIP", "Pneu Moto Pirelli Angel", "Pneu Moto Metzeler"],
+        ["Câmara de Ar Moto Pirelli", "Kit Reparo Pneu Moto", "Burrinho Freio Moto", "Amortecedor Moto Titan"],
+        ["Disco Freio Moto Titan", "Cubo Roda Moto Fan", "Aro Roda Moto", "Roda Liga Leve Moto"],
+        # Segurança e Equipamento
         ["Capacete LS2", "Capacete Norisk", "Capacete EBF", "Capacete Pro Tork"],
-        ["Capa Chuva Pantaneiro", "Bota Impermeável", "Luva Proteção", "Baú Pro Tork"]
+        ["Capa Chuva Pantaneiro", "Bota Impermeável Moto", "Luva Proteção Moto", "Baú Pro Tork Moto"]
     ],
     "Tecnologia_Util": [
         ["Fone Bluetooth JBL", "Fone Lenovo LP40", "Fone QCY", "Fone Haylou"],
@@ -86,7 +87,7 @@ KEYWORDS_POOL = {
     ]
 }
 
-# BANIMENTO POR RADICAL (Se enviou 'Serra', bloqueia tudo com 'Serra' por 24h)
+# BANIMENTO POR RADICAL (24h)
 BLOQUEIO_RADICAL_24H = [
     "serra", "tico tico", "fralda", "fone", "capacete", "pneu", "air fryer", 
     "baba eletronica", "ferro", "batedeira", "mochila", "tenis", "sapato", 
@@ -97,6 +98,13 @@ BLOQUEIO_REPETICAO_CICLO = [
     "suporte", "cabo", "carregador", "retrovisor", "bau", "kit relação", "pisca", "manete"
 ]
 
+# LISTA NEGRA DE BICICLETA (MUITO IMPORTANTE)
+PALAVRAS_BLOQUEIO_BIKE = [
+    "bike", "bicicleta", "shimano", "aro 26", "aro 29", "mtb", "vzan", 
+    "mountain bike", "vmaxx", "v-max", "altus", "deore", "gts", "speed", 
+    "monark", "caloi", "bmx", "ciclismo", "ciclista", "aro 20", "aro 24"
+]
+
 PALAVRAS_BLOQUEIO_GERAL = [
     "teste", "amostra", "não compre", "dummy", "adesivo", "película", 
     "case", "filtro de papel", "brinde", "usado", "defeito", "capinha",
@@ -105,10 +113,10 @@ PALAVRAS_BLOQUEIO_GERAL = [
     "bico desentupidor", "ventosa", "barra estabilizadora", "coxim", "cavalete lateral",
     "filtro refil", "tampa geladeira", "narigueira", "rede elastica", "fecho porta",
     "organizador gaveta", "caneca infantil", "suporte de baba"
-]
+] + PALAVRAS_BLOQUEIO_BIKE
 
 # ==========================================
-# GESTÃO DE MEMÓRIA (MASTER FIX)
+# GESTÃO DE MEMÓRIA
 # ==========================================
 
 def normalizar_texto(txt):
@@ -141,20 +149,17 @@ def salvar_historico(historico):
 def eh_repetido_master_fix(titulo, historico_global, lista_ciclo_atual):
     t_novo = normalizar_texto(titulo)
     
-    # 1. BLOQUEIO DE TERMOS NO MESMO CICLO
     for termo in BLOQUEIO_REPETICAO_CICLO + BLOQUEIO_RADICAL_24H:
         if termo in t_novo:
             for p_ja_escolhido in lista_ciclo_atual:
                 if termo in normalizar_texto(p_ja_escolhido.get("productName", "")):
                     return True
 
-    # 2. BLOQUEIO DE SIMILARIDADE (30%)
     for p_atual in lista_ciclo_atual:
         t_atual = normalizar_texto(p_atual.get("productName", ""))
         if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.30:
             return True
 
-    # 3. BANIMENTO GLOBAL DE 24 HORAS POR RADICAL (CRÍTICO)
     agora = datetime.now()
     for radical in BLOQUEIO_RADICAL_24H:
         if radical in t_novo:
@@ -321,7 +326,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
     if not (dt_time(5, 30) <= agora <= dt_time(21, 30)): return
 
-    logging.info("Iniciando ciclo V112 Master Mechanic Fix...")
+    logging.info("Iniciando ciclo V113 Moto Only...")
     ofertas = get_melhores_ofertas()
     if not ofertas: return
 
@@ -351,13 +356,14 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V112 Ativo!")
+    logging.info("Bot Shopee V113 Ativo!")
 
 if __name__ == "__main__":
     if TELEGRAM_TOKEN:
         ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build().run_polling()
     else:
         print("Erro: TELEGRAM_TOKEN não configurado.")
+
 
 
 
