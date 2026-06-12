@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V116 - ALL NICHOS PRO + MOTO FIX")
+print("VERSAO SHOPEE V117 - ALL NICHOS INTELIGENTE + MOTO FIX + LOGS DE MOTO")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -34,6 +34,21 @@ RATING_MIN_BASE = 4.6
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
+
+# ==========================================
+# ASSUNTOS ENJOADOS (BLOQUEIO POR 24H)
+# ==========================================
+
+ASSUNTOS_ENJOADOS = [
+    "lousa magica",
+    "baba eletronica",
+    "power bank",
+    "passadeira a vapor",
+    "passadeira",
+    "tenis olympikus",
+    "tenis de corrida",
+    "repetidor wifi"
+]
 
 # ==========================================
 # MODELOS DE MOTO (AJUSTADO PARA A SHOPEE)
@@ -92,103 +107,57 @@ KEYWORDS_POOL = {
         ["Carrinho Galzerano", "Cadeira Auto", "Patinete Infantil", "Kit Higiene Bebê"],
         ["Blocos de Montar", "Quebra Cabeça Madeira", "Lousa Mágica", "Barraca Infantil"]
     ],
-    # =========================
-    # MODA MASCULINA
-    # =========================
     "Moda_Masculina": [
-        # Roupas
         ["Camiseta básica masculina", "Camiseta oversized masculina", "Camisa polo masculina", "Camisa social masculina", "Camisa de linho masculina", "Camisa xadrez masculina"],
         ["Jaqueta jeans masculina", "Jaqueta corta vento masculina", "Moletom masculino", "Blusa de frio masculina"],
         ["Calça jeans masculina", "Calça cargo masculina", "Calça jogger masculina", "Bermuda jeans masculina", "Bermuda moletom masculina"],
         ["Cueca boxer masculina", "Cueca sem costura masculina", "Meia esportiva masculina", "Meia social masculina"],
-        # Calçados
         ["Tênis casual masculino", "Tênis esportivo masculino", "Tênis corrida masculino", "Sapatênis masculino"],
         ["Chinelo slide masculino", "Chinelo havaiana masculino", "Bota masculina", "Sapato social masculino"],
-        # Acessórios
         ["Carteira masculina", "Relógio masculino", "Óculos de sol masculino", "Boné masculino", "Cinto de couro masculino"],
         ["Pulseira masculina", "Mochila masculina", "Bolsa transversal masculina", "Corrente masculina", "Anel masculino"]
     ],
-    # =========================
-    # MODA FEMININA
-    # =========================
     "Moda_Feminina": [
-        # Roupas
         ["Vestido longo feminino", "Vestido midi feminino", "Vestido tubinho feminino", "Vestido floral feminino"],
         ["Cropped feminino", "Body feminino", "Conjunto feminino", "Macacão feminino"],
         ["Calça jeans feminina", "Calça flare feminina", "Calça pantalona feminina", "Legging feminina", "Shorts jeans feminino"],
         ["Saia midi feminina", "Saia plissada feminina", "Blazer feminino", "Jaqueta jeans feminina", "Moletom feminino"],
-        # Calçados
         ["Tênis feminino", "Sandália rasteira feminina", "Sandália salto feminino", "Tamanco feminino"],
         ["Chinelo feminino", "Bota feminina", "Sapatilha feminina"],
-        # Acessórios
         ["Bolsa feminina", "Mochila feminina", "Óculos feminino", "Relógio feminino"],
         ["Kit brincos feminino", "Colar feminino", "Pulseiras femininas", "Presilhas de cabelo femininas", "Scrunchies femininos", "Necessaire feminina"],
-        # Beleza
         ["Escova secadora feminina", "Chapinha feminina", "Modelador de cachos feminino", "Kit maquiagem feminino"],
         ["Espelho LED feminino", "Organizador de maquiagem feminino"]
     ],
-    # =========================
-    # MATERNIDADE (MÃES E BEBÊS)
-    # =========================
     "Maternidade_Pro": [
-        # Bebês
         ["Carrinho de bebê", "Bebê conforto", "Cadeirinha automotiva", "Berço portátil", "Cercadinho infantil"],
         ["Banheira de bebê", "Trocador portátil", "Bolsa maternidade", "Mochila maternidade"],
         ["Fralda descartável", "Fralda ecológica", "Babador infantil", "Chupeta infantil", "Mamadeira infantil"],
         ["Esterilizador de mamadeira", "Aquecedor de mamadeira"],
-        # Alimentação
         ["Cadeira de alimentação infantil", "Prato infantil", "Copo antivazamento", "Talheres infantis", "Triturador de alimentos"],
-        # Brinquedos
         ["Tapete educativo infantil", "Piano infantil", "Chocalhos infantis", "Mordedores infantis", "Brinquedos Montessori", "Livros sensoriais"],
-        # Mamães
         ["Sutiã amamentação", "Almofada amamentação", "Extrator de leite elétrico", "Faixa pós-parto", "Cinta modeladora"]
     ],
-    # =========================
-    # CASA E ELETRODOMÉSTICOS
-    # =========================
     "Casa_EletroPro": [
-        # Cozinha
         ["Air Fryer", "Liquidificador", "Batedeira", "Cafeteira", "Panela elétrica", "Grill elétrico", "Sanduicheira", "Mixer", "Processador de alimentos", "Espremedor de frutas"],
-        # Organização
         ["Organizador de geladeira", "Organizador de gavetas", "Sapateira", "Organizador multiuso", "Cesto organizador", "Caixa organizadora"],
-        # Limpeza
         ["Aspirador de pó", "Aspirador robô", "Mop giratório", "Lavadora portátil", "Vassoura mágica", "Escova elétrica limpeza"],
-        # Quarto
         ["Jogo de cama", "Edredom", "Cobertor", "Travesseiro", "Protetor de colchão", "Cortina blackout"],
-        # Banheiro
         ["Organizador de banheiro", "Prateleira adesiva", "Toalhas de banho", "Tapete banheiro", "Kit acessórios banheiro"]
     ],
-    # =========================
-    # ELETROELETRÔNICOS
-    # =========================
     "EletroEletronicos_Pro": [
-        # TV e Áudio
         ["Smart TV", "Soundbar", "Caixa de som bluetooth", "Home Theater", "Projetor"],
-        # Informática
         ["Notebook", "Mouse gamer", "Teclado gamer", "Webcam", "Monitor", "SSD", "HD externo", "Impressora"],
-        # Segurança
         ["Câmera Wi-Fi", "Fechadura digital", "Vídeo porteiro", "Campainha inteligente"],
-        # Iluminação
         ["Fita LED", "Lâmpada inteligente", "Refletor solar", "Abajur LED"]
     ],
-    # =========================
-    # USO PESSOAL
-    # =========================
     "Uso_Pessoal": [
-        # Celulares
-        ["Smartphone Samsung", "Smartphone Xiaomi", "Smartphone Motorola", "iPhone", "Película celular", "Capinha celular", "Carregador turbo", "Cabo USB"],
-        # Áudio
+        ["Smartphone Samsung", "Smartphone Xiaomi", "Smartpoint Motorola", "iPhone", "Película celular", "Capinha celular", "Carregador turbo", "Cabo USB"],
         ["Fone Bluetooth", "Fone Gamer", "Headset gamer", "Caixa JBL", "Microfone"],
-        # Fitness
         ["Halteres", "Corda de pular", "Faixa elástica", "Colchonete", "Roda abdominal", "Smartwatch", "Garrafa térmica", "Balança digital"],
-        # Saúde
         ["Medidor pressão arterial", "Oxímetro", "Massageador", "Pistola massageadora", "Umidificador"],
-        # Livros
         ["Livro desenvolvimento pessoal", "Livro finanças", "Livro negócios", "Livro marketing digital", "Livro relacionamentos", "Livro saúde mental", "Livro educação financeira"]
     ],
-    # =========================
-    # GAMES (VENDE MUITO)
-    # =========================
     "Games_Pro": [
         ["Playstation 5", "Playstation 4", "Xbox Series S", "Xbox Series X", "Nintendo Switch"],
         ["Controle sem fio", "Headset gamer", "Mouse gamer", "Teclado gamer", "Cadeira gamer", "Mesa gamer", "Volante gamer"]
@@ -258,15 +227,31 @@ def salvar_historico(historico):
 
 def eh_repetido_master_fix(titulo, historico_global, lista_ciclo_atual):
     t_novo = normalizar_texto(titulo)
+    
+    # 1) BLOQUEIO POR ASSUNTO ENJOADO (24H)
+    for assunto in ASSUNTOS_ENJOADOS:
+        if assunto in t_novo:
+            agora = datetime.now()
+            for item in historico_global.values():
+                t_antigo = normalizar_texto(item.get("titulo", ""))
+                data_envio = datetime.fromisoformat(item.get("data", agora.isoformat()))
+                if assunto in t_antigo and (agora - data_envio).total_seconds() < 24 * 3600:
+                    return True
+
+    # 2) BLOQUEIO POR RADICAL EXISTENTE
     for termo in BLOQUEIO_REPETICAO_CICLO + BLOQUEIO_RADICAL_24H:
         if termo in t_novo:
             for p_ja_escolhido in lista_ciclo_atual:
                 if termo in normalizar_texto(p_ja_escolhido.get("productName", "")):
                     return True
+
+    # 3) SIMILARIDADE NO CICLO
     for p_atual in lista_ciclo_atual:
         t_atual = normalizar_texto(p_atual.get("productName", ""))
         if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.30:
             return True
+
+    # 4) BLOQUEIO POR RADICAL EM HISTÓRICO (24H)
     agora = datetime.now()
     for radical in BLOQUEIO_RADICAL_24H:
         if radical in t_novo:
@@ -274,8 +259,11 @@ def eh_repetido_master_fix(titulo, historico_global, lista_ciclo_atual):
                 data_envio = datetime.fromisoformat(item.get("data", agora.isoformat()))
                 if radical in normalizar_texto(item.get("titulo", "")) and (agora - data_envio).total_seconds() < 86400:
                     return True
+
+    # 5) HASH DO TÍTULO
     h = hashlib.md5(t_novo[:45].encode()).hexdigest()
     if h in historico_global: return True
+
     return False
 
 # ==========================================
@@ -370,6 +358,10 @@ def aplicar_afiliado(link):
     except:
         return link
 
+# ==========================================
+# LÓGICA DE SELEÇÃO DE OFERTAS (INTELIGENTE + MOTO + LOGS)
+# ==========================================
+
 def get_melhores_ofertas():
     historico_global = carregar_historico()
     ofertas_finais = []
@@ -389,64 +381,115 @@ def get_melhores_ofertas():
         "Games_Pro"
     ]
     
+    logging.info("=== INÍCIO DO CICLO DE SELEÇÃO DE OFERTAS (V117) ===")
+    
     for cat_name in categorias_alvo:
         vagas_preenchidas = 0
-        vagas_limite = 2 if cat_name != "Motos_Tecnico" else 2
+        # MOTO: 4 vagas por ciclo; outros: 1 vaga
+        if cat_name == "Motos_Tecnico":
+            vagas_limite = 4
+        else:
+            vagas_limite = 1
+        
         sub_listas = KEYWORDS_POOL[cat_name].copy()
         random.shuffle(sub_listas)
         
-        for sub_lista in sub_listas:
-            if vagas_preenchidas >= vagas_limite: break
+        logging.info(f"Categoria: {cat_name} | vagas_limite={vagas_limite}")
+        
+        for idx_sub, sub_lista in enumerate(sub_listas):
+            if vagas_preenchidas >= vagas_limite:
+                break
+            
             tentativas_sub = 0
             while tentativas_sub < 15 and vagas_preenchidas < vagas_limite:
                 tentativas_sub += 1
                 kw_base = random.choice(sub_lista)
                 
-                # Se for moto, cruza com um modelo aleatório (sem barras 125/150/160)
+                # Se for moto, cruza com um modelo aleatório
                 kw = f"{kw_base} {random.choice(MODELOS_MOTO_BR)}" if cat_name == "Motos_Tecnico" else kw_base
                 
+                if cat_name == "Motos_Tecnico":
+                    logging.info(f"  Sublista {idx_sub+1} | Tentativa {tentativas_sub} | Keyword moto: {kw}")
+                else:
+                    logging.info(f"  Sublista {idx_sub+1} | Tentativa {tentativas_sub} | Keyword: {kw}")
+                
                 produtos = buscar_shopee_god_mode(kw)
-                if not produtos: continue
+                
+                if not produtos:
+                    if cat_name == "Motos_Tecnico":
+                        logging.warning(f"    -> API retornou 0 produtos para moto: {kw}")
+                    continue
+                
+                if cat_name == "Motos_Tecnico":
+                    logging.info(f"    -> API retornou {len(produtos)} produtos para moto: {kw}")
+                
                 top_produtos = produtos[:20]
                 random.shuffle(top_produtos)
+                
+                passou_preco = 0
+                passou_vendas = 0
+                passou_rating = 0
+                passou_bloqueio = 0
+                passou_repetido = 0
+                
                 for p in top_produtos:
                     nome = p.get("productName", "")
                     preco = float(p.get("priceMin", 0))
                     vendas = int(p.get("sales", 0))
                     
-                    # Bloqueio por palavras
-                    if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO_GERAL): continue
+                    # Bloqueio por palavra
+                    if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO_GERAL):
+                        passed_bloqueio = True
+                        passou_bloqueio += 1
+                        continue
                     
                     # Preço mínimo
-                    if preco < PRECO_MIN_BASE: continue
+                    if preco < PRECO_MIN_BASE:
+                        passou_preco += 1
+                        continue
                     
                     # Teto de preço por categoria
-                    if cat_name == "Motos_Tecnico" and preco > 850: continue
-                    if cat_name != "Motos_Tecnico" and any(m in nome.lower() for m in ["moto", "capacete", "pneu", "retrovisor"]): continue
+                    if cat_name == "Motos_Tecnico" and preco > 850:
+                        continue
+                    if cat_name != "Motos_Tecnico" and any(m in nome.lower() for m in ["moto", "capacete", "pneu", "retrovisor"]):
+                        continue
                     
                     # Mínimo de vendas
                     v_necessarias = 5 if preco > 300 else 35
-                    if vendas < v_necessarias: continue
+                    if vendas < v_necessarias:
+                        passou_vendas += 1
+                        continue
                     
                     # Rating mínimo
-                    if float(p.get("ratingStar", 0)) < RATING_MIN_BASE: continue
+                    if float(p.get("ratingStar", 0)) < RATING_MIN_BASE:
+                        passou_rating += 1
+                        continue
                     
                     # Repetidos
-                    if eh_repetido_master_fix(nome, historico_global, ofertas_finais): continue
+                    if eh_repetido_master_fix(nome, historico_global, ofertas_finais):
+                        passou_repetido += 1
+                        continue
                     
                     p["cat"] = cat_name
                     ofertas_finais.append(p)
                     vagas_preenchidas += 1
                     break
+                
+                if cat_name == "Motos_Tecnico" and tentativas_sub >= 1:
+                    logging.info(f"    -> Passou preço: {passou_preco} | vendas: {passou_vendas} | rating: {passou_rating} | bloqueio: {passou_bloqueio} | repetido: {passou_repetido}")
+    
+    logging.info(f"=== FINAL: Ofertas seleccionadas = {len(ofertas_finais)} ===")
     
     return ofertas_finais[:10]
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
     if not (dt_time(5, 30) <= agora <= dt_time(21, 30)): return
-    logging.info("Iniciando ciclo V116 All Nichos Pro...")
+    logging.info("Iniciando ciclo V117 All Nichos Inteligente...")
     ofertas = get_melhores_ofertas()
-    if not ofertas: return
+    if not ofertas:
+        logging.warning("Nenhuma oferta encontrada neste ciclo.")
+        return
     await context.bot.send_message(chat_id=CHAT_ID_DESTINO, text="🚨 <b>OFERTAS SELECIONADAS DE HOJE!</b>\n<i>Produtos de alta qualidade e com o melhor preço.</i>", parse_mode="HTML")
     await asyncio.sleep(3)
     historico_global = carregar_historico()
@@ -469,7 +512,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V116 All Nichos Pro Ativo!")
+    logging.info("Bot Shopee V117 All Nichos Inteligente Ativo!")
 
 if __name__ == "__main__":
     if TELEGRAM_TOKEN:
