@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V117 - ALL NICHOS INTELIGENTE + MOTO FIX + LOGS DE MOTO")
+print("VERSAO SHOPEE V118 - 2 PRODUTOS POR NICHO")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -27,7 +27,7 @@ CHAT_ID_DESTINO = -1003848415150
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-HISTORICO_FILE = "historico_global_v116.json"
+HISTORICO_FILE = "historico_global_v118.json"
 CHECK_INTERVAL = 5400
 PRECO_MIN_BASE = 35.0
 RATING_MIN_BASE = 4.6
@@ -51,7 +51,7 @@ ASSUNTOS_ENJOADOS = [
 ]
 
 # ==========================================
-# MODELOS DE MOTO (AJUSTADO PARA A SHOPEE)
+# MODELOS DE MOTO (PARA GERAR KEYWORDS)
 # ==========================================
 
 MODELOS_MOTO_BR = [
@@ -64,103 +64,29 @@ MODELOS_MOTO_BR = [
 ]
 
 # ==========================================
-# A LISTA DE OURO DO MECÂNICO + TODOS OS NICHOS PRO
+# KEYWORDS DOS 5 NICHOS (2 PRODUTOS POR NICHO)
 # ==========================================
 
-KEYWORDS_POOL = {
-    "Motos_Tecnico": [
-        # Motor e Transmissão (Alto Giro)
-        ["Kit Relação Vaz", "Kit Embreagem", "Kit Cilindro Moto", "Biela Moto", "Kit Pistão com Anéis", "Jogo de Juntas Moto"],
-        ["Vela Iridium Moto", "Cabo de Vela Moto", "Cachimbo de Vela", "Carburador Moto", "Bomba Combustível Moto"],
-        ["Corrente Comando Moto", "Esticador Corrente Comando", "Válvula Escape", "Válvula Admissão", "Guarnição Tampa Válvulas"],
-        ["Motor de Partida Moto", "Escova de Arranque", "Placa de Partida Moto", "Engrenagem Placa Partida"],
-        # Injeção e Elétrica
-        ["Sensor TPS Moto", "Sensor Híbrido Moto", "Sensor Lenta Moto", "Sensor Borboleta", "Corpo de Injeção Moto"],
-        ["CDI Moto", "Estator Moto", "Bobina de Pulso", "Bobina de Faísca", "Chicote Principal Moto", "Regulador de Voltagem"],
-        ["Painel Completo Moto", "Relé de Pisca", "Pisca Completo Moto", "Bloco Óptico Moto"],
-        # Chassis, Suspensão e Freios
-        ["Kit Freio a Disco Moto", "Pastilha e Disco Freio", "Espelho de Freio", "Burrinho de Freio", "Pedal de Freio Moto"],
-        ["Amortecedor Traseiro Moto", "Tubo Interno Moto", "Retentores Bengala", "Caixa de Direção Moto", "Bucha Balança Moto"],
-        ["Mesa Superior Moto", "Mesa Inferior Moto", "Quadro Elástico Moto", "Eixo Moto", "Coxim Coroa Moto"],
-        # Pneus (Medidas Exatas)
-        ["Pneu 90/90-18 Moto", "Pneu 2.75-18 Moto", "Pneu 110/70-17 Moto", "Pneu 140/70-17 Moto", "Câmara de Ar Moto"],
-        # Estética e Acessórios Profissionais
-        ["Paralama Dianteiro Moto", "Paralama Traseiro Moto", "Aba Tanque Moto", "Tampa Lateral Moto", "Rabeta Moto"],
-        ["Capa Banco Moto", "Guidão Moto", "Retrovisores Moto", "Manete Esportiva Moto", "Pedal de Marcha"],
-        ["Capacete LS2", "Capacete Norisk", "Baú Moto", "Suporte Baú", "Luvas Moto", "Jaqueta Moto", "Bala Clava Moto"]
+NICHOS = {
+    "Moto": [
+        "kit relação titan 160",
+        "burrinho de freio honda biz 125"
     ],
-    "Tecnologia_e_Utilidades": [
-        ["Fone Bluetooth JBL", "Fone Lenovo", "Smartwatch Iwo", "Alexa Echo Dot"],
-        ["Carregador Turbo", "Power Bank Pineng", "Cabo Baseus", "Câmera Segurança"],
-        ["Intercomunicador V6", "Roteador Wifi", "Mochila Motoboy Impermeável"]
+    "Moda": [
+        "vestido longo feminino",
+        "camisa polo masculina"
     ],
-    "Eletro_Desejo": [
-        ["Air Fryer Mondial", "Fritadeira Philco", "Batedeira Arno", "Liquidificador Oster"],
-        ["Ferro de Passar", "Vaporizador Roupas", "Ventilador Turbo", "Máquina de Café"]
+    "Casa": [
+        "kit cobre leito",
+        "escova limpeza pesada"
     ],
-    "Casa_e_Ferramentas": [
-        ["Jogo de Chaves", "Furadeira Impacto", "Parafusadeira Vonder", "Serra Tico Tico"],
-        ["Mochila Notebook", "Lâmpada Inteligente", "Refletor LED", "Tênis Olympikus"]
+    "Maternidade": [
+        "carrinho de passeio bebê real",
+        "mochila canguru bebê"
     ],
-    "Bebe_Util": [
-        ["Fralda Pampers", "Fralda Huggies", "Babá Eletrônica", "Monitor Bebê"],
-        ["Carrinho Galzerano", "Cadeira Auto", "Patinete Infantil", "Kit Higiene Bebê"],
-        ["Blocos de Montar", "Quebra Cabeça Madeira", "Lousa Mágica", "Barraca Infantil"]
-    ],
-    "Moda_Masculina": [
-        ["Camiseta básica masculina", "Camiseta oversized masculina", "Camisa polo masculina", "Camisa social masculina", "Camisa de linho masculina", "Camisa xadrez masculina"],
-        ["Jaqueta jeans masculina", "Jaqueta corta vento masculina", "Moletom masculino", "Blusa de frio masculina"],
-        ["Calça jeans masculina", "Calça cargo masculina", "Calça jogger masculina", "Bermuda jeans masculina", "Bermuda moletom masculina"],
-        ["Cueca boxer masculina", "Cueca sem costura masculina", "Meia esportiva masculina", "Meia social masculina"],
-        ["Tênis casual masculino", "Tênis esportivo masculino", "Tênis corrida masculino", "Sapatênis masculino"],
-        ["Chinelo slide masculino", "Chinelo havaiana masculino", "Bota masculina", "Sapato social masculino"],
-        ["Carteira masculina", "Relógio masculino", "Óculos de sol masculino", "Boné masculino", "Cinto de couro masculino"],
-        ["Pulseira masculina", "Mochila masculina", "Bolsa transversal masculina", "Corrente masculina", "Anel masculino"]
-    ],
-    "Moda_Feminina": [
-        ["Vestido longo feminino", "Vestido midi feminino", "Vestido tubinho feminino", "Vestido floral feminino"],
-        ["Cropped feminino", "Body feminino", "Conjunto feminino", "Macacão feminino"],
-        ["Calça jeans feminina", "Calça flare feminina", "Calça pantalona feminina", "Legging feminina", "Shorts jeans feminino"],
-        ["Saia midi feminina", "Saia plissada feminina", "Blazer feminino", "Jaqueta jeans feminina", "Moletom feminino"],
-        ["Tênis feminino", "Sandália rasteira feminina", "Sandália salto feminino", "Tamanco feminino"],
-        ["Chinelo feminino", "Bota feminina", "Sapatilha feminina"],
-        ["Bolsa feminina", "Mochila feminina", "Óculos feminino", "Relógio feminino"],
-        ["Kit brincos feminino", "Colar feminino", "Pulseiras femininas", "Presilhas de cabelo femininas", "Scrunchies femininos", "Necessaire feminina"],
-        ["Escova secadora feminina", "Chapinha feminina", "Modelador de cachos feminino", "Kit maquiagem feminino"],
-        ["Espelho LED feminino", "Organizador de maquiagem feminino"]
-    ],
-    "Maternidade_Pro": [
-        ["Carrinho de bebê", "Bebê conforto", "Cadeirinha automotiva", "Berço portátil", "Cercadinho infantil"],
-        ["Banheira de bebê", "Trocador portátil", "Bolsa maternidade", "Mochila maternidade"],
-        ["Fralda descartável", "Fralda ecológica", "Babador infantil", "Chupeta infantil", "Mamadeira infantil"],
-        ["Esterilizador de mamadeira", "Aquecedor de mamadeira"],
-        ["Cadeira de alimentação infantil", "Prato infantil", "Copo antivazamento", "Talheres infantis", "Triturador de alimentos"],
-        ["Tapete educativo infantil", "Piano infantil", "Chocalhos infantis", "Mordedores infantis", "Brinquedos Montessori", "Livros sensoriais"],
-        ["Sutiã amamentação", "Almofada amamentação", "Extrator de leite elétrico", "Faixa pós-parto", "Cinta modeladora"]
-    ],
-    "Casa_EletroPro": [
-        ["Air Fryer", "Liquidificador", "Batedeira", "Cafeteira", "Panela elétrica", "Grill elétrico", "Sanduicheira", "Mixer", "Processador de alimentos", "Espremedor de frutas"],
-        ["Organizador de geladeira", "Organizador de gavetas", "Sapateira", "Organizador multiuso", "Cesto organizador", "Caixa organizadora"],
-        ["Aspirador de pó", "Aspirador robô", "Mop giratório", "Lavadora portátil", "Vassoura mágica", "Escova elétrica limpeza"],
-        ["Jogo de cama", "Edredom", "Cobertor", "Travesseiro", "Protetor de colchão", "Cortina blackout"],
-        ["Organizador de banheiro", "Prateleira adesiva", "Toalhas de banho", "Tapete banheiro", "Kit acessórios banheiro"]
-    ],
-    "EletroEletronicos_Pro": [
-        ["Smart TV", "Soundbar", "Caixa de som bluetooth", "Home Theater", "Projetor"],
-        ["Notebook", "Mouse gamer", "Teclado gamer", "Webcam", "Monitor", "SSD", "HD externo", "Impressora"],
-        ["Câmera Wi-Fi", "Fechadura digital", "Vídeo porteiro", "Campainha inteligente"],
-        ["Fita LED", "Lâmpada inteligente", "Refletor solar", "Abajur LED"]
-    ],
-    "Uso_Pessoal": [
-        ["Smartphone Samsung", "Smartphone Xiaomi", "Smartpoint Motorola", "iPhone", "Película celular", "Capinha celular", "Carregador turbo", "Cabo USB"],
-        ["Fone Bluetooth", "Fone Gamer", "Headset gamer", "Caixa JBL", "Microfone"],
-        ["Halteres", "Corda de pular", "Faixa elástica", "Colchonete", "Roda abdominal", "Smartwatch", "Garrafa térmica", "Balança digital"],
-        ["Medidor pressão arterial", "Oxímetro", "Massageador", "Pistola massageadora", "Umidificador"],
-        ["Livro desenvolvimento pessoal", "Livro finanças", "Livro negócios", "Livro marketing digital", "Livro relacionamentos", "Livro saúde mental", "Livro educação financeira"]
-    ],
-    "Games_Pro": [
-        ["Playstation 5", "Playstation 4", "Xbox Series S", "Xbox Series X", "Nintendo Switch"],
-        ["Controle sem fio", "Headset gamer", "Mouse gamer", "Teclado gamer", "Cadeira gamer", "Mesa gamer", "Volante gamer"]
+    "Eletroeletrônicos": [
+        "video game stick 4k",
+        "smartphone 5g 256gb"
     ]
 }
 
@@ -235,7 +161,9 @@ def eh_repetido_master_fix(titulo, historico_global, lista_ciclo_atual):
             for item in historico_global.values():
                 t_antigo = normalizar_texto(item.get("titulo", ""))
                 data_envio = datetime.fromisoformat(item.get("data", agora.isoformat()))
-                if assunto in t_antigo and (agora - data_envio).total_seconds() < 24 * 3600:
+                if assunto in t_antigo and (agora - data
+
+##əri.data").total_seconds() < 24 * 3600:
                     return True
 
     # 2) BLOQUEIO POR RADICAL EXISTENTE
@@ -376,10 +304,8 @@ def diagnostico_keyword(keyword, cat_name=None, limite=50):
         logging.warning("[DIAGNÓSTICO] Nenhum produto retornado para esta keyword.")
         return
 
-    # Limita para análise
     analisados = produtos[:limite]
 
-    # Coletas básicas
     precos = []
     vendas_lista = []
     ratings_lista = []
@@ -396,8 +322,6 @@ def diagnostico_keyword(keyword, cat_name=None, limite=50):
         vendas_lista.append(vendas)
         ratings_lista.append(rating)
 
-        # Categoria não vem explícita na resposta da API de afiliados,
-        # mas podemos tentar inferir por palavras do nome.
         categoria_inferida = "Indefinida"
         nome_lower = nome.lower()
 
@@ -424,7 +348,6 @@ def diagnostico_keyword(keyword, cat_name=None, limite=50):
             "link": p.get("offerLink") or p.get("productLink")
         })
 
-    # Estatísticas simples
     precos_ordenados = sorted(precos)
     vendas_ordenadas = sorted(vendas_lista)
     ratings_ordenadas = sorted(ratings_lista)
@@ -455,12 +378,10 @@ def diagnostico_keyword(keyword, cat_name=None, limite=50):
     logging.info(f"[DIAGNÓSTICO] Vendas: min={vendas_min} | mediana={vendas_mediana} | max={vendas_max}")
     logging.info(f"[DIAGNÓSTICO] Rating: min={rating_min:.2f} | mediana={rating_mediana:.2f} | max={rating_max:.2f}")
 
-    # Distribuição por "categoria inferida"
     logging.info("[DIAGNÓSTICO] Distribuição por categoria inferida (pelo nome do produto):")
     for cat_inf, count in categorias_contagem.items():
         logging.info(f"    - {cat_inf}: {count} produtos")
 
-    # Top 5 por vendas
     top_por_vendas = sorted(exemplos, key=lambda x: x["vendas"], reverse=True)[:5]
     logging.info("[DIAGNÓSTICO] Top 5 por vendas:")
     for idx, ex in enumerate(top_por_vendas, start=1):
@@ -469,7 +390,6 @@ def diagnostico_keyword(keyword, cat_name=None, limite=50):
             f"comissão={ex['comissao']:.1f}% | cat_inf={ex['categoria_inferida']}"
         )
 
-    # Top 5 por rating
     top_por_rating = sorted(exemplos, key=lambda x: x["rating"], reverse=True)[:5]
     logging.info("[DIAGNÓSTICO] Top 5 por rating:")
     for idx, ex in enumerate(top_por_rating, start=1):
@@ -483,133 +403,104 @@ def diagnostico_keyword(keyword, cat_name=None, limite=50):
     logging.info("==========================================")
 
 # ==========================================
-# LÓGICA DE SELEÇÃO DE OFERTAS (INTELIGENTE + MOTO + LOGS)
+# LÓGICA DE SELEÇÃO DE OFERTAS (V118 - 2 PRODUTOS POR NICHO)
 # ==========================================
 
 def get_melhores_ofertas():
     historico_global = carregar_historico()
     ofertas_finais = []
     
-    categorias_alvo = [
-        "Motos_Tecnico",
-        "Tecnologia_e_Utilidades",
-        "Eletro_Desejo",
-        "Casa_e_Ferramentas",
-        "Bebe_Util",
-        "Moda_Masculina",
-        "Moda_Feminina",
-        "Maternidade_Pro",
-        "Casa_EletroPro",
-        "EletroEletronicos_Pro",
-        "Uso_Pessoal",
-        "Games_Pro"
-    ]
+    logging.info("=== INÍCIO DO CICLO V118 - 2 PRODUTOS POR NICHO ===")
     
-    logging.info("=== INÍCIO DO CICLO DE SELEÇÃO DE OFERTAS (V117) ===")
-    
-    for cat_name in categorias_alvo:
-        vagas_preenchidas = 0
-        # MOTO: 4 vagas por ciclo; outros: 1 vaga
-        if cat_name == "Motos_Tecnico":
-            vagas_limite = 4
-        else:
-            vagas_limite = 1
+    for nicho, keywords in NICHOS.items():
+        logging.info(f"\n=== NICHO: {nicho} (2 produtos) ===")
         
-        sub_listas = KEYWORDS_POOL[cat_name].copy()
-        random.shuffle(sub_listas)
+        produtos_nicho = []
         
-        logging.info(f"Categoria: {cat_name} | vagas_limite={vagas_limite}")
+        # Busca por todas as keywords do nicho
+        for kw in keywords:
+            produtos = buscar_shopee_god_mode(kw)
+            logging.info(f"  Keyword '{kw}': {len(produtos)} produtos da API")
+            produtos_nicho.extend(produtos)
         
-        for idx_sub, sub_lista in enumerate(sub_listas):
-            if vagas_preenchidas >= vagas_limite:
-                break
+        if not produtos_nicho:
+            logging.warning(f"  → Nenhum produto encontrado para o nicho {nicho}")
+            continue
+        
+        # Remove duplicatas por nome
+        produtos_unicos = []
+        nomes_vistos = set()
+        for p in produtos_nicho:
+            nome = normalizar_texto(p.get("productName", ""))
+            if nome and nome not in nomes_vistos:
+                nomes_vistos.add(nome)
+                produtos_unicos.append(p)
+        
+        logging.info(f"  Total único no nicho: {len(produtos_unicos)}")
+        
+        # Filtra por preço/vendas/rating
+        produtos_filtrados = []
+        for p in produtos_unicos:
+            nome = p.get("productName", "")
+            preco = float(p.get("priceMin", 0) or 0)
+            vendas = int(p.get("sales", 0) or 0)
+            rating = float(p.get("ratingStar", 0) or 0)
             
-            tentativas_sub = 0
-            while tentativas_sub < 15 and vagas_preenchidas < vagas_limite:
-                tentativas_sub += 1
-                kw_base = random.choice(sub_lista)
-                
-                # Se for moto, cruza com um modelo aleatório
-                kw = f"{kw_base} {random.choice(MODELOS_MOTO_BR)}" if cat_name == "Motos_Tecnico" else kw_base
-                
-                if cat_name == "Motos_Tecnico":
-                    logging.info(f"  Sublista {idx_sub+1} | Tentativa {tentativas_sub} | Keyword moto: {kw}")
-                else:
-                    logging.info(f"  Sublista {idx_sub+1} | Tentativa {tentativas_sub} | Keyword: {kw}")
-                
-                produtos = buscar_shopee_god_mode(kw)
-                
-                if not produtos:
-                    if cat_name == "Motos_Tecnico":
-                        logging.warning(f"    -> API retornou 0 produtos para moto: {kw}")
-                    continue
-                
-                if cat_name == "Motos_Tecnico":
-                    logging.info(f"    -> API retornou {len(produtos)} produtos para moto: {kw}")
-                
-                top_produtos = produtos[:20]
-                random.shuffle(top_produtos)
-                
-                passou_preco = 0
-                passou_vendas = 0
-                passou_rating = 0
-                passou_bloqueio = 0
-                passou_repetido = 0
-                
-                for p in top_produtos:
-                    nome = p.get("productName", "")
-                    preco = float(p.get("priceMin", 0))
-                    vendas = int(p.get("sales", 0))
-                    
-                    # Bloqueio por palavra
-                    if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO_GERAL):
-                        passed_bloqueio = True
-                        passou_bloqueio += 1
-                        continue
-                    
-                    # Preço mínimo
-                    if preco < PRECO_MIN_BASE:
-                        passou_preco += 1
-                        continue
-                    
-                    # Teto de preço por categoria
-                    if cat_name == "Motos_Tecnico" and preco > 850:
-                        continue
-                    if cat_name != "Motos_Tecnico" and any(m in nome.lower() for m in ["moto", "capacete", "pneu", "retrovisor"]):
-                        continue
-                    
-                    # Mínimo de vendas
-                    v_necessarias = 5 if preco > 300 else 35
-                    if vendas < v_necessarias:
-                        passou_vendas += 1
-                        continue
-                    
-                    # Rating mínimo
-                    if float(p.get("ratingStar", 0)) < RATING_MIN_BASE:
-                        passou_rating += 1
-                        continue
-                    
-                    # Repetidos
-                    if eh_repetido_master_fix(nome, historico_global, ofertas_finais):
-                        passou_repetido += 1
-                        continue
-                    
-                    p["cat"] = cat_name
-                    ofertas_finais.append(p)
-                    vagas_preenchidas += 1
-                    break
-                
-                if cat_name == "Motos_Tecnico" and tentativas_sub >= 1:
-                    logging.info(f"    -> Passou preço: {passou_preco} | vendas: {passou_vendas} | rating: {passou_rating} | bloqueio: {passou_bloqueio} | repetido: {passou_repetido}")
+            # Bloqueio por palavra
+            if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO_GERAL):
+                continue
+            
+            # Preço mínimo
+            if preco < PRECO_MIN_BASE:
+                continue
+            
+            # Teto de preço por nicho
+            if nicho == "Moto" and preco > 850:
+                continue
+            
+            # Mínimo de vendas (relaxado para esse nicho)
+            v_necessarias = 5 if preco > 300 else 35
+            if vendas < v_necessarias:
+                continue
+            
+            # Rating mínimo
+            if rating < RATING_MIN_BASE:
+                continue
+            
+            # Repetidos
+            if eh_repetido_master_fix(nome, historico_global, ofertas_finais):
+                continue
+            
+            produtos_filtrados.append(p)
+        
+        logging.info(f"  Produtos após filtro: {len(produtos_filtrados)}")
+        
+        if not produtos_filtrados:
+            logging.warning(f"  → Nenhum produto válido no nicho {nicho}")
+            continue
+        
+        # Sort por vendas (desc)
+        produtos_filtrados.sort(key=lambda x: int(x.get("sales", 0) or 0), reverse=True)
+        
+        # Pega os 2 melhores
+        melhores = produtos_filtrados[:2]
+        
+        for p in melhores:
+            p["nicho"] = nicho
+            ofertas_finais.append(p)
+        
+        logging.info(f"  → Selecionados {len(melhores)} produtos para {nicho}")
+        for mp in melhores:
+            logging.info(f"      - {mp.get('productName')} | R$ {float(mp.get('priceMin',0)): .2f} | {int(mp.get('sales',0))} vendas | {float(mp.get('ratingStar',0)):.2f}⭐")
     
-    logging.info(f"=== FINAL: Ofertas seleccionadas = {len(ofertas_finais)} ===")
+    logging.info(f"\n=== FINAL: Total de ofertas = {len(ofertas_finais)} ===")
     
     return ofertas_finais[:10]
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
     if not (dt_time(5, 30) <= agora <= dt_time(21, 30)): return
-    logging.info("Iniciando ciclo V117 All Nichos Inteligente...")
+    logging.info("Iniciando ciclo V118 - 2 produtos por nicho...")
     ofertas = get_melhores_ofertas()
     if not ofertas:
         logging.warning("Nenhuma oferta encontrada neste ciclo.")
@@ -636,28 +527,13 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V117 All Nichos Inteligente Ativo!")
+    logging.info("Bot Shopee V118 - 2 Produtos Por Nicho Ativo!")
 
 if __name__ == "__main__":
-    # MODO DIAGNÓSTICO – RODAR UMA VEZ
-    logging.info("Iniciando MODO DIAGNÓSTICO de keywords...")
-
-    diagnostico_keyword("kit relação titan 160", cat_name="Moto")
-    diagnostico_keyword("burrinho de freio honda biz 125", cat_name="Moto")
-
-    diagnostico_keyword("vestido lovito", cat_name="Moda")
-    diagnostico_keyword("camisa polo masculina", cat_name="Moda")
-
-    diagnostico_keyword("escova limpeza pesada", cat_name="Casa")
-    diagnostico_keyword("kit cobre leito", cat_name="Casa")
-
-    diagnostico_keyword("carrinho de bebê", cat_name="Maternidade")
-    diagnostico_keyword("canguru bebê passeio", cat_name="Maternidade")
-
-    diagnostico_keyword("smartphone", cat_name="EletroEletrônicos")
-    diagnostico_keyword("video game", cat_name="EletroEletrônicos")
-
-    logging.info("MODO DIAGNÓSTICO finalizado. Veja os detalhes no log da Railway.")
+    if TELEGRAM_TOKEN:
+        ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build().run_polling()
+    else:
+        print("Erro: TELEGRAM_TOKEN não configurado.")
 
 
 
