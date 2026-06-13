@@ -359,6 +359,130 @@ def aplicar_afiliado(link):
         return link
 
 # ==========================================
+# MODO DIAGNÓSTICO DE KEYWORDS
+# ==========================================
+
+def diagnostico_keyword(keyword, cat_name=None, limite=50):
+    logging.info("==========================================")
+    logging.info(f"[DIAGNÓSTICO] Keyword: '{keyword}' | Categoria lógica: {cat_name or 'N/A'}")
+    logging.info("==========================================")
+
+    produtos = buscar_shopee_god_mode(keyword)
+
+    total = len(produtos)
+    logging.info(f"[DIAGNÓSTICO] Total de produtos retornados pela API: {total}")
+
+    if total == 0:
+        logging.warning("[DIAGNÓSTICO] Nenhum produto retornado para esta keyword.")
+        return
+
+    # Limita para análise
+    analisados = produtos[:limite]
+
+    # Coletas básicas
+    precos = []
+    vendas_lista = []
+    ratings_lista = []
+    categorias_contagem = {}
+    exemplos = []
+
+    for p in analisados:
+        nome = p.get("productName", "").strip()
+        preco = float(p.get("priceMin", 0) or 0)
+        vendas = int(p.get("sales", 0) or 0)
+        rating = float(p.get("ratingStar", 0) or 0)
+
+        precos.append(preco)
+        vendas_lista.append(vendas)
+        ratings_lista.append(rating)
+
+        # Categoria não vem explícita na resposta da API de afiliados,
+        # mas podemos tentar inferir por palavras do nome.
+        categoria_inferida = "Indefinida"
+        nome_lower = nome.lower()
+
+        if any(x in nome_lower for x in ["moto", "capacete", "guidão", "pneu", "freio", "coroa", "kit relação"]):
+            categoria_inferida = "Possível Moto"
+        elif any(x in nome_lower for x in ["vestido", "calça", "camisa", "polo", "jeans", "blusa", "saia"]):
+            categoria_inferida = "Possível Moda"
+        elif any(x in nome_lower for x in ["cortina", "cobre leito", "lençol", "kit cama", "escova", "limpeza"]):
+            categoria_inferida = "Possível Casa"
+        elif any(x in nome_lower for x in ["carrinho de bebê", "canguru", "fralda", "mamadeira", "babá eletrônica"]):
+            categoria_inferida = "Possível Maternidade/Bebê"
+        elif any(x in nome_lower for x in ["smartphone", "celular", "video game", "console", "xbox", "playstation", "ps4", "ps5"]):
+            categoria_inferida = "Possível Eletro/Eletrônicos"
+
+        categorias_contagem[categoria_inferida] = categorias_contagem.get(categoria_inferida, 0) + 1
+
+        exemplos.append({
+            "nome": nome,
+            "preco": preco,
+            "vendas": vendas,
+            "rating": rating,
+            "categoria_inferida": categoria_inferida,
+            "comissao": float(p.get("commissionRate", 0) or 0) * 100,
+            "link": p.get("offerLink") or p.get("productLink")
+        })
+
+    # Estatísticas simples
+    precos_ordenados = sorted(precos)
+    vendas_ordenadas = sorted(vendas_lista)
+    ratings_ordenadas = sorted(ratings_lista)
+
+    def mediana(lista):
+        if not lista:
+            return 0
+        n = len(lista)
+        meio = n // 2
+        if n % 2 == 1:
+            return lista[meio]
+        else:
+            return (lista[meio - 1] + lista[meio]) / 2
+
+    preco_min = precos_ordenados[0]
+    preco_max = precos_ordenados[-1]
+    preco_mediana = mediana(precos_ordenados)
+
+    vendas_min = vendas_ordenadas[0]
+    vendas_max = vendas_ordenadas[-1]
+    vendas_mediana = mediana(vendas_ordenadas)
+
+    rating_min = ratings_ordenadas[0]
+    rating_max = ratings_ordenadas[-1]
+    rating_mediana = mediana(ratings_ordenadas)
+
+    logging.info(f"[DIAGNÓSTICO] Preço: min={preco_min:.2f} | mediana={preco_mediana:.2f} | max={preco_max:.2f}")
+    logging.info(f"[DIAGNÓSTICO] Vendas: min={vendas_min} | mediana={vendas_mediana} | max={vendas_max}")
+    logging.info(f"[DIAGNÓSTICO] Rating: min={rating_min:.2f} | mediana={rating_mediana:.2f} | max={rating_max:.2f}")
+
+    # Distribuição por "categoria inferida"
+    logging.info("[DIAGNÓSTICO] Distribuição por categoria inferida (pelo nome do produto):")
+    for cat_inf, count in categorias_contagem.items():
+        logging.info(f"    - {cat_inf}: {count} produtos")
+
+    # Top 5 por vendas
+    top_por_vendas = sorted(exemplos, key=lambda x: x["vendas"], reverse=True)[:5]
+    logging.info("[DIAGNÓSTICO] Top 5 por vendas:")
+    for idx, ex in enumerate(top_por_vendas, start=1):
+        logging.info(
+            f"    {idx}) {ex['nome']} | R$ {ex['preco']:.2f} | vendas={ex['vendas']} | rating={ex['rating']:.2f} | "
+            f"comissão={ex['comissao']:.1f}% | cat_inf={ex['categoria_inferida']}"
+        )
+
+    # Top 5 por rating
+    top_por_rating = sorted(exemplos, key=lambda x: x["rating"], reverse=True)[:5]
+    logging.info("[DIAGNÓSTICO] Top 5 por rating:")
+    for idx, ex in enumerate(top_por_rating, start=1):
+        logging.info(
+            f"    {idx}) {ex['nome']} | R$ {ex['preco']:.2f} | vendas={ex['vendas']} | rating={ex['rating']:.2f} | "
+            f"comissão={ex['comissao']:.1f}% | cat_inf={ex['categoria_inferida']}"
+        )
+
+    logging.info("==========================================")
+    logging.info(f"[DIAGNÓSTICO] FIM DA ANÁLISE DA KEYWORD: '{keyword}'")
+    logging.info("==========================================")
+
+# ==========================================
 # LÓGICA DE SELEÇÃO DE OFERTAS (INTELIGENTE + MOTO + LOGS)
 # ==========================================
 
@@ -515,10 +639,25 @@ async def post_init(app):
     logging.info("Bot Shopee V117 All Nichos Inteligente Ativo!")
 
 if __name__ == "__main__":
-    if TELEGRAM_TOKEN:
-        ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build().run_polling()
-    else:
-        print("Erro: TELEGRAM_TOKEN não configurado.")
+    # MODO DIAGNÓSTICO – RODAR UMA VEZ
+    logging.info("Iniciando MODO DIAGNÓSTICO de keywords...")
+
+    diagnostico_keyword("kit relação titan 160", cat_name="Moto")
+    diagnostico_keyword("burrinho de freio honda biz 125", cat_name="Moto")
+
+    diagnostico_keyword("vestido lovito", cat_name="Moda")
+    diagnostico_keyword("camisa polo masculina", cat_name="Moda")
+
+    diagnostico_keyword("escova limpeza pesada", cat_name="Casa")
+    diagnostico_keyword("kit cobre leito", cat_name="Casa")
+
+    diagnostico_keyword("carrinho de bebê", cat_name="Maternidade")
+    diagnostico_keyword("canguru bebê passeio", cat_name="Maternidade")
+
+    diagnostico_keyword("smartphone", cat_name="EletroEletrônicos")
+    diagnostico_keyword("video game", cat_name="EletroEletrônicos")
+
+    logging.info("MODO DIAGNÓSTICO finalizado. Veja os detalhes no log da Railway.")
 
 
 
