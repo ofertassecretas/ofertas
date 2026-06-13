@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V118 FINAL - 2 PRODUTOS POR NICHO")
+print("VERSAO SHOPEE V118 ULTRA - 2 PRODUTOS POR NICHO")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -29,7 +29,7 @@ SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 HISTORICO_FILE = "historico_global_v118.json"
 CHECK_INTERVAL = 5400
-PRECO_MIN_BASE = 35.0
+PRECO_MIN_BASE = 25.0  # Relaxed para Moto
 RATING_MIN_BASE = 4.6
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -64,13 +64,13 @@ MODELOS_MOTO_BR = [
 ]
 
 # ==========================================
-# KEYWORDS DOS 5 NICHOS (2 PRODUTOS POR NICHO) - FINAL
+# KEYWORDS DOS 5 NICHOS (2 PRODUTOS POR NICHO) - ULTRA
 # ==========================================
 
 NICHOS = {
     "Moto": [
-        "kit relação moto",
-        "burrinho de freio moto"
+        "acessorios moto",
+        "partes moto"
     ],
     "Moda": [
         "vestido longo feminino",
@@ -81,8 +81,8 @@ NICHOS = {
         "escova limpeza elétrica"
     ],
     "Maternidade": [
-        "carrinho de passeio bebê",
-        "canguru bebê"
+        "berço bebê",
+        "mochila bebê"
     ],
     "Eletroeletrônicos": [
         "video game stick 4k",
@@ -110,6 +110,11 @@ PALAVRAS_BLOQUEIO_BIKE = [
     "monark", "caloi", "bmx", "ciclismo", "ciclista", "aro 20", "aro 24"
 ]
 
+# + QUADRICICLO (brinquedo)
+PALAVRAS_BLOQUEIO_BRINQUEDO = [
+    "quadriciclo", "quadr", "patinete", "bicicleta", "bike", "brinquedo infantil"
+]
+
 PALAVRAS_BLOQUEIO_GERAL = [
     "teste", "amostra", "não compre", "dummy", "adesivo", "película", 
     "case", "filtro de papel", "brinde", "usado", "defeito", "capinha",
@@ -118,7 +123,7 @@ PALAVRAS_BLOQUEIO_GERAL = [
     "bico desentupidor", "ventosa", "barra estabilizadora", "coxim", "cavalete lateral",
     "filtro refil", "tampa geladeira", "narigueira", "rede elastica", "fecho porta",
     "organizador gaveta", "caneca infantil", "suporte de baba"
-] + PALAVRAS_BLOQUEIO_BIKE
+] + PALAVRAS_BLOQUEIO_BIKE + PALAVRAS_BLOQUEIO_BRINQUEDO
 
 # ==========================================
 # GESTÃO DE MEMÓRIA
@@ -285,26 +290,28 @@ def aplicar_afiliado(link):
         return link
 
 # ==========================================
-# LÓGICA DE SELEÇÃO DE OFERTAS (V118 FINAL - 2 PRODUTOS POR NICHO)
+# LÓGICA DE SELEÇÃO DE OFERTAS (V118 ULTRA - 2 PRODUTOS POR NICHO)
 # ==========================================
 
 def get_melhores_ofertas():
     historico_global = carregar_historico()
     ofertas_finais = []
     
-    logging.info("=== INÍCIO DO CICLO V118 FINAL - 2 PRODUTOS POR NICHO ===")
+    logging.info("=== INÍCIO DO CICLO V118 ULTRA - 2 PRODUTOS POR NICHO ===")
     
     for nicho, keywords in NICHOS.items():
         logging.info(f"\n=== NICHO: {nicho} (2 produtos) ===")
         
         produtos_nicho = []
         
-        # Para Moto: cruza keyword genérica com modelo aleatório
+        # Para Moto: cruza keyword genérica com modelo aleatório e filtra manualmente
         for kw in keywords:
             if nicho == "Moto":
                 kw_com_modelo = f"{kw} {random.choice(MODELOS_MOTO_BR)}"
                 logging.info(f"  Keyword moto com modelo: '{kw_com_modelo}'")
                 produtos = buscar_shopee_god_mode(kw_com_modelo)
+                # Filtra manualmente por palavras de moto
+                produtos = [p for p in produtos if any(w in p.get("productName", "").lower() for w in ["moto", "freio", "relação", "coroa", "pinhão", "burrinho", "guidão", "capacete", "pneu"])]
             else:
                 produtos = buscar_shopee_god_mode(kw)
             
@@ -347,12 +354,15 @@ def get_melhores_ofertas():
                 continue
             
             # Mínimo de vendas
-            # Moto: relaxa para 5 (qualquer moto)
+            # Moto: relaxa para 5
             # Maternidade: relaxa para 10
+            # Casa: relaxa para 20
             if nicho == "Moto":
                 v_necessarias = 5
             elif nicho == "Maternidade":
                 v_necessarias = 5 if preco > 300 else 10
+            elif nicho == "Casa":
+                v_necessarias = 20
             else:
                 v_necessarias = 5 if preco > 300 else 35
             
@@ -367,17 +377,29 @@ def get_melhores_ofertas():
             if eh_repetido_master_fix(nome, historico_global, ofertas_finais):
                 continue
             
-            # Similaridade dentro do nicho (evita 2 game sticks parecidos)
+            # Similaridade dentro do nicho (bloqueio mais forte para Eletro)
             produtos_no_nicho = [x for x in produtos_filtrados if x.get("nicho") == nicho]
             if produtos_no_nicho:
                 similar_com_nicho = False
+                nome_lower = nome.lower()
                 for p_nicho in produtos_no_nicho:
                     t_nicho = normalizar_texto(p_nicho.get("productName", ""))
-                    # Similaridade > 0.45 + mais de 20 caracteres em comum
+                    t_nicho_lower = t_nicho.lower()
+                    
+                    # Similaridade > 0.40 OU preço igual + 15 chars em comum
                     ratio = SequenceMatcher(None, nome, t_nicho).ratio()
-                    if ratio > 0.45 and len(nome) > 20 and len(t_nicho) > 20:
+                    preco_nicho = float(p_nicho.get("priceMin", 0) or 0)
+                    
+                    # Se já tem game stick, não pegar outro game stick
+                    if nicho == "Eletroeletrônicos":
+                        if ("game stick" in nome_lower and "game stick" in t_nicho_lower):
+                            similar_com_nicho = True
+                            break
+                    
+                    if ratio > 0.40 and preco == preco_nicho and len(nome) > 15 and len(t_nicho) > 15:
                         similar_com_nicho = True
                         break
+                
                 if similar_com_nicho:
                     continue
             
@@ -410,7 +432,7 @@ def get_melhores_ofertas():
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
     if not (dt_time(5, 30) <= agora <= dt_time(21, 30)): return
-    logging.info("Iniciando ciclo V118 FINAL - 2 produtos por nicho...")
+    logging.info("Iniciando ciclo V118 ULTRA - 2 produtos por nicho...")
     ofertas = get_melhores_ofertas()
     if not ofertas:
         logging.warning("Nenhuma oferta encontrada neste ciclo.")
@@ -437,7 +459,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V118 FINAL - 2 Produtos Por Nicho Ativo!")
+    logging.info("Bot Shopee V118 ULTRA - 2 Produtos Por Nicho Ativo!")
 
 if __name__ == "__main__":
     if TELEGRAM_TOKEN:
