@@ -161,9 +161,7 @@ def eh_repetido_master_fix(titulo, historico_global, lista_ciclo_atual):
             for item in historico_global.values():
                 t_antigo = normalizar_texto(item.get("titulo", ""))
                 data_envio = datetime.fromisoformat(item.get("data", agora.isoformat()))
-                if assunto in t_antigo and (agora - data
-
-##əri.data").total_seconds() < 24 * 3600:
+                if assunto in t_antigo and (agora - data_envio).total_seconds() < 24 * 3600:
                     return True
 
     # 2) BLOQUEIO POR RADICAL EXISTENTE
@@ -534,8 +532,6 @@ if __name__ == "__main__":
         ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build().run_polling()
     else:
         print("Erro: TELEGRAM_TOKEN não configurado.")
-
-
 
 
 
