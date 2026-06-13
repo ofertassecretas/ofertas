@@ -110,7 +110,6 @@ PALAVRAS_BLOQUEIO_BIKE = [
     "monark", "caloi", "bmx", "ciclismo", "ciclista", "aro 20", "aro 24"
 ]
 
-# + QUADRICICLO (brinquedo)
 PALAVRAS_BLOQUEIO_BRINQUEDO = [
     "quadriciclo", "quadr", "patinete", "bicicleta", "bike", "brinquedo infantil"
 ]
@@ -156,44 +155,56 @@ def salvar_historico(historico):
     except Exception as e:
         logging.error(f"Erro ao salvar historico: {e}")
 
-def eh_repetido_master_fix(titulo, historico_global, lista_ciclo_atual):
-    t_novo = normalizar_texto(titulo)
+def eh_repetido_master_fix(titulo, historico_global, lista_ciclo_atual, nicho_atual=None):
+    t_novo_norm = normalizar_texto(titulo)
     
     # 1) BLOQUEIO POR ASSUNTO ENJOADO (24H)
     for assunto in ASSUNTOS_ENJOADOS:
-        if assunto in t_novo:
+        if assunto in t_novo_norm:
             agora = datetime.now()
             for item in historico_global.values():
-                t_antigo = normalizar_texto(item.get("titulo", ""))
+                t_antigo_norm = normalizar_texto(item.get("titulo", ""))
                 data_envio = datetime.fromisoformat(item.get("data", agora.isoformat()))
-                if assunto in t_antigo and (agora - data_envio).total_seconds() < 24 * 3600:
+                if assunto in t_antigo_norm and (agora - data_envio).total_seconds() < 24 * 3600:
                     return True
 
-    # 2) BLOQUEIO POR RADICAL EXISTENTE
+    # 2) BLOQUEIO POR RADICAL EXISTENTE NO CICLO ATUAL
     for termo in BLOQUEIO_REPETICAO_CICLO + BLOQUEIO_RADICAL_24H:
-        if termo in t_novo:
+        if termo in t_novo_norm:
             for p_ja_escolhido in lista_ciclo_atual:
                 if termo in normalizar_texto(p_ja_escolhido.get("productName", "")):
                     return True
 
-    # 3) SIMILARIDADE NO CICLO
+    # 3) SIMILARIDADE DENTRO DO CICLO ATUAL (evita itens muito parecidos na mesma rodada)
     for p_atual in lista_ciclo_atual:
-        t_atual = normalizar_texto(p_atual.get("productName", ""))
-        if SequenceMatcher(None, t_novo, t_atual).ratio() > 0.30:
+        t_atual_norm = normalizar_texto(p_atual.get("productName", ""))
+        if SequenceMatcher(None, t_novo_norm, t_atual_norm).ratio() > 0.30:
             return True
 
     # 4) BLOQUEIO POR RADICAL EM HISTÓRICO (24H)
     agora = datetime.now()
     for radical in BLOQUEIO_RADICAL_24H:
-        if radical in t_novo:
+        if radical in t_novo_norm:
             for item in historico_global.values():
                 data_envio = datetime.fromisoformat(item.get("data", agora.isoformat()))
                 if radical in normalizar_texto(item.get("titulo", "")) and (agora - data_envio).total_seconds() < 86400:
                     return True
 
-    # 5) HASH DO TÍTULO
-    h = hashlib.md5(t_novo[:45].encode()).hexdigest()
-    if h in historico_global: return True
+    # 5) BLOQUEIO POR HASH / SIMILARIDADE COM HISTÓRICO (72H)
+    h_novo = hashlib.md5(t_novo_norm[:60].encode()).hexdigest()
+    
+    # 5.1 Hash igual → já mandou esse produto
+    if h_novo in historico_global:
+        return True
+
+    # 5.2 Similaridade forte com itens recentes do mesmo nicho
+    for h, item in historico_global.items():
+        t_hist_norm = normalizar_texto(item.get("titulo", ""))
+        nicho_hist = item.get("nicho")
+        ratio = SequenceMatcher(None, t_novo_norm, t_hist_norm).ratio()
+        # Se for o mesmo nicho e título muito parecido, bloqueia
+        if nicho_atual and nicho_hist and nicho_atual == nicho_hist and ratio > 0.70:
+            return True
 
     return False
 
@@ -230,7 +241,7 @@ def gerar_copy_base(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp
 
 <a href="{LINK_GRUPO_OFERTAS}">📲 Entrar no grupo de ofertas</a>
 
-<a href="{zap_link}">📲 Compartilhar no WhatsApp</a>
+<a href="{zap_link}">📲 Compartir no WhatsApp</a>
 
 ━━━━━━━━━━━━━━━
 📢 <b>Ofertas Secretas</b>"""
@@ -374,29 +385,33 @@ def get_melhores_ofertas():
                 continue
             
             # Repetidos globais
-            if eh_repetido_master_fix(nome, historico_global, ofertas_finais):
+            if eh_repetido_master_fix(nome, historico_global, ofertas_finais, nicho_atual=nicho):
                 continue
             
-            # Similaridade dentro do nicho (bloqueio mais forte para Eletro)
-            produtos_no_nicho = [x for x in produtos_filtrados if x.get("nicho") == nicho]
-            if produtos_no_nicho:
+            # Similaridade dentro do nicho (evita produtos quase iguais na mesma rodada)
+            if produtos_filtrados:
                 similar_com_nicho = False
-                nome_lower = nome.lower()
-                for p_nicho in produtos_no_nicho:
-                    t_nicho = normalizar_texto(p_nicho.get("productName", ""))
-                    t_nicho_lower = t_nicho.lower()
+                nome_norm = normalizar_texto(nome)
+                for p_nicho in produtos_filtrados:
+                    t_nicho_norm = normalizar_texto(p_nicho.get("productName", ""))
+                    ratio = SequenceMatcher(None, nome_norm, t_nicho_norm).ratio()
                     
-                    # Similaridade > 0.40 OU preço igual + 15 chars em comum
-                    ratio = SequenceMatcher(None, nome, t_nicho).ratio()
-                    preco_nicho = float(p_nicho.get("priceMin", 0) or 0)
-                    
-                    # Se já tem game stick, não pegar outro game stick
+                    # Se é Eletro e já tem "game stick" ou "smartphone xiaomi/poco/redmi", evita concorrente idêntico
                     if nicho == "Eletroeletrônicos":
-                        if ("game stick" in nome_lower and "game stick" in t_nicho_lower):
+                        if ("game stick" in nome_norm and "game stick" in t_nicho_norm) and ratio > 0.50:
+                            similar_com_nicho = True
+                            break
+                        if ("smartphone" in nome_norm and "smartphone" in t_nicho_norm) and ratio > 0.65:
                             similar_com_nicho = True
                             break
                     
-                    if ratio > 0.40 and preco == preco_nicho and len(nome) > 15 and len(t_nicho) > 15:
+                    # Moto: escapamentos muito parecidos
+                    if nicho == "Moto" and ratio > 0.60:
+                        similar_com_nicho = True
+                        break
+                    
+                    # Casa / Maternidade: escovas/berços muito parecidos
+                    if nicho in ["Casa", "Maternidade"] and ratio > 0.65:
                         similar_com_nicho = True
                         break
                 
@@ -450,8 +465,12 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             msg = gerar_copy_base(nome, preco, vendas, item.get("ratingStar", 5.0), comissao_val, link_afiliado)
             await context.bot.send_photo(chat_id=CHAT_ID_DESTINO, photo=item.get("imageUrl"), caption=msg, parse_mode="HTML")
             t_norm = normalizar_texto(item["productName"])
-            h = hashlib.md5(t_norm[:45].encode()).hexdigest()
-            historico_global[h] = {"data": datetime.now().isoformat(), "titulo": item["productName"]}
+            h = hashlib.md5(t_norm[:60].encode()).hexdigest()
+            historico_global[h] = {
+                "data": datetime.now().isoformat(),
+                "titulo": item["productName"],
+                "nicho": item.get("nicho")
+            }
             salvar_historico(historico_global)
             await asyncio.sleep(60) 
         except Exception as e:
