@@ -17,7 +17,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 # ==========================================
 # CONFIGURAÇÕES BÁSICAS
 # ==========================================
-print("VERSAO SHOPEE V118 - 2 PRODUTOS POR NICHO")
+print("VERSAO SHOPEE V118 FINAL - 2 PRODUTOS POR NICHO")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -64,13 +64,13 @@ MODELOS_MOTO_BR = [
 ]
 
 # ==========================================
-# KEYWORDS DOS 5 NICHOS (2 PRODUTOS POR NICHO)
+# KEYWORDS DOS 5 NICHOS (2 PRODUTOS POR NICHO) - FINAL
 # ==========================================
 
 NICHOS = {
     "Moto": [
-        "kit relação titan 160",
-        "burrinho de freio honda biz 125"
+        "kit relação moto",
+        "burrinho de freio moto"
     ],
     "Moda": [
         "vestido longo feminino",
@@ -78,11 +78,11 @@ NICHOS = {
     ],
     "Casa": [
         "kit cobre leito",
-        "escova limpeza pesada"
+        "escova limpeza elétrica"
     ],
     "Maternidade": [
-        "carrinho de passeio bebê real",
-        "mochila canguru bebê"
+        "carrinho de passeio bebê",
+        "canguru bebê"
     ],
     "Eletroeletrônicos": [
         "video game stick 4k",
@@ -285,139 +285,29 @@ def aplicar_afiliado(link):
         return link
 
 # ==========================================
-# MODO DIAGNÓSTICO DE KEYWORDS
-# ==========================================
-
-def diagnostico_keyword(keyword, cat_name=None, limite=50):
-    logging.info("==========================================")
-    logging.info(f"[DIAGNÓSTICO] Keyword: '{keyword}' | Categoria lógica: {cat_name or 'N/A'}")
-    logging.info("==========================================")
-
-    produtos = buscar_shopee_god_mode(keyword)
-
-    total = len(produtos)
-    logging.info(f"[DIAGNÓSTICO] Total de produtos retornados pela API: {total}")
-
-    if total == 0:
-        logging.warning("[DIAGNÓSTICO] Nenhum produto retornado para esta keyword.")
-        return
-
-    analisados = produtos[:limite]
-
-    precos = []
-    vendas_lista = []
-    ratings_lista = []
-    categorias_contagem = {}
-    exemplos = []
-
-    for p in analisados:
-        nome = p.get("productName", "").strip()
-        preco = float(p.get("priceMin", 0) or 0)
-        vendas = int(p.get("sales", 0) or 0)
-        rating = float(p.get("ratingStar", 0) or 0)
-
-        precos.append(preco)
-        vendas_lista.append(vendas)
-        ratings_lista.append(rating)
-
-        categoria_inferida = "Indefinida"
-        nome_lower = nome.lower()
-
-        if any(x in nome_lower for x in ["moto", "capacete", "guidão", "pneu", "freio", "coroa", "kit relação"]):
-            categoria_inferida = "Possível Moto"
-        elif any(x in nome_lower for x in ["vestido", "calça", "camisa", "polo", "jeans", "blusa", "saia"]):
-            categoria_inferida = "Possível Moda"
-        elif any(x in nome_lower for x in ["cortina", "cobre leito", "lençol", "kit cama", "escova", "limpeza"]):
-            categoria_inferida = "Possível Casa"
-        elif any(x in nome_lower for x in ["carrinho de bebê", "canguru", "fralda", "mamadeira", "babá eletrônica"]):
-            categoria_inferida = "Possível Maternidade/Bebê"
-        elif any(x in nome_lower for x in ["smartphone", "celular", "video game", "console", "xbox", "playstation", "ps4", "ps5"]):
-            categoria_inferida = "Possível Eletro/Eletrônicos"
-
-        categorias_contagem[categoria_inferida] = categorias_contagem.get(categoria_inferida, 0) + 1
-
-        exemplos.append({
-            "nome": nome,
-            "preco": preco,
-            "vendas": vendas,
-            "rating": rating,
-            "categoria_inferida": categoria_inferida,
-            "comissao": float(p.get("commissionRate", 0) or 0) * 100,
-            "link": p.get("offerLink") or p.get("productLink")
-        })
-
-    precos_ordenados = sorted(precos)
-    vendas_ordenadas = sorted(vendas_lista)
-    ratings_ordenadas = sorted(ratings_lista)
-
-    def mediana(lista):
-        if not lista:
-            return 0
-        n = len(lista)
-        meio = n // 2
-        if n % 2 == 1:
-            return lista[meio]
-        else:
-            return (lista[meio - 1] + lista[meio]) / 2
-
-    preco_min = precos_ordenados[0]
-    preco_max = precos_ordenados[-1]
-    preco_mediana = mediana(precos_ordenados)
-
-    vendas_min = vendas_ordenadas[0]
-    vendas_max = vendas_ordenadas[-1]
-    vendas_mediana = mediana(vendas_ordenadas)
-
-    rating_min = ratings_ordenadas[0]
-    rating_max = ratings_ordenadas[-1]
-    rating_mediana = mediana(ratings_ordenadas)
-
-    logging.info(f"[DIAGNÓSTICO] Preço: min={preco_min:.2f} | mediana={preco_mediana:.2f} | max={preco_max:.2f}")
-    logging.info(f"[DIAGNÓSTICO] Vendas: min={vendas_min} | mediana={vendas_mediana} | max={vendas_max}")
-    logging.info(f"[DIAGNÓSTICO] Rating: min={rating_min:.2f} | mediana={rating_mediana:.2f} | max={rating_max:.2f}")
-
-    logging.info("[DIAGNÓSTICO] Distribuição por categoria inferida (pelo nome do produto):")
-    for cat_inf, count in categorias_contagem.items():
-        logging.info(f"    - {cat_inf}: {count} produtos")
-
-    top_por_vendas = sorted(exemplos, key=lambda x: x["vendas"], reverse=True)[:5]
-    logging.info("[DIAGNÓSTICO] Top 5 por vendas:")
-    for idx, ex in enumerate(top_por_vendas, start=1):
-        logging.info(
-            f"    {idx}) {ex['nome']} | R$ {ex['preco']:.2f} | vendas={ex['vendas']} | rating={ex['rating']:.2f} | "
-            f"comissão={ex['comissao']:.1f}% | cat_inf={ex['categoria_inferida']}"
-        )
-
-    top_por_rating = sorted(exemplos, key=lambda x: x["rating"], reverse=True)[:5]
-    logging.info("[DIAGNÓSTICO] Top 5 por rating:")
-    for idx, ex in enumerate(top_por_rating, start=1):
-        logging.info(
-            f"    {idx}) {ex['nome']} | R$ {ex['preco']:.2f} | vendas={ex['vendas']} | rating={ex['rating']:.2f} | "
-            f"comissão={ex['comissao']:.1f}% | cat_inf={ex['categoria_inferida']}"
-        )
-
-    logging.info("==========================================")
-    logging.info(f"[DIAGNÓSTICO] FIM DA ANÁLISE DA KEYWORD: '{keyword}'")
-    logging.info("==========================================")
-
-# ==========================================
-# LÓGICA DE SELEÇÃO DE OFERTAS (V118 - 2 PRODUTOS POR NICHO)
+# LÓGICA DE SELEÇÃO DE OFERTAS (V118 FINAL - 2 PRODUTOS POR NICHO)
 # ==========================================
 
 def get_melhores_ofertas():
     historico_global = carregar_historico()
     ofertas_finais = []
     
-    logging.info("=== INÍCIO DO CICLO V118 - 2 PRODUTOS POR NICHO ===")
+    logging.info("=== INÍCIO DO CICLO V118 FINAL - 2 PRODUTOS POR NICHO ===")
     
     for nicho, keywords in NICHOS.items():
         logging.info(f"\n=== NICHO: {nicho} (2 produtos) ===")
         
         produtos_nicho = []
         
-        # Busca por todas as keywords do nicho
+        # Para Moto: cruza keyword genérica com modelo aleatório
         for kw in keywords:
-            produtos = buscar_shopee_god_mode(kw)
+            if nicho == "Moto":
+                kw_com_modelo = f"{kw} {random.choice(MODELOS_MOTO_BR)}"
+                logging.info(f"  Keyword moto com modelo: '{kw_com_modelo}'")
+                produtos = buscar_shopee_god_mode(kw_com_modelo)
+            else:
+                produtos = buscar_shopee_god_mode(kw)
+            
             logging.info(f"  Keyword '{kw}': {len(produtos)} produtos da API")
             produtos_nicho.extend(produtos)
         
@@ -456,8 +346,16 @@ def get_melhores_ofertas():
             if nicho == "Moto" and preco > 850:
                 continue
             
-            # Mínimo de vendas (relaxado para esse nicho)
-            v_necessarias = 5 if preco > 300 else 35
+            # Mínimo de vendas
+            # Moto: relaxa para 5 (qualquer moto)
+            # Maternidade: relaxa para 10
+            if nicho == "Moto":
+                v_necessarias = 5
+            elif nicho == "Maternidade":
+                v_necessarias = 5 if preco > 300 else 10
+            else:
+                v_necessarias = 5 if preco > 300 else 35
+            
             if vendas < v_necessarias:
                 continue
             
@@ -465,9 +363,23 @@ def get_melhores_ofertas():
             if rating < RATING_MIN_BASE:
                 continue
             
-            # Repetidos
+            # Repetidos globais
             if eh_repetido_master_fix(nome, historico_global, ofertas_finais):
                 continue
+            
+            # Similaridade dentro do nicho (evita 2 game sticks parecidos)
+            produtos_no_nicho = [x for x in produtos_filtrados if x.get("nicho") == nicho]
+            if produtos_no_nicho:
+                similar_com_nicho = False
+                for p_nicho in produtos_no_nicho:
+                    t_nicho = normalizar_texto(p_nicho.get("productName", ""))
+                    # Similaridade > 0.45 + mais de 20 caracteres em comum
+                    ratio = SequenceMatcher(None, nome, t_nicho).ratio()
+                    if ratio > 0.45 and len(nome) > 20 and len(t_nicho) > 20:
+                        similar_com_nicho = True
+                        break
+                if similar_com_nicho:
+                    continue
             
             produtos_filtrados.append(p)
         
@@ -489,7 +401,7 @@ def get_melhores_ofertas():
         
         logging.info(f"  → Selecionados {len(melhores)} produtos para {nicho}")
         for mp in melhores:
-            logging.info(f"      - {mp.get('productName')} | R$ {float(mp.get('priceMin',0)): .2f} | {int(mp.get('sales',0))} vendas | {float(mp.get('ratingStar',0)):.2f}⭐")
+            logging.info(f"      - {mp.get('productName')} | R$ {float(mp.get('priceMin',0)):.2f} | {int(mp.get('sales',0))} vendas | {float(mp.get('ratingStar',0)):.2f}⭐")
     
     logging.info(f"\n=== FINAL: Total de ofertas = {len(ofertas_finais)} ===")
     
@@ -498,7 +410,7 @@ def get_melhores_ofertas():
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     agora = datetime.now(FUSO_BR).time()
     if not (dt_time(5, 30) <= agora <= dt_time(21, 30)): return
-    logging.info("Iniciando ciclo V118 - 2 produtos por nicho...")
+    logging.info("Iniciando ciclo V118 FINAL - 2 produtos por nicho...")
     ofertas = get_melhores_ofertas()
     if not ofertas:
         logging.warning("Nenhuma oferta encontrada neste ciclo.")
@@ -525,14 +437,13 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V118 - 2 Produtos Por Nicho Ativo!")
+    logging.info("Bot Shopee V118 FINAL - 2 Produtos Por Nicho Ativo!")
 
 if __name__ == "__main__":
     if TELEGRAM_TOKEN:
         ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build().run_polling()
     else:
         print("Erro: TELEGRAM_TOKEN não configurado.")
-
 
 
 
