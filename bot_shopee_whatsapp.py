@@ -6,15 +6,14 @@ import hashlib
 import time
 import json
 import os
-import html
 import re
-from difflib import SequenceMatcher
-from datetime import datetime, timedelta, time as dt_time
+from collections import defaultdict, Counter
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
-from telegram.ext import ApplicationBuilder, ContextTypes
+from difflib import SequenceMatcher
+from urllib.parse import urlencode, urlparse, parse_qs, urlunparse
 
-print("VERSAO SHOPEE V119 STABLE - VARIEDADE + MINIMO GARANTIDO")
+print("VERSAO SHOPEE V120 CURADORA - VARIEDADE REAL + ANTI-REPETICAO")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -24,412 +23,336 @@ CHAT_ID_DESTINO = -1003848415150
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
-HISTORICO_FILE = "historico_global_v119.json"
+HISTORICO_FILE = "historico_global_v120.json"
 CHECK_INTERVAL = 5400
-PRECO_MIN_BASE = 18.0
-RATING_MIN_BASE = 4.5
-MIN_OFERTAS = 8
 MAX_OFERTAS = 10
-MAX_POR_NICHO = 3
-MAX_POR_MODELO_MOTO = 1
+MIN_OFERTAS = 6
+MIN_PRECO = 12.0
+MAX_PRECO = 1000.0
+MIN_RATING = 4.5
+MIN_VENDAS = 10
+MAX_POR_NICHO = 2
+MAX_POR_FAMILIA = 1
+MAX_POR_MARCA = 1
+MAX_POR_TITULO_SIMILAR = 1
+JANELA_HISTORICO_DIAS = 15
+JANELA_FAMILIA_DIAS = 10
+JANELA_MARCA_DIAS = 7
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
-ASSUNTOS_ENJOADOS = [
-    "lousa magica", "baba eletronica", "power bank", "passadeira a vapor", "passadeira",
-    "tenis olympikus", "tenis de corrida", "repetidor wifi"
-]
-
-MODELOS_MOTO_BR = [
-    "Titan 125", "Titan 150", "Titan 160", "CG 100", "CG 110", "Pop 100", "Pop 110",
-    "Biz 100", "Biz 125", "Factor 125", "Factor 150", "YBR 125", "YBR 150",
-    "Bros 150", "Bros 160", "Twister 250", "Twister 300", "Tornado 250",
-    "Sahara 300", "XRE 190", "XRE 300", "CB 300", "CB 400", "CB 500", "CB 600",
-    "Crosser 150", "Fazer 150", "Fazer 250", "Neo 115", "Lead 110", "PCX 150",
-    "Dafra Next 250", "Lander 250"
-]
-
 NICHOS = {
-    "Moto": ["acessorios moto", "partes moto"],
-    "Moda": ["vestido longo feminino", "camisa polo masculina"],
-    "Casa": ["kit cobre leito", "escova limpeza elétrica"],
-    "Maternidade": ["berço bebê", "mochila bebê"],
-    "Eletroeletrônicos": ["video game stick 4k", "smartphone 5g 256gb"]
+    "Moto": [
+        "escapamento moto", "pneu moto", "aba tanque moto", "retrovisor moto",
+        "farol moto", "guidao moto", "bateria moto", "kit relacao moto",
+        "capacete moto", "bau moto", "manopla moto", "protetor manete moto",
+        "suspensao moto", "carenagem moto", "pedaleira moto", "protetor motor moto"
+    ],
+    "Moda Masculina": [
+        "camisa social masculina", "camisa manga curta masculina", "camisa polo masculina",
+        "bermuda masculina", "calca jeans masculina", "calca cargo masculina",
+        "jaqueta masculina", "moletom masculino", "tenis masculino", "sapatenis masculino",
+        "boné masculino", "relógio masculino", "carteira masculina", "cinto masculino"
+    ],
+    "Moda Feminina": [
+        "vestido feminino", "vestido longo feminino", "blusa feminina", "camisa feminina",
+        "conjunto feminino", "saia feminina", "shorts feminino", "calcinha feminina",
+        "top feminino", "sandalia feminina", "bolsa feminina", "tenis feminino"
+    ],
+    "Casa": [
+        "air fryer", "aspirador", "mop", "escova eletrica limpeza", "organizador cozinha",
+        "jogo de cama", "edredom", "travesseiro", "tapete", "ventilador",
+        "umidificador", "cafeteira", "liquidificador", "batedeira", "panela eletrica"
+    ],
+    "Maternidade": [
+        "mochila maternidade", "carrinho bebe", "berco bebe", "chocalho bebe",
+        "mordedor bebe", "babador bebe", "cadeirinha bebe", "babá eletronica",
+        "kit higiene bebe", "roupa bebe", "ninho bebe"
+    ],
+    "Eletroeletrônicos": [
+        "smartwatch", "fone bluetooth", "headset gamer", "ssd", "carregador turbo",
+        "power bank", "caixa de som bluetooth", "tablet", "mouse gamer", "teclado mecanico"
+    ]
 }
 
-BLOQUEIO_RADICAL_24H = [
-    "serra", "tico tico", "fralda", "fone", "capacete", "pneu", "air fryer",
-    "baba eletronica", "ferro", "batedeira", "mochila", "tenis", "sapato",
-    "furadeira", "parafusadeira", "barraca", "tapete", "patinete", "fone de ouvido"
+PALAVRAS_BLOQUEIO = [
+    "teste", "amostra", "dummy", "brinde", "usado", "defeito", "película", "capinha",
+    "adesivo", "selo", "pano de prato", "esponja magica", "filtro de papel",
+    "fone", "bike", "bicicleta", "quadriciclo", "patinete", "brinquedo infantil"
 ]
 
-PALAVRAS_BLOQUEIO_BIKE = ["bike", "bicicleta", "shimano", "aro 26", "aro 29", "mtb", "vzan", "mountain bike", "vmaxx", "v-max", "altus", "deore", "gts", "speed", "monark", "caloi", "bmx", "ciclismo", "ciclista", "aro 20", "aro 24"]
-PALAVRAS_BLOQUEIO_BRINQUEDO = ["quadriciclo", "quadr", "patinete", "bicicleta", "bike", "brinquedo infantil"]
-PALAVRAS_BLOQUEIO_GERAL = [
-    "teste", "amostra", "não compre", "dummy", "adesivo", "película", "case", "filtro de papel", "brinde", "usado", "defeito", "capinha",
-    "pano de prato", "mini processador", "ralador manual", "spray de pum", "pegadinha", "sal marinho", "esponja magica", "adesivo retalho",
-    "bico desentupidor", "ventosa", "barra estabilizadora", "coxim", "cavalete lateral", "filtro refil", "tampa geladeira", "narigueira",
-    "rede elastica", "fecho porta", "organizador gaveta", "caneca infantil", "suporte de baba"
-] + PALAVRAS_BLOQUEIO_BIKE + PALAVRAS_BLOQUEIO_BRINQUEDO
+HISTORICO = {}
 
-def normalizar_texto(txt):
+def carregar_historico():
+    global HISTORICO
+    if os.path.exists(HISTORICO_FILE):
+        try:
+            with open(HISTORICO_FILE, "r", encoding="utf-8") as f:
+                HISTORICO = json.load(f)
+        except:
+            HISTORICO = {}
+    else:
+        HISTORICO = {}
+
+def salvar_historico():
+    agora = datetime.now(FUSO_BR)
+    limite = agora - timedelta(days=JANELA_HISTORICO_DIAS)
+    limpo = {}
+    for k, v in HISTORICO.items():
+        try:
+            dt = datetime.fromisoformat(v.get("data"))
+            if dt >= limite:
+                limpo[k] = v
+        except:
+            continue
+    with open(HISTORICO_FILE, "w", encoding="utf-8") as f:
+        json.dump(limpo, f, ensure_ascii=False, indent=2)
+
+def normalizar(txt):
     if not txt:
         return ""
     txt = txt.lower().strip()
-    txt = re.sub(r"[^a-z0-9à-ÿ]", " ", txt)
-    return " ".join(txt.split())
+    txt = re.sub(r"[^a-z0-9à-ÿ\s]", " ", txt)
+    txt = re.sub(r"\s+", " ", txt).strip()
+    return txt
 
-def carregar_historico():
-    if os.path.exists(HISTORICO_FILE):
-        try:
-            with open(HISTORICO_FILE, 'r') as f:
-                return json.load(f)
-        except:
-            return {}
-    return {}
+def extrair_marca(titulo):
+    t = normalizar(titulo)
+    marcas = ["nike", "adidas", "olympikus", "fila", "mizuno", "lovito", "pro tork", "honda", "yamaha", "it s"]
+    for m in marcas:
+        if m in t:
+            return m
+    return ""
 
-def salvar_historico(historico):
+def extrair_familia(titulo):
+    t = normalizar(titulo)
+    grupos = {
+        "escova eletrica limpeza": ["escova eletrica", "escova de limpeza", "esfregao eletrico", "escova magica"],
+        "vestido feminino": ["vestido", "longo feminino", "vestido longo"],
+        "camisa polo": ["camisa polo", "polo masculina", "polo feminino"],
+        "escapamento moto": ["escapamento", "escape moto", "pro tork mini", "gemoto"],
+        "chocalho bebe": ["chocalho", "mordedor", "brinquedo bebe", "pelucia bebe"],
+    }
+    for familia, termos in grupos.items():
+        if any(term in t for term in termos):
+            return familia
+    tokens = t.split()
+    return " ".join(tokens[:3])
+
+def titulo_similar(a, b):
+    return SequenceMatcher(None, normalizar(a), normalizar(b)).ratio()
+
+def passa_filtros_basicos(oferta):
+    titulo = normalizar(oferta.get("productName", ""))
+    if not titulo:
+        return False
+    if any(p in titulo for p in PALAVRAS_BLOQUEIO):
+        return False
+    if len(titulo) < 12:
+        return False
+
+    preco = float(oferta.get("price", 0) or 0) / 100 if int(oferta.get("price", 0) or 0) > 1000 else float(oferta.get("price", 0) or 0)
+    rating = float(oferta.get("ratingStar", 0) or 0)
+    vendas = int(oferta.get("soldCount", 0) or 0)
+    comissao = oferta.get("commissionRate", "0")
     try:
-        agora = datetime.now()
-        limite = agora - timedelta(hours=72)
-        historico_limpo = {}
-        for k, v in historico.items():
-            data_str = v.get('data', agora.isoformat())
-            try:
-                if datetime.fromisoformat(data_str) > limite:
-                    historico_limpo[k] = v
-            except:
-                historico_limpo[k] = v
-        with open(HISTORICO_FILE, 'w') as f:
-            json.dump(historico_limpo, f, indent=4, ensure_ascii=False)
-            f.flush()
-            os.fsync(f.fileno())
-    except Exception as e:
-        logging.error(f"Erro ao salvar historico: {e}")
+        comissao = float(str(comissao).replace("%", "").replace(",", ".")) / 100 if float(str(comissao).replace("%", "").replace(",", ".")) > 1 else float(str(comissao).replace("%", "").replace(",", "."))
+    except:
+        comissao = 0.0
 
-def extrair_modelo_moto(txt):
-    t = normalizar_texto(txt)
-    if not any(x in t for x in ["moto", "titan", "twister", "xre", "biz", "cg", "fan", "pop", "factor", "ybr", "bros", "fazer", "lander", "crosser", "pcx", "neo", "lead", "cb", "tornado", "sahara"]):
-        return None
-    candidatos = [
-        r"xre\s*\d+",
-        r"twister\s*\d+",
-        r"titan\s*\d+",
-        r"biz\s*\d+",
-        r"pop\s*\d+",
-        r"factor\s*\d+",
-        r"ybr\s*\d+",
-        r"fazer\s*\d+",
-        r"crosser\s*\d+",
-        r"lander\s*\d+",
-        r"pcx\s*\d+",
-        r"cb\s*\d+",
-        r"cg\s*\d+",
-        r"fan\s*\d+",
-        r"bros\s*\d+",
-        r"tornado\s*\d+",
-        r"sahara\s*\d+",
-        r"neo\s*\d+",
-        r"lead\s*\d+"
-    ]
-    for p in candidatos:
-        m = re.search(p, t)
-        if m:
-            return m.group(0)
-    for m in MODELOS_MOTO_BR:
-        if normalizar_texto(m) in t:
-            return normalizar_texto(m)
-    return "moto_geral"
+    if preco < MIN_PRECO or preco > MAX_PRECO:
+        return False
+    if rating < MIN_RATING:
+        return False
+    if vendas < MIN_VENDAS:
+        return False
+    if comissao < 0.06:
+        return False
+    return True
 
-def eh_repetido_master_fix(titulo, historico_global, lista_ciclo_atual, nicho_atual=None):
-    t_novo_norm = normalizar_texto(titulo)
-    agora = datetime.now()
-    for assunto in ASSUNTOS_ENJOADOS:
-        if assunto in t_novo_norm:
-            for item in historico_global.values():
-                t_antigo_norm = normalizar_texto(item.get("titulo", ""))
-                data_envio = datetime.fromisoformat(item.get("data", agora.isoformat()))
-                if assunto in t_antigo_norm and (agora - data_envio).total_seconds() < 24 * 3600:
-                    return True
-    h_novo = hashlib.md5(t_novo_norm[:80].encode()).hexdigest()
-    if h_novo in historico_global:
+def score_oferta(oferta):
+    preco = float(oferta.get("price", 0) or 0) / 100 if int(oferta.get("price", 0) or 0) > 1000 else float(oferta.get("price", 0) or 0)
+    rating = float(oferta.get("ratingStar", 0) or 0)
+    vendas = int(oferta.get("soldCount", 0) or 0)
+    comissao = oferta.get("commissionRate", "0")
+    try:
+        comissao = float(str(comissao).replace("%", "").replace(",", ".")) / 100 if float(str(comissao).replace("%", "").replace(",", ".")) > 1 else float(str(comissao).replace("%", "").replace(",", "."))
+    except:
+        comissao = 0.0
+
+    score = 0
+    score += min(vendas, 5000) / 80
+    score += rating * 18
+    score += comissao * 120
+    if 20 <= preco <= 250:
+        score += 12
+    if 250 < preco <= 800:
+        score += 8
+    if vendas > 200:
+        score += 8
+    return score
+
+def ja_enviado(oferta):
+    titulo = oferta.get("productName", "")
+    link = oferta.get("offerLink", "")
+    fam = extrair_familia(titulo)
+    marca = extrair_marca(titulo)
+    chave = hashlib.md5(normalizar(titulo).encode()).hexdigest()
+
+    if chave in HISTORICO:
         return True
-    for item in historico_global.values():
-        t_hist_norm = normalizar_texto(item.get("titulo", ""))
-        nicho_hist = item.get("nicho")
-        ratio = SequenceMatcher(None, t_novo_norm, t_hist_norm).ratio()
-        if nicho_atual and nicho_hist and nicho_atual == nicho_hist and ratio > 0.78:
+
+    for _, item in HISTORICO.items():
+        if titulo_similar(titulo, item.get("titulo", "")) >= 0.82:
             return True
-    for p_atual in lista_ciclo_atual:
-        t_atual_norm = normalizar_texto(p_atual.get("productName", ""))
-        if SequenceMatcher(None, t_novo_norm, t_atual_norm).ratio() > 0.42:
-            return True
+        if fam and fam == item.get("familia"):
+            dt = datetime.fromisoformat(item.get("data"))
+            if datetime.now(FUSO_BR) - dt <= timedelta(days=JANELA_FAMILIA_DIAS):
+                return True
+        if marca and marca == item.get("marca"):
+            dt = datetime.fromisoformat(item.get("data"))
+            if datetime.now(FUSO_BR) - dt <= timedelta(days=JANELA_MARCA_DIAS):
+                return True
     return False
 
-def gerar_copy_base(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=False):
-    aberturas = ["🤯 Sério… olha esse achado!", "🚨 Isso aqui não aparece toda hora!", "👀 Achei agora e vim correndo postar!", "🔥 OPORTUNIDADE QUENTE!", "💥 Esse aqui tá com um preço absurdo!", "🛑 PARA TUDO e olha esse desconto!", "⚠️ Alerta de estoque baixo!", "🚀 Esse aqui vai voar rápido!"]
-    gatilhos = ["Preço muito abaixo do mercado", "Avaliações excelentes dos compradores", "Campeão de vendas na categoria", "Custo-benefício imbatível", "Qualidade premium garantida", "O queridinho do momento"]
-    chamadas_acao = ["⚡ CLIQUE ANTES QUE O PREÇO SUBA!", "🔥 ESTOQUE LIMITADO - APROVEITE!", "🚀 COMPRE AGORA COM DESCONTO!", "🎯 GARANTA O SEU ANTES QUE ACABE!", "💰 ECONOMIA REAL SÓ HOJE!"]
-    abertura = random.choice(aberturas)
-    gatilho = random.choice(gatilhos)
-    chamada = random.choice(chamadas_acao)
-    if for_whatsapp:
-        return f"{abertura}\n\n*🔥 {nome}*\n\n📌 {gatilho}\n\n{chamada}\n\n💰 *R$ {preco}*\n⭐ *{avaliacao}* | 🛒 *{vendas} vendas*\n\n⚠️ *Pode subir de preço*\n\n🛒 *COMPRAR:* {link}\n\n📲 *ENTRE NO NOSSO GRUPO:* {LINK_GRUPO_OFERTAS}"
-    zap_msg = gerar_copy_base(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=True)
-    zap_link = f"https://wa.me/?text={quote(zap_msg)}"
-    return f"""{abertura}
-
-🔥 <b>{nome}</b>
-
-📌 {gatilho}
-
-{chamada}
-
-💰 <b>R$ {preco}</b>
-⭐ <b>{avaliacao} | {vendas} vendas</b>
-💸 Comissão: <b>{comissao}%</b>
-
-⚠️ Pode subir de preço
-
-<a href="{link}">🛒 COMPRAR AGORA</a>
-
-<a href="{LINK_GRUPO_OFERTAS}">📲 Entrar no grupo de ofertas</a>
-
-<a href="{zap_link}">📲 Compartir no WhatsApp</a>
-
-━━━━━━━━━━━━━━━
-📢 <b>Ofertas Secretas</b>"""
-
-def buscar_shopee_god_mode(keyword):
-    timestamp = int(time.time())
-    query_body = f'''
-    query {{
-        productOfferV2(
-            keyword: "{keyword}",
-            sortType: 2,
-            isAMSOffer: true,
-            isKeySeller: true,
-            limit: 50
-        ) {{
-            nodes {{
-                productName
-                priceMin
-                commissionRate
-                sales
-                ratingStar
-                productLink
-                offerLink
-                imageUrl
-                shopName
-                shopType
-            }}
-        }}
-    }}
-    '''
-    payload = json.dumps({"query": query_body})
-    base_str = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
-    signature = hashlib.sha256(base_str.encode()).hexdigest()
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
+def registrar_oferta(oferta, nicho):
+    titulo = oferta.get("productName", "")
+    chave = hashlib.md5(normalizar(titulo).encode()).hexdigest()
+    HISTORICO[chave] = {
+        "titulo": titulo,
+        "familia": extrair_familia(titulo),
+        "marca": extrair_marca(titulo),
+        "nicho": nicho,
+        "data": datetime.now(FUSO_BR).isoformat(),
+        "link": oferta.get("offerLink", "")
     }
-    try:
-        r = requests.post(SHOPEE_GRAPHQL_URL, data=payload, headers=headers, timeout=25)
-        data = r.json()
-        return data.get("data", {}).get("productOfferV2", {}).get("nodes", [])
-    except Exception as e:
-        logging.error(f"Erro na API Shopee: {e}")
-        return []
 
-def aplicar_afiliado(link):
-    try:
-        parsed = urlparse(link)
-        query = parse_qs(parsed.query)
-        query["af_siteid"] = AFILIADO_ID
-        return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
-    except:
+def aplicar_id_afiliado(link):
+    if not link:
         return link
+    parsed = urlparse(link)
+    query = parse_qs(parsed.query)
+    query["af_siteid"] = [AFILIADO_ID]
+    return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
 
-def get_melhores_ofertas():
-    historico_global = carregar_historico()
-    selecionados = []
-    cont_nicho = {}
-    modelos_moto_ciclo = set()
-    logging.info("=== INÍCIO DO CICLO V119 STABLE ===")
+def formatar_preco(oferta):
+    preco = oferta.get("price", 0) or 0
+    try:
+        preco = float(preco)
+    except:
+        preco = 0
+    if preco > 1000:
+        preco = preco / 100
+    return f"R$ {preco:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-    for nicho, keywords in NICHOS.items():
-        logging.info(f"\n=== NICHO: {nicho} ===")
-        produtos_nicho = []
+def buscar_ofertas(keyword, page=1, limit=50):
+    # aqui entra sua chamada real na API
+    return []
+
+def coletar_candidatos():
+    candidatos = []
+    nichos = list(NICHOS.keys())
+    random.shuffle(nichos)
+    nichos_escolhidos = nichos[:4]
+
+    for nicho in nichos_escolhidos:
+        keywords = random.sample(NICHOS[nicho], min(4, len(NICHOS[nicho])))
         for kw in keywords:
-            if nicho == "Moto":
-                kw_com_modelo = f"{kw} {random.choice(MODELOS_MOTO_BR)}"
-                logging.info(f"  Keyword moto com modelo: '{kw_com_modelo}'")
-                produtos = buscar_shopee_god_mode(kw_com_modelo)
-                produtos = [p for p in produtos if any(w in p.get("productName", "").lower() for w in ["moto", "freio", "relação", "coroa", "pinhão", "guidão", "escapamento", "pneu", "bagageiro", "pedaleira", "tampa", "alça", "ponteira", "carenagem"])]
-            else:
-                produtos = buscar_shopee_god_mode(kw)
-            logging.info(f"  Palavra-chave '{kw}': {len(produtos)} produtos da API")
-            produtos_nicho.extend(produtos)
+            resultados = buscar_ofertas(kw, page=1, limit=50)
+            for oferta in resultados:
+                oferta["nicho"] = nicho
+                if passa_filtros_basicos(oferta) and not ja_enviado(oferta):
+                    candidatos.append(oferta)
 
-        if not produtos_nicho:
-            logging.warning(f"  → Nenhum produto encontrado para o nicho {nicho}")
+    return candidatos
+
+def escolher_final(candidatos):
+    candidatos.sort(key=score_oferta, reverse=True)
+    finais = []
+    familias = Counter()
+    marcas = Counter()
+    nichos = Counter()
+
+    for oferta in candidatos:
+        titulo = oferta.get("productName", "")
+        familia = extrair_familia(titulo)
+        marca = extrair_marca(titulo)
+        nicho = oferta.get("nicho", "")
+
+        if nichos[nicho] >= MAX_POR_NICHO:
+            continue
+        if familias[familia] >= MAX_POR_FAMILIA:
+            continue
+        if marca and marcas[marca] >= MAX_POR_MARCA:
+            continue
+        if any(titulo_similar(titulo, x.get("productName", "")) >= 0.82 for x in finais):
             continue
 
-        produtos_unicos = []
-        nomes_vistos = set()
-        for p in produtos_nicho:
-            nome = normalizar_texto(p.get("productName", ""))
-            if nome and nome not in nomes_vistos:
-                nomes_vistos.add(nome)
-                produtos_unicos.append(p)
+        finais.append(oferta)
+        nichos[nicho] += 1
+        familias[familia] += 1
+        if marca:
+            marcas[marca] += 1
 
-        logging.info(f"  Total único no nicho: {len(produtos_unicos)}")
-        candidatos = []
+        if len(finais) >= MAX_OFERTAS:
+            break
 
-        for p in produtos_unicos:
-            nome = p.get("productName", "")
-            preco = float(p.get("priceMin", 0) or 0)
-            vendas = int(p.get("sales", 0) or 0)
-            rating = float(p.get("ratingStar", 0) or 0)
-            nome_low = nome.lower()
+    return finais
 
-            if any(b in nome_low for b in PALAVRAS_BLOQUEIO_GERAL):
-                continue
-            if preco < PRECO_MIN_BASE:
-                continue
-            if nicho == "Moto" and preco > 950:
-                continue
+def gerar_copy(oferta):
+    titulo = oferta.get("productName", "")
+    preco = formatar_preco(oferta)
+    rating = oferta.get("ratingStar", 0)
+    vendas = oferta.get("soldCount", 0)
+    comissao = oferta.get("commissionRate", "0")
+    try:
+        comissao = float(str(comissao).replace("%", "").replace(",", ".")) * 100 if float(str(comissao).replace("%", "").replace(",", ".")) <= 1 else float(str(comissao).replace("%", "").replace(",", "."))
+    except:
+        comissao = 0
 
-            if nicho == "Moto":
-                v_necessarias = 5
-            elif nicho == "Maternidade":
-                v_necessarias = 4 if preco > 300 else 8
-            elif nicho == "Casa":
-                v_necessarias = 10
-            else:
-                v_necessarias = 4 if preco > 300 else 18
+    gancho = {
+        "Moto": "🏍️ Olha esse achado de moto",
+        "Moda Masculina": "👔 Achado forte de moda masculina",
+        "Moda Feminina": "👗 Esse destaque de moda feminina está bom demais",
+        "Casa": "🏠 Achado de casa que vale a pena",
+        "Maternidade": "👶 Oferta de maternidade que costuma girar bem",
+        "Eletroeletrônicos": "📱 Eletrônico com boa procura"
+    }.get(oferta.get("nicho", ""), "🔥 Oferta selecionada")
 
-            if vendas < v_necessarias:
-                continue
-            if rating < RATING_MIN_BASE:
-                continue
-            if eh_repetido_master_fix(nome, historico_global, selecionados, nicho_atual=nicho):
-                continue
-            if cont_nicho.get(nicho, 0) >= MAX_POR_NICHO:
-                continue
-            if nicho == "Moto":
-                modelo = extrair_modelo_moto(nome)
-                if modelo in modelos_moto_ciclo:
-                    continue
+    return (
+        f"{gancho}!\n\n"
+        f"*{titulo}*\n\n"
+        f"💰 {preco}\n"
+        f"⭐ {rating} | 🛒 {vendas} vendas\n"
+        f"Comissão: {comissao}%\n\n"
+        f"[COMPRAR AGORA]({aplicar_id_afiliado(oferta.get('offerLink', ''))})\n\n"
+        f"[Entrar no grupo de ofertas]({LINK_GRUPO_OFERTAS})"
+    )
 
-            candidatos.append(p)
+def gerar_lote():
+    candidatos = coletar_candidatos()
+    finais = escolher_final(candidatos)
+    for oferta in finais:
+        registrar_oferta(oferta, oferta.get("nicho", ""))
+    salvar_historico()
+    return finais
 
-        candidatos.sort(key=lambda x: (int(x.get("sales", 0) or 0), float(x.get("ratingStar", 0) or 0)), reverse=True)
-
-        for p in candidatos:
-            if len(selecionados) >= MAX_OFERTAS:
-                break
-            if cont_nicho.get(nicho, 0) >= MAX_POR_NICHO:
-                break
-
-            nome = p.get("productName", "")
-            if nicho == "Moto":
-                modelo = extrair_modelo_moto(nome)
-                if modelo in modelos_moto_ciclo:
-                    continue
-                modelos_moto_ciclo.add(modelo)
-
-            p["nicho"] = nicho
-            selecionados.append(p)
-            cont_nicho[nicho] = cont_nicho.get(nicho, 0) + 1
-
-        logging.info(f"  → Selecionados {cont_nicho.get(nicho, 0)} produtos para {nicho}")
-        for mp in selecionados[-cont_nicho.get(nicho, 0):]:
-            logging.info(f"      - {mp.get('productName')} | R$ {float(mp.get('priceMin',0)):.2f} | {int(mp.get('sales',0))} vendas | {float(mp.get('ratingStar',0)):.2f}⭐")
-
-    if len(selecionados) < MIN_OFERTAS:
-        logging.warning(f"Poucas ofertas no primeiro passe ({len(selecionados)}). Fazendo fallback global...")
-        sobra = []
-        for nicho, keywords in NICHOS.items():
-            for kw in keywords:
-                if nicho == "Moto":
-                    kw_com_modelo = f"{kw} {random.choice(MODELOS_MOTO_BR)}"
-                    produtos = buscar_shopee_god_mode(kw_com_modelo)
-                    produtos = [p for p in produtos if any(w in p.get("productName", "").lower() for w in ["moto", "freio", "relação", "coroa", "pinhão", "guidão", "escapamento", "pneu", "bagageiro", "pedaleira", "tampa", "alça", "ponteira", "carenagem"])]
-                else:
-                    produtos = buscar_shopee_god_mode(kw)
-                sobra.extend(produtos)
-
-        vistos = {normalizar_texto(p.get("productName", "")) for p in selecionados}
-        sobra_unica = []
-        for p in sobra:
-            n = normalizar_texto(p.get("productName", ""))
-            if n and n not in vistos:
-                vistos.add(n)
-                sobra_unica.append(p)
-
-        sobra_unica.sort(key=lambda x: (int(x.get("sales", 0) or 0), float(x.get("ratingStar", 0) or 0)), reverse=True)
-
-        for p in sobra_unica:
-            if len(selecionados) >= MAX_OFERTAS:
-                break
-            nome = p.get("productName", "")
-            preco = float(p.get("priceMin", 0) or 0)
-            vendas = int(p.get("sales", 0) or 0)
-            rating = float(p.get("ratingStar", 0) or 0)
-
-            if any(b in nome.lower() for b in PALAVRAS_BLOQUEIO_GERAL):
-                continue
-            if preco < PRECO_MIN_BASE or rating < 4.4 or vendas < 3:
-                continue
-            if eh_repetido_master_fix(nome, historico_global, selecionados, nicho_atual=p.get("nicho", "fallback")):
-                continue
-
-            p["nicho"] = p.get("nicho", "fallback")
-            selecionados.append(p)
-
-    logging.info(f"\n=== FINAL: Total de ofertas = {len(selecionados)} ===")
-    return selecionados[:MAX_OFERTAS]
-
-async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
-    agora = datetime.now(FUSO_BR).time()
-    if not (dt_time(5, 30) <= agora <= dt_time(21, 30)):
-        return
-    logging.info("Iniciando ciclo V119 STABLE...")
-    ofertas = get_melhores_ofertas()
-    if not ofertas:
-        logging.warning("Nenhuma oferta encontrada neste ciclo.")
-        return
-    await context.bot.send_message(chat_id=CHAT_ID_DESTINO, text=f"🚨 <b>OFERTAS SELECIONADAS DE HOJE!</b>\n<i>Total: {len(ofertas)} ofertas</i>", parse_mode="HTML")
-    await asyncio.sleep(3)
-    historico_global = carregar_historico()
-    for item in ofertas:
+def main():
+    carregar_historico()
+    while True:
         try:
-            nome = html.escape(item["productName"])
-            link_afiliado = aplicar_afiliado(item.get("offerLink") or item.get("productLink"))
-            preco = f"{float(item['priceMin']):.2f}".replace(".", ",")
-            vendas = f"{int(item['sales']):,}".replace(",", ".")
-            comissao_val = round(float(item.get("commissionRate", 0)) * 100, 1)
-            msg = gerar_copy_base(nome, preco, vendas, item.get("ratingStar", 5.0), comissao_val, link_afiliado)
-            await context.bot.send_photo(chat_id=CHAT_ID_DESTINO, photo=item.get("imageUrl"), caption=msg, parse_mode="HTML")
-            t_norm = normalizar_texto(item["productName"])
-            h = hashlib.md5(t_norm[:80].encode()).hexdigest()
-            historico_global[h] = {"data": datetime.now().isoformat(), "titulo": item["productName"], "nicho": item.get("nicho")}
-            salvar_historico(historico_global)
-            await asyncio.sleep(45)
+            ofertas = gerar_lote()
+            logging.info(f"Total selecionado: {len(ofertas)}")
+            for i, o in enumerate(ofertas, 1):
+                logging.info(f"{i}. {o.get('productName', '')}")
+            time.sleep(CHECK_INTERVAL)
         except Exception as e:
-            logging.error(f"Erro no envio: {e}")
-
-async def post_init(app):
-    app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
-    logging.info("Bot Shopee V119 STABLE ativo!")
+            logging.exception(e)
+            time.sleep(60)
 
 if __name__ == "__main__":
-    if TELEGRAM_TOKEN:
-        ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build().run_polling()
-    else:
-        print("Erro: TELEGRAM_TOKEN não configurado.")
+    main()
 
 
 
