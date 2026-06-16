@@ -8,13 +8,14 @@ import json
 import os
 import html
 import re
+from collections import Counter
 from difflib import SequenceMatcher
-from datetime import datetime, time as dt_time
+from datetime import datetime, timedelta, time as dt_time
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V12.2 - 2 PRODUTOS POR NICHO + 10 POR CICLO")
+print("VERSAO SHOPEE V12.3 - 2 PRODUTOS POR NICHO + DEDUP FORTE")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -80,6 +81,7 @@ ULTIMAS_BUSCAS_SHOPEE = []
 ULTIMOS_TITULOS = []
 usadas_abertura = set()
 usados_no_ciclo = set()
+BASES_VISTAS = set()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
@@ -108,11 +110,28 @@ def tem_bloqueio(titulo):
     return any(p in t for p in PALAVRAS_BLOQUEIO)
 
 
-def titulo_semelhante(titulo):
+def chave_base_titulo(titulo):
     t = normalizar_texto(titulo)
+    stop = {
+        "premium", "novo", "promocao", "promoção", "super", "original", "profissional",
+        "casual", "masculino", "feminino", "infantil", "adulto", "unissex",
+        "estica", "estica muito", "estica bastante", "kit", "com", "de", "para", "o", "a",
+        "nf", "promo", "oferta", "modelo", "versao", "versão", "superpromoção"
+    }
+    tokens = [x for x in t.split() if x not in stop and len(x) > 2]
+    return " ".join(tokens[:5])
+
+
+def titulo_duplicado_forte(titulo):
+    t = normalizar_texto(titulo)
+    base = chave_base_titulo(titulo)
+
     for prev in ULTIMOS_TITULOS:
-        ratio = SequenceMatcher(None, t, prev).ratio()
-        if ratio >= 0.82:
+        if t == prev:
+            return True
+        if SequenceMatcher(None, t, prev).ratio() >= 0.86:
+            return True
+        if base and base == chave_base_titulo(prev):
             return True
     return False
 
@@ -168,7 +187,7 @@ def produto_valido(p):
             return False
         if tem_bloqueio(titulo):
             return False
-        if titulo_semelhante(titulo):
+        if titulo_duplicado_forte(titulo):
             return False
         if preco_min < PRECO_MIN or preco_min > PRECO_MAX:
             return False
@@ -322,10 +341,11 @@ def buscar_produtos_da_categoria(categoria_selecionada):
 
 
 def get_shopee_offers():
-    global ULTIMAS_BUSCAS_SHOPEE, ULTIMOS_TITULOS, usados_no_ciclo
+    global ULTIMAS_BUSCAS_SHOPEE, ULTIMOS_TITULOS, usados_no_ciclo, BASES_VISTAS
 
     logging.info("Buscando ofertas Shopee")
     usados_no_ciclo = set()
+    BASES_VISTAS = set()
     categorias_ciclo = escolher_categorias_do_ciclo()
     candidatos = []
 
@@ -340,12 +360,19 @@ def get_shopee_offers():
             for escolhido in filtrados:
                 if escolhidos_nicho >= MAX_POR_NICHO:
                     break
+
+                titulo = escolhido.get("productName", "")
+                base = chave_base_titulo(titulo)
+                if base and base in BASES_VISTAS:
+                    continue
+
                 link = escolhido.get("offerLink") or escolhido.get("productLink")
                 if link and link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
                     candidatos.append(escolhido)
+                    BASES_VISTAS.add(base)
                     usados_no_ciclo.add(link)
                     ULTIMAS_BUSCAS_SHOPEE.append(link)
-                    ULTIMOS_TITULOS.append(normalizar_texto(escolhido["productName"]))
+                    ULTIMOS_TITULOS.append(normalizar_texto(titulo))
                     escolhidos_nicho += 1
 
                     if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
@@ -369,12 +396,19 @@ def get_shopee_offers():
             for escolhido in filtrados:
                 if len(candidatos) >= MAX_OFERTAS or escolhidos_nicho >= MAX_POR_NICHO:
                     break
+
+                titulo = escolhido.get("productName", "")
+                base = chave_base_titulo(titulo)
+                if base and base in BASES_VISTAS:
+                    continue
+
                 link = escolhido.get("offerLink") or escolhido.get("productLink")
                 if link and link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
                     candidatos.append(escolhido)
+                    BASES_VISTAS.add(base)
                     usados_no_ciclo.add(link)
                     ULTIMAS_BUSCAS_SHOPEE.append(link)
-                    ULTIMOS_TITULOS.append(normalizar_texto(escolhido["productName"]))
+                    ULTIMOS_TITULOS.append(normalizar_texto(titulo))
                     escolhidos_nicho += 1
 
                     if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
