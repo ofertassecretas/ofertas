@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V12.4 - COTAS POR NICHO + DEDUP FORTE")
+print("VERSAO SHOPEE V12.5 - COTAS POR NICHO + DEDUP FORTE + DEBUG")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -44,15 +44,6 @@ PRECO_MAX = 10000.0
 COMISSAO_MIN = 0.03
 VENDAS_MIN = 5
 RATING_MIN = 4.0
-
-JANELA_FAMILIA_DIAS = 3
-JANELA_MARCA_DIAS = 2
-JANELA_HISTORICO_DIAS = 15
-
-PALAVRAS_BLOQUEIO = [
-    "teste", "amostra", "não compre", "nao compre", "produto teste", "exemplo", "dummy",
-    "vela led", "vela decorativa", "decorativa", "decoração", "casamento", "festa"
-]
 
 KEYWORDS = {
     "Moda feminina": [
@@ -90,6 +81,7 @@ ULTIMOS_TITULOS = []
 usadas_abertura = set()
 usados_no_ciclo = set()
 BASES_VISTAS = set()
+REJEICOES = Counter()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
@@ -114,9 +106,8 @@ def chave_base_titulo(titulo):
     stop = {
         "premium", "novo", "promocao", "promoção", "super", "original", "profissional",
         "casual", "masculino", "feminino", "infantil", "adulto", "unissex",
-        "estica", "estica muito", "estica bastante", "kit", "com", "de", "para", "o", "a",
-        "nf", "promo", "oferta", "modelo", "versao", "versão", "linha", "envio",
-        "super promoção", "promoção", "promo", "linha premium"
+        "estica", "kit", "com", "de", "para", "o", "a", "promo", "oferta",
+        "modelo", "versao", "versão", "linha", "envio"
     }
     tokens = [x for x in t.split() if x not in stop and len(x) > 2]
     return " ".join(tokens[:5])
@@ -124,7 +115,11 @@ def chave_base_titulo(titulo):
 
 def tem_bloqueio(titulo):
     t = normalizar_texto(titulo)
-    return any(p in t for p in PALAVRAS_BLOQUEIO)
+    palavras = [
+        "teste", "amostra", "não compre", "nao compre", "produto teste", "exemplo",
+        "dummy", "vela led", "vela decorativa", "decorativa", "decoração", "casamento", "festa"
+    ]
+    return any(p in t for p in palavras)
 
 
 def titulo_duplicado_forte(titulo):
@@ -179,7 +174,7 @@ def oferta_score(p):
         return 0
 
 
-def produto_valido(p):
+def motivo_rejeicao(p):
     try:
         titulo = str(p.get("productName", "")).strip()
         link = str(p.get("offerLink") or p.get("productLink") or "").strip()
@@ -188,26 +183,34 @@ def produto_valido(p):
         vendas = int(p.get("sales", 0) or 0)
         rating = float(p.get("ratingStar", 0) or 0)
 
-        if not titulo or not link:
-            return False
+        if not titulo:
+            return "sem_titulo"
+        if not link:
+            return "sem_link"
         if tem_bloqueio(titulo):
-            return False
+            return "bloqueio_texto"
         if titulo_duplicado_forte(titulo):
-            return False
-        if preco_min < PRECO_MIN or preco_min > PRECO_MAX:
-            return False
+            return "duplicado_forte"
+        if preco_min < PRECO_MIN:
+            return "preco_baixo"
+        if preco_min > PRECO_MAX:
+            return "preco_alto"
         if comissao < COMISSAO_MIN:
-            return False
+            return "comissao_baixa"
         if vendas < VENDAS_MIN:
-            return False
+            return "vendas_baixas"
         if rating and rating < RATING_MIN:
-            return False
+            return "rating_baixo"
         if link in ULTIMAS_BUSCAS_SHOPEE or link in usados_no_ciclo:
-            return False
+            return "link_repetido"
 
-        return True
-    except Exception:
-        return False
+        return None
+    except Exception as e:
+        return f"erro_validacao:{type(e).__name__}"
+
+
+def produto_valido(p):
+    return motivo_rejeicao(p) is None
 
 
 CHAMADAS_ACAO = [
@@ -305,10 +308,8 @@ def aplicar_id_afiliado(link):
     return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
 
 
-def buscar_produtos_da_categoria(categoria_selecionada):
-    palavra_chave = random.choice(KEYWORDS[categoria_selecionada])
-    logging.info(f"Buscando na categoria: {categoria_selecionada} com palavra-chave: {palavra_chave}")
-
+def buscar_produtos_da_categoria_kw(palavra_chave, categoria_selecionada):
+    logging.info(f"Buscando em {categoria_selecionada}: {palavra_chave}")
     timestamp = int(time.time())
 
     query_body = f'''
@@ -346,7 +347,7 @@ def buscar_produtos_da_categoria(categoria_selecionada):
 
 
 def get_shopee_offers():
-    global ULTIMAS_BUSCAS_SHOPEE, ULTIMOS_TITULOS, usados_no_ciclo, BASES_VISTAS
+    global ULTIMAS_BUSCAS_SHOPEE, ULTIMOS_TITULOS, usados_no_ciclo, BASES_VISTAS, REJEICOES
 
     logging.info("Buscando ofertas Shopee")
     usados_no_ciclo = set()
@@ -358,6 +359,7 @@ def get_shopee_offers():
             produtos_brutos = []
             kws = KEYWORDS.get(nicho, [])
             random.shuffle(kws)
+
             for kw in kws:
                 if len(produtos_brutos) >= 50:
                     break
@@ -365,7 +367,22 @@ def get_shopee_offers():
                 produtos_brutos.extend(resultados)
 
             logging.info(f"{nicho}: {len(produtos_brutos)} produtos brutos")
-            filtrados = [p for p in produtos_brutos if produto_valido(p)]
+
+            filtrados = []
+            rejeitados_local = Counter()
+
+            for p in produtos_brutos:
+                motivo = motivo_rejeicao(p)
+                if motivo is None:
+                    filtrados.append(p)
+                else:
+                    rejeitados_local[motivo] += 1
+                    REJEICOES[motivo] += 1
+
+            logging.info(f"{nicho}: {len(filtrados)} passaram no filtro")
+            if rejeitados_local:
+                logging.info(f"{nicho}: rejeições {dict(rejeitados_local)}")
+
             filtrados.sort(key=oferta_score, reverse=True)
 
             escolhidos = 0
@@ -373,12 +390,14 @@ def get_shopee_offers():
                 if escolhidos >= cota:
                     break
 
-                titulo = escolhido.get("productName", "")
+                titulo = str(escolhido.get("productName", "")).strip()
                 base = chave_base_titulo(titulo)
+                link = escolhido.get("offerLink") or escolhido.get("productLink")
+
                 if base and base in BASES_VISTAS:
+                    logging.info(f"{nicho}: pulou por base repetida -> {titulo}")
                     continue
 
-                link = escolhido.get("offerLink") or escolhido.get("productLink")
                 if link and link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
                     candidatos.append(escolhido)
                     BASES_VISTAS.add(base)
@@ -387,56 +406,22 @@ def get_shopee_offers():
                     ULTIMOS_TITULOS.append(normalizar_texto(titulo))
                     escolhidos += 1
 
+                    logging.info(f"{nicho}: escolhido {titulo}")
+
                     if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
                         ULTIMAS_BUSCAS_SHOPEE.pop(0)
                     if len(ULTIMOS_TITULOS) > 150:
                         ULTIMOS_TITULOS.pop(0)
 
+            if escolhidos < cota:
+                logging.warning(f"{nicho}: só conseguiu {escolhidos}/{cota}")
+
         except Exception as e:
-            logging.error(f"Erro no nicho {nicho}: {e}")
+            logging.error(f"Erro no nicho {nicho}: {e}", exc_info=True)
 
     candidatos.sort(key=oferta_score, reverse=True)
     logging.info(f"Shopee OK: {len(candidatos[:MAX_OFERTAS])} produtos únicos para envio")
     return candidatos[:MAX_OFERTAS]
-
-
-def buscar_produtos_da_categoria_kw(palavra_chave, categoria_selecionada):
-    logging.info(f"Buscando em {categoria_selecionada}: {palavra_chave}")
-
-    timestamp = int(time.time())
-
-    query_body = f'''
-    query {{
-        productOfferV2(sortType: 2, limit: 50, keyword: "{palavra_chave}", isAMSOffer: true) {{
-            nodes {{
-                productName
-                priceMin
-                priceMax
-                commissionRate
-                sales
-                ratingStar
-                productLink
-                offerLink
-                imageUrl
-                shopType
-            }}
-        }}
-    }}
-    '''
-
-    payload = json.dumps({"query": query_body}, ensure_ascii=False)
-    base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
-    signature = hashlib.sha256(base.encode()).hexdigest()
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
-    }
-
-    r = requests.post(SHOPEE_GRAPHQL_URL, data=payload.encode("utf-8"), headers=headers, timeout=20)
-    r.raise_for_status()
-    data = r.json()
-    return data.get("data", {}).get("productOfferV2", {}).get("nodes", []) or []
 
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
@@ -480,7 +465,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 selecionadas.append({"msg": msg, "img": img})
 
             except Exception as e:
-                logging.error(f"Erro Shopee item: {e}")
+                logging.error(f"Erro Shopee item: {e}", exc_info=True)
 
         logging.info(f"Selecionadas: {len(selecionadas)}")
 
@@ -507,12 +492,12 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 )
                 await asyncio.sleep(40)
             except Exception as e:
-                logging.error(f"Erro Telegram: {e}")
+                logging.error(f"Erro Telegram: {e}", exc_info=True)
 
         logging.info("Loop finalizado")
 
     except Exception as e:
-        logging.error(f"ERRO CRITICO: {e}")
+        logging.error(f"ERRO CRITICO: {e}", exc_info=True)
 
 
 async def keep_alive():
@@ -528,7 +513,7 @@ async def post_init(app):
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-    logging.error(f"ERRO TELEGRAM: {context.error}")
+    logging.error(f"ERRO TELEGRAM: {context.error}", exc_info=True)
 
 
 if __name__ == "__main__":
@@ -546,7 +531,7 @@ if __name__ == "__main__":
             app.add_error_handler(error_handler)
             app.run_polling(allowed_updates=None)
         except Exception as e:
-            logging.error(f"BOT REINICIANDO: {e}")
+            logging.error(f"BOT REINICIANDO: {e}", exc_info=True)
             time.sleep(15)
 
 
