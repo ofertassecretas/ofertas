@@ -15,13 +15,12 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V12.3 - 2 PRODUTOS POR NICHO + DEDUP FORTE")
+print("VERSAO SHOPEE V12.4 - COTAS POR NICHO + DEDUP FORTE")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
 
 CHAT_ID_DESTINO = -1003848415150
-
 SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
@@ -30,9 +29,15 @@ CHECK_INTERVAL = 5400
 
 MAX_OFERTAS = 10
 MIN_OFERTAS = 6
-MAX_POR_NICHO = 2
-MAX_POR_FAMILIA = 2
-MAX_POR_MARCA = 1
+
+COTAS_POR_NICHO = {
+    "Moda feminina": 1,
+    "Moda masculina": 1,
+    "Moto": 2,
+    "Maternidade": 2,
+    "Casa": 2,
+    "Eletroeletrônicos": 2
+}
 
 PRECO_MIN = 15.0
 PRECO_MAX = 10000.0
@@ -49,31 +54,34 @@ PALAVRAS_BLOQUEIO = [
     "vela led", "vela decorativa", "decorativa", "decoração", "casamento", "festa"
 ]
 
-NICHOS_CICLO = ["Casa", "Moda feminina", "Moda masculina", "Maternidade", "Motocicleta"]
-
 KEYWORDS = {
-    "Casa": [
-        "organizador cozinha", "kit cozinha inox", "aspirador portátil", "ferramenta elétrica",
-        "air fryer", "cafeteira elétrica", "liquidificador", "panela elétrica",
-        "jogo de cama", "mop", "tapete sala", "travesseiro"
-    ],
     "Moda feminina": [
-        "vestido feminino", "blusa feminina premium", "calça feminina", "tenis feminino",
-        "bolsa feminina", "conjunto feminino", "shorts feminino", "jaqueta feminina"
+        "vestido feminino", "blusa feminina", "saia feminina", "tenis feminino",
+        "sandalia feminina", "bolsa feminina", "shorts feminino", "conjunto feminino",
+        "macacao feminino", "calca feminina"
     ],
     "Moda masculina": [
-        "camisa masculina", "camisa polo masculina", "tenis masculino", "calça jeans masculina",
-        "relógio masculino", "mochila masculina", "carteira masculina", "jaqueta masculina"
+        "bermuda masculina", "camisa masculina", "tenis masculino", "sapato masculino",
+        "calca masculina", "kit cueca", "blaser masculino", "jaqueta masculina",
+        "camisa polo masculina", "carteira masculina"
+    ],
+    "Moto": [
+        "escapamento moto", "pneu moto", "retrovisor moto", "capacete moto",
+        "bateria moto", "kit relacao moto", "freio moto", "pastilha freio moto",
+        "farol moto", "carenagem moto"
     ],
     "Maternidade": [
-        "carrinho bebê", "cadeirinha bebê", "kit enxoval bebê", "babá eletrônica",
-        "cadeira alimentação bebê", "brinquedo educativo bebê", "berço portátil", "mochila maternidade"
+        "kit enxoval bebe", "carrinho bebe", "berco bebe", "chocalho bebe",
+        "mordedor bebe", "babador bebe", "cadeirinha bebe", "tapete infantil",
+        "brinquedo educativo bebe", "ninho bebe"
     ],
-    "Motocicleta": [
-        "amortecedor moto", "freio moto", "pastilha freio moto", "disco freio moto", "pneu moto",
-        "kit relação moto", "embreagem moto", "injeção moto", "painel moto", "farol moto",
-        "seta moto", "retrovisor moto", "carenagem moto", "bateria moto",
-        "stator moto", "regulador moto", "bobina moto", "relé moto", "sensor moto"
+    "Casa": [
+        "air fryer", "aspirador", "mop", "organizador cozinha", "cafeteira",
+        "liquidificador", "batedeira", "panela eletrica", "tapete infantil", "ventilador"
+    ],
+    "Eletroeletrônicos": [
+        "smartwatch", "fone bluetooth", "ssd", "carregador turbo", "power bank",
+        "caixa de som bluetooth", "tablet", "mouse gamer", "teclado mecanico", "headset gamer"
     ]
 }
 
@@ -92,10 +100,6 @@ def dentro_do_horario():
     return dt_time(5, 30) <= agora <= dt_time(21, 30)
 
 
-def escolher_categorias_do_ciclo():
-    return random.sample(NICHOS_CICLO, k=len(NICHOS_CICLO))
-
-
 def normalizar_texto(txt):
     if not txt:
         return ""
@@ -105,21 +109,22 @@ def normalizar_texto(txt):
     return txt
 
 
-def tem_bloqueio(titulo):
-    t = normalizar_texto(titulo)
-    return any(p in t for p in PALAVRAS_BLOQUEIO)
-
-
 def chave_base_titulo(titulo):
     t = normalizar_texto(titulo)
     stop = {
         "premium", "novo", "promocao", "promoção", "super", "original", "profissional",
         "casual", "masculino", "feminino", "infantil", "adulto", "unissex",
         "estica", "estica muito", "estica bastante", "kit", "com", "de", "para", "o", "a",
-        "nf", "promo", "oferta", "modelo", "versao", "versão", "superpromoção"
+        "nf", "promo", "oferta", "modelo", "versao", "versão", "linha", "envio",
+        "super promoção", "promoção", "promo", "linha premium"
     }
     tokens = [x for x in t.split() if x not in stop and len(x) > 2]
     return " ".join(tokens[:5])
+
+
+def tem_bloqueio(titulo):
+    t = normalizar_texto(titulo)
+    return any(p in t for p in PALAVRAS_BLOQUEIO)
 
 
 def titulo_duplicado_forte(titulo):
@@ -167,7 +172,7 @@ def oferta_score(p):
         score += shop_type_score(st)
         if 50 <= preco <= 5000:
             score += 6
-        if "moto" in nome or "bebê" in nome or "bebe" in nome:
+        if any(x in nome for x in ["moto", "bebê", "bebe", "smartwatch", "ssd", "fone", "tablet"]):
             score += 2
         return score
     except Exception:
@@ -346,19 +351,26 @@ def get_shopee_offers():
     logging.info("Buscando ofertas Shopee")
     usados_no_ciclo = set()
     BASES_VISTAS = set()
-    categorias_ciclo = escolher_categorias_do_ciclo()
     candidatos = []
 
-    for categoria_selecionada in categorias_ciclo:
+    for nicho, cota in COTAS_POR_NICHO.items():
         try:
-            produtos_brutos = buscar_produtos_da_categoria(categoria_selecionada)
-            logging.info(f"{categoria_selecionada}: {len(produtos_brutos)} produtos brutos")
+            produtos_brutos = []
+            kws = KEYWORDS.get(nicho, [])
+            random.shuffle(kws)
+            for kw in kws:
+                if len(produtos_brutos) >= 50:
+                    break
+                resultados = buscar_produtos_da_categoria_kw(kw, nicho)
+                produtos_brutos.extend(resultados)
+
+            logging.info(f"{nicho}: {len(produtos_brutos)} produtos brutos")
             filtrados = [p for p in produtos_brutos if produto_valido(p)]
             filtrados.sort(key=oferta_score, reverse=True)
 
-            escolhidos_nicho = 0
+            escolhidos = 0
             for escolhido in filtrados:
-                if escolhidos_nicho >= MAX_POR_NICHO:
+                if escolhidos >= cota:
                     break
 
                 titulo = escolhido.get("productName", "")
@@ -373,7 +385,7 @@ def get_shopee_offers():
                     usados_no_ciclo.add(link)
                     ULTIMAS_BUSCAS_SHOPEE.append(link)
                     ULTIMOS_TITULOS.append(normalizar_texto(titulo))
-                    escolhidos_nicho += 1
+                    escolhidos += 1
 
                     if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
                         ULTIMAS_BUSCAS_SHOPEE.pop(0)
@@ -381,47 +393,50 @@ def get_shopee_offers():
                         ULTIMOS_TITULOS.pop(0)
 
         except Exception as e:
-            logging.error(f"Erro na categoria {categoria_selecionada}: {e}")
-
-    tentativas_extra = 0
-    while len(candidatos) < MAX_OFERTAS and tentativas_extra < 24:
-        tentativas_extra += 1
-        categoria_extra = random.choice(list(KEYWORDS.keys()))
-        try:
-            produtos_brutos = buscar_produtos_da_categoria(categoria_extra)
-            filtrados = [p for p in produtos_brutos if produto_valido(p)]
-            filtrados.sort(key=oferta_score, reverse=True)
-
-            escolhidos_nicho = 0
-            for escolhido in filtrados:
-                if len(candidatos) >= MAX_OFERTAS or escolhidos_nicho >= MAX_POR_NICHO:
-                    break
-
-                titulo = escolhido.get("productName", "")
-                base = chave_base_titulo(titulo)
-                if base and base in BASES_VISTAS:
-                    continue
-
-                link = escolhido.get("offerLink") or escolhido.get("productLink")
-                if link and link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
-                    candidatos.append(escolhido)
-                    BASES_VISTAS.add(base)
-                    usados_no_ciclo.add(link)
-                    ULTIMAS_BUSCAS_SHOPEE.append(link)
-                    ULTIMOS_TITULOS.append(normalizar_texto(titulo))
-                    escolhidos_nicho += 1
-
-                    if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
-                        ULTIMAS_BUSCAS_SHOPEE.pop(0)
-                    if len(ULTIMOS_TITULOS) > 150:
-                        ULTIMOS_TITULOS.pop(0)
-
-        except Exception as e:
-            logging.error(f"Erro extra na categoria {categoria_extra}: {e}")
+            logging.error(f"Erro no nicho {nicho}: {e}")
 
     candidatos.sort(key=oferta_score, reverse=True)
     logging.info(f"Shopee OK: {len(candidatos[:MAX_OFERTAS])} produtos únicos para envio")
     return candidatos[:MAX_OFERTAS]
+
+
+def buscar_produtos_da_categoria_kw(palavra_chave, categoria_selecionada):
+    logging.info(f"Buscando em {categoria_selecionada}: {palavra_chave}")
+
+    timestamp = int(time.time())
+
+    query_body = f'''
+    query {{
+        productOfferV2(sortType: 2, limit: 50, keyword: "{palavra_chave}", isAMSOffer: true) {{
+            nodes {{
+                productName
+                priceMin
+                priceMax
+                commissionRate
+                sales
+                ratingStar
+                productLink
+                offerLink
+                imageUrl
+                shopType
+            }}
+        }}
+    }}
+    '''
+
+    payload = json.dumps({"query": query_body}, ensure_ascii=False)
+    base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
+    signature = hashlib.sha256(base.encode()).hexdigest()
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
+    }
+
+    r = requests.post(SHOPEE_GRAPHQL_URL, data=payload.encode("utf-8"), headers=headers, timeout=20)
+    r.raise_for_status()
+    data = r.json()
+    return data.get("data", {}).get("productOfferV2", {}).get("nodes", []) or []
 
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
@@ -533,7 +548,6 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"BOT REINICIANDO: {e}")
             time.sleep(15)
-
 
 
 
