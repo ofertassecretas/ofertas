@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V12.1 - CURADORIA + COMISSAO 3%+")
+print("VERSAO SHOPEE V12.2 - 2 PRODUTOS POR NICHO + 10 POR CICLO")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -25,18 +25,23 @@ SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
-CHECK_INTERVAL = 5400  # 90 minutos
-
-# Filtros principais
-PRECO_MIN = 15.0          # antes 20
-PRECO_MAX = 10000.0
-COMISSAO_MIN = 0.03       # antes 0.08 (8%) → agora 3%
-VENDAS_MIN = 5            # mantido (já razoável)
-RATING_MIN = 4.0          # mantido
+CHECK_INTERVAL = 5400
 
 MAX_OFERTAS = 10
 MIN_OFERTAS = 6
 MAX_POR_NICHO = 2
+MAX_POR_FAMILIA = 2
+MAX_POR_MARCA = 1
+
+PRECO_MIN = 15.0
+PRECO_MAX = 10000.0
+COMISSAO_MIN = 0.03
+VENDAS_MIN = 5
+RATING_MIN = 4.0
+
+JANELA_FAMILIA_DIAS = 3
+JANELA_MARCA_DIAS = 2
+JANELA_HISTORICO_DIAS = 15
 
 PALAVRAS_BLOQUEIO = [
     "teste", "amostra", "não compre", "nao compre", "produto teste", "exemplo", "dummy",
@@ -81,11 +86,8 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
 
 def dentro_do_horario():
-    """Somente envia entre 05:30 e 21:30 (horário Brasil)."""
     agora = datetime.now(FUSO_BR).time()
-    inicio = dt_time(5, 30)
-    fim = dt_time(21, 30)
-    return inicio <= agora <= fim
+    return dt_time(5, 30) <= agora <= dt_time(21, 30)
 
 
 def escolher_categorias_do_ciclo():
@@ -93,6 +95,8 @@ def escolher_categorias_do_ciclo():
 
 
 def normalizar_texto(txt):
+    if not txt:
+        return ""
     txt = txt.lower().strip()
     txt = re.sub(r"[^a-z0-9à-ÿ\s]", " ", txt)
     txt = re.sub(r"\s+", " ", txt)
@@ -118,18 +122,17 @@ def shop_type_score(shop_type):
         if not shop_type:
             return 0
         if 1 in shop_type:
-            return 3   # loja oficial
+            return 3
         if 4 in shop_type:
-            return 2   # preferencial
+            return 2
         if 2 in shop_type:
-            return 1   # normal
+            return 1
         return 0
     except Exception:
         return 0
 
 
 def oferta_score(p):
-    """Score para ordenar os candidatos (mais alto = melhor)."""
     try:
         vendas = int(p.get("sales", 0) or 0)
         rating = float(p.get("ratingStar", 0) or 0)
@@ -139,10 +142,10 @@ def oferta_score(p):
         nome = str(p.get("productName", "")).lower()
 
         score = 0
-        score += min(vendas / 8, 25)          # vendas
-        score += rating * 2                   # avaliação
-        score += comissao * 100               # comissão (forte)
-        score += shop_type_score(st)          # tipo de loja
+        score += min(vendas / 8, 25)
+        score += rating * 2
+        score += comissao * 100
+        score += shop_type_score(st)
         if 50 <= preco <= 5000:
             score += 6
         if "moto" in nome or "bebê" in nome or "bebe" in nome:
@@ -153,7 +156,6 @@ def oferta_score(p):
 
 
 def produto_valido(p):
-    """Aplica filtros básicos em cima da resposta da API."""
     try:
         titulo = str(p.get("productName", "")).strip()
         link = str(p.get("offerLink") or p.get("productLink") or "").strip()
@@ -322,10 +324,11 @@ def buscar_produtos_da_categoria(categoria_selecionada):
 def get_shopee_offers():
     global ULTIMAS_BUSCAS_SHOPEE, ULTIMOS_TITULOS, usados_no_ciclo
 
-    logging.info(f"Shopee OK: {len(candidatos[:MAX_OFERTAS])} produtos únicos para envio")
-return candidatos[:MAX_OFERTAS]
+    logging.info("Buscando ofertas Shopee")
+    usados_no_ciclo = set()
+    categorias_ciclo = escolher_categorias_do_ciclo()
+    candidatos = []
 
-    # 1 produto por nicho no ciclo
     for categoria_selecionada in categorias_ciclo:
         try:
             produtos_brutos = buscar_produtos_da_categoria(categoria_selecionada)
@@ -333,24 +336,28 @@ return candidatos[:MAX_OFERTAS]
             filtrados = [p for p in produtos_brutos if produto_valido(p)]
             filtrados.sort(key=oferta_score, reverse=True)
 
-            if filtrados:
-                escolhido = filtrados[0]
+            escolhidos_nicho = 0
+            for escolhido in filtrados:
+                if escolhidos_nicho >= MAX_POR_NICHO:
+                    break
                 link = escolhido.get("offerLink") or escolhido.get("productLink")
-                candidatos.append(escolhido)
-                ULTIMAS_BUSCAS_SHOPEE.append(link)
-                usados_no_ciclo.add(link)
-                ULTIMOS_TITULOS.append(normalizar_texto(escolhido["productName"]))
-                if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
-                    ULTIMAS_BUSCAS_SHOPEE.pop(0)
-                if len(ULTIMOS_TITULOS) > 150:
-                    ULTIMOS_TITULOS.pop(0)
+                if link and link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
+                    candidatos.append(escolhido)
+                    usados_no_ciclo.add(link)
+                    ULTIMAS_BUSCAS_SHOPEE.append(link)
+                    ULTIMOS_TITULOS.append(normalizar_texto(escolhido["productName"]))
+                    escolhidos_nicho += 1
+
+                    if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
+                        ULTIMAS_BUSCAS_SHOPEE.pop(0)
+                    if len(ULTIMOS_TITULOS) > 150:
+                        ULTIMOS_TITULOS.pop(0)
 
         except Exception as e:
             logging.error(f"Erro na categoria {categoria_selecionada}: {e}")
 
-    # Fallback: completar até 6 com tentativas extras
     tentativas_extra = 0
-    while len(candidatos) < 6 and tentativas_extra < 24:
+    while len(candidatos) < MAX_OFERTAS and tentativas_extra < 24:
         tentativas_extra += 1
         categoria_extra = random.choice(list(KEYWORDS.keys()))
         try:
@@ -358,14 +365,18 @@ return candidatos[:MAX_OFERTAS]
             filtrados = [p for p in produtos_brutos if produto_valido(p)]
             filtrados.sort(key=oferta_score, reverse=True)
 
-            if filtrados:
-                escolhido = filtrados[0]
+            escolhidos_nicho = 0
+            for escolhido in filtrados:
+                if len(candidatos) >= MAX_OFERTAS or escolhidos_nicho >= MAX_POR_NICHO:
+                    break
                 link = escolhido.get("offerLink") or escolhido.get("productLink")
-                if link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
+                if link and link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
                     candidatos.append(escolhido)
-                    ULTIMAS_BUSCAS_SHOPEE.append(link)
                     usados_no_ciclo.add(link)
+                    ULTIMAS_BUSCAS_SHOPEE.append(link)
                     ULTIMOS_TITULOS.append(normalizar_texto(escolhido["productName"]))
+                    escolhidos_nicho += 1
+
                     if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
                         ULTIMAS_BUSCAS_SHOPEE.pop(0)
                     if len(ULTIMOS_TITULOS) > 150:
@@ -375,13 +386,13 @@ return candidatos[:MAX_OFERTAS]
             logging.error(f"Erro extra na categoria {categoria_extra}: {e}")
 
     candidatos.sort(key=oferta_score, reverse=True)
-    logging.info(f"Shopee OK: {len(candidatos[:6])} produtos únicos para envio")
-    return candidatos[:6]
+    logging.info(f"Shopee OK: {len(candidatos[:MAX_OFERTAS])} produtos únicos para envio")
+    return candidatos[:MAX_OFERTAS]
 
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     try:
-        logging.info(for item in shopee_ofertas[:MAX_OFERTAS]:)
+        logging.info("Loop de ofertas iniciado")
 
         if not dentro_do_horario():
             logging.info("Fora do horário (05:30–21:30)")
@@ -391,7 +402,11 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         shopee_ofertas = get_shopee_offers()
         selecionadas = []
 
-        for item in shopee_ofertas[:6]:
+        if len(shopee_ofertas) < MIN_OFERTAS:
+            logging.warning(f"Apenas {len(shopee_ofertas)} ofertas válidas. Pulando envio.")
+            return
+
+        for item in shopee_ofertas[:MAX_OFERTAS]:
             try:
                 link_base = item.get("offerLink") or item.get("productLink")
                 link = aplicar_id_afiliado(link_base)
@@ -484,7 +499,6 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"BOT REINICIANDO: {e}")
             time.sleep(15)
-
 
 
 
