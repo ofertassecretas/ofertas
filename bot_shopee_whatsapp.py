@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V12.5 - COTAS POR NICHO + DEDUP FORTE + DEBUG")
+print("VERSAO SHOPEE V13 - COTAS POR NICHO + SUBCATEGORIA UNICA + ANTI-REPETICAO")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -76,11 +76,55 @@ KEYWORDS = {
     ]
 }
 
+# Mapa de subcategorias (para não repetir "tipo de produto" no mesmo ciclo)
+SUBCATEGORIAS = {
+    "caixa_som": [
+        "caixa de som", "caixa som", "soundbar", "speaker", "bluetooth karaok", "karaokê", "karaoke"
+    ],
+    "fone": [
+        "fone", "earbuds", "headset", "fone de ouvido", "auricular"
+    ],
+    "smartwatch": [
+        "smartwatch", "relogio inteligente", "relógio inteligente"
+    ],
+    "ssd": ["ssd"],
+    "mouse": ["mouse"],
+    "teclado": ["teclado"],
+    "airfryer": ["air fryer", "airfryer"],
+    "aspirador": [
+        "aspirador", "aspira po", "aspira pó", "aspirador robo", "aspirador robô", "robot vacuum", "robo aspirador"
+    ],
+    "mop": ["mop"],
+    "liquidificador": ["liquidificador"],
+    "cafeteira": ["cafeteira", "cafeteira"],
+    "ventilador": ["ventilador"],
+    "babador": ["babador"],
+    "berco": ["berço", "berco"],
+    "carrinho": ["carrinho bebe", "carrinho bebê", "carrinho infantil", "carrinho"],
+    "mordedor": ["mordedor"],
+    "tapete_infantil": ["tapete infantil", "tapete de atividades", "tapete de atividades térmico"],
+    "capacete": ["capacete"],
+    "retrovisor": ["retrovisor"],
+    "kit_relacao": ["kit relação", "kit relacao"],
+    "escapamento": ["escapamento"],
+    "pneu": ["pneu"],
+    "pastilha": ["pastilha freio", "pastilha de freio"],
+    "roupa_feminina": ["vestido", "saia", "blusa", "cropped", "shorts", "macacao", "macacão", "calça feminina"],
+    "tenis_feminino": ["tenis feminino", "tênis feminino"],
+    "tenis_masculino": ["tenis masculino", "tênis masculino"],
+    "cueca": ["cueca"],
+    "bolsa": ["bolsa"],
+    "carteira": ["carteira"],
+    "roupa_masculina": ["camisa masculina", "camiseta masculina", "bermuda masculina", "jaqueta masculina"],
+}
+
 ULTIMAS_BUSCAS_SHOPEE = []
 ULTIMOS_TITULOS = []
 usadas_abertura = set()
+usadas_gatilho = set()
 usados_no_ciclo = set()
 BASES_VISTAS = set()
+SUBCATEGORIAS_USADAS = set()
 REJEICOES = Counter()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -174,6 +218,25 @@ def oferta_score(p):
         return 0
 
 
+def categoria_produto(titulo):
+    t = normalizar_texto(titulo)
+
+    for categoria, palavras in SUBCATEGORIAS.items():
+        for palavra in palavras:
+            if palavra in t:
+                return categoria
+
+    # fallback simples por nichos óbvios
+    if "caixa" in t and "som" in t:
+        return "caixa_som"
+    if "aspirador" in t or "aspira" in t:
+        return "aspirador"
+    if "babador" in t:
+        return "babador"
+
+    return "outros"
+
+
 def motivo_rejeicao(p):
     try:
         titulo = str(p.get("productName", "")).strip()
@@ -256,9 +319,12 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=Fals
 
     chamada_grupo = f"📢 Quer mais ofertas assim? Entre no nosso grupo: {LINK_GRUPO_OFERTAS}"
     chamada_acao = random.choice(CHAMADAS_ACAO)
+
+    # anti-monotonia para aberturas e gatilhos
     abertura = random.choice([a for a in aberturas if a not in usadas_abertura] or aberturas)
     usadas_abertura.add(abertura)
-    gatilho = random.choice(gatilhos)
+    gatilho = random.choice([g for g in gatilhos if g not in usadas_gatilho] or gatilhos)
+    usadas_gatilho.add(gatilho)
 
     if for_whatsapp:
         return f"""{abertura}
@@ -347,21 +413,26 @@ def buscar_produtos_da_categoria_kw(palavra_chave, categoria_selecionada):
 
 
 def get_shopee_offers():
-    global ULTIMAS_BUSCAS_SHOPEE, ULTIMOS_TITULOS, usados_no_ciclo, BASES_VISTAS, REJEICOES
+    global ULTIMAS_BUSCAS_SHOPEE, ULTIMOS_TITULOS, usados_no_ciclo, BASES_VISTAS, REJEICOES, SUBCATEGORIAS_USADAS
 
     logging.info("Buscando ofertas Shopee")
     usados_no_ciclo = set()
     BASES_VISTAS = set()
+    SUBCATEGORIAS_USADAS = set()
     candidatos = []
 
     for nicho, cota in COTAS_POR_NICHO.items():
         try:
             produtos_brutos = []
             kws = KEYWORDS.get(nicho, [])
-            random.shuffle(kws)
 
-            for kw in kws:
-                if len(produtos_brutos) >= 50:
+            # escolhe só algumas keywords para aumentar variedade
+            kws = kws[:]  # copia
+            random.shuffle(kws)
+            kws_selecionadas = kws[:4] if len(kws) > 4 else kws
+
+            for kw in kws_selecionadas:
+                if len(produtos_brutos) >= 80:
                     break
                 resultados = buscar_produtos_da_categoria_kw(kw, nicho)
                 produtos_brutos.extend(resultados)
@@ -383,6 +454,8 @@ def get_shopee_offers():
             if rejeitados_local:
                 logging.info(f"{nicho}: rejeições {dict(rejeitados_local)}")
 
+            # embaralha antes de ordenar para quebrar empates
+            random.shuffle(filtrados)
             filtrados.sort(key=oferta_score, reverse=True)
 
             escolhidos = 0
@@ -393,6 +466,12 @@ def get_shopee_offers():
                 titulo = str(escolhido.get("productName", "")).strip()
                 base = chave_base_titulo(titulo)
                 link = escolhido.get("offerLink") or escolhido.get("productLink")
+                cat = categoria_produto(titulo)
+
+                # não repetir subcategoria no mesmo ciclo
+                if cat in SUBCATEGORIAS_USADAS:
+                    logging.info(f"{nicho}: pulou categoria repetida -> {cat} ({titulo})")
+                    continue
 
                 if base and base in BASES_VISTAS:
                     logging.info(f"{nicho}: pulou por base repetida -> {titulo}")
@@ -401,12 +480,13 @@ def get_shopee_offers():
                 if link and link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
                     candidatos.append(escolhido)
                     BASES_VISTAS.add(base)
+                    SUBCATEGORIAS_USADAS.add(cat)
                     usados_no_ciclo.add(link)
                     ULTIMAS_BUSCAS_SHOPEE.append(link)
                     ULTIMOS_TITULOS.append(normalizar_texto(titulo))
                     escolhidos += 1
 
-                    logging.info(f"{nicho}: escolhido {titulo}")
+                    logging.info(f"{nicho}: escolhido {titulo} | categoria={cat}")
 
                     if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
                         ULTIMAS_BUSCAS_SHOPEE.pop(0)
@@ -433,6 +513,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             return
 
         usadas_abertura.clear()
+        usadas_gatilho.clear()
         shopee_ofertas = get_shopee_offers()
         selecionadas = []
 
