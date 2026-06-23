@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V13.3 - COTAS + SUBCATEGORIA + MOTO ROTATIVO + FALLBACK")
+print("VERSAO SHOPEE V13.4 - COTAS + SUBCATEGORIA + MOTO ROTATIVO + FALLBACK + DIVERSIDADE MOTO")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -91,6 +91,15 @@ MOTO_BUSCAS = [
     "manopla titan 160 circuit",
     "manopla fazer 250 circuit",
     "manopla xre 300 circuit"
+]
+
+MODELOS_MOTO = [
+    "titan 160",
+    "bros 160",
+    "xre 300",
+    "cb300",
+    "fazer 250",
+    "lander 250"
 ]
 
 KEYWORDS = {
@@ -293,6 +302,14 @@ def categoria_produto(titulo):
     return "outros"
 
 
+def extrair_modelo_moto(titulo):
+    t = normalizar_texto(titulo)
+    for modelo in MODELOS_MOTO:
+        if modelo in t:
+            return modelo
+    return "outros"
+
+
 def motivo_rejeicao(p):
     try:
         titulo = str(p.get("productName", "")).strip()
@@ -343,7 +360,6 @@ CHAMADAS_ACAO = [
     "⭐ OFERTA QUENTE AGORA!",
     "🛒 NÃO DEIXA ESCAPAR!"
 ]
-
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=False):
     aberturas = [
@@ -473,6 +489,8 @@ def get_shopee_offers():
     BASES_VISTAS = set()
     SUBCATEGORIAS_USADAS = set()
     candidatos = []
+    MODELOS_USADOS = set()
+    BUSCAS_USADAS_MOTO = set()
 
     for nicho, cota in COTAS_POR_NICHO.items():
         try:
@@ -496,6 +514,9 @@ def get_shopee_offers():
                 if len(produtos_brutos) >= 80:
                     break
                 resultados = buscar_produtos_da_categoria_kw(kw, nicho)
+                if nicho == "Moto":
+                    for r in resultados:
+                        r["_busca_origem"] = kw
                 produtos_brutos.extend(resultados)
 
             logging.info(f"{nicho}: {len(produtos_brutos)} produtos brutos")
@@ -529,14 +550,23 @@ def get_shopee_offers():
                 base = chave_base_titulo(titulo)
                 link = escolhido.get("offerLink") or escolhido.get("productLink")
                 cat = categoria_produto(titulo)
+                modelo = None
+                origem_busca = None
+
+                if nicho == "Moto":
+                    modelo = extrair_modelo_moto(titulo)
+                    origem_busca = escolhido.get("_busca_origem")
 
                 if base and base in BASES_VISTAS:
                     logging.info(f"{nicho}: pulou por base repetida -> {titulo}")
                     continue
 
                 if nicho == "Moto":
-                    if cat in SUBCATEGORIAS_USADAS:
-                        pendentes_moto.append((escolhido, titulo, base, link, cat))
+                    if modelo and modelo in MODELOS_USADOS:
+                        logging.info(f"{nicho}: pulou modelo repetido -> {modelo} ({titulo})")
+                        continue
+                    if origem_busca and origem_busca in BUSCAS_USADAS_MOTO:
+                        logging.info(f"{nicho}: pulou busca repetida -> {origem_busca}")
                         continue
                 else:
                     if cat in SUBCATEGORIAS_USADAS:
@@ -552,7 +582,11 @@ def get_shopee_offers():
                     ULTIMOS_TITULOS.append(normalizar_texto(titulo))
                     escolhidos += 1
                     logging.info(f"{nicho}: escolhido {titulo} | categoria={cat}")
-
+                    if nicho == "Moto":
+                        if modelo:
+                            MODELOS_USADOS.add(modelo)
+                        if origem_busca:
+                            BUSCAS_USADAS_MOTO.add(origem_busca)
                     if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
                         ULTIMAS_BUSCAS_SHOPEE.pop(0)
                     if len(ULTIMOS_TITULOS) > 150:
@@ -562,6 +596,12 @@ def get_shopee_offers():
                 for escolhido, titulo, base, link, cat in pendentes_moto:
                     if escolhidos >= cota:
                         break
+                    modelo = extrair_modelo_moto(titulo)
+                    origem_busca = escolhido.get("_busca_origem")
+                    if modelo in MODELOS_USADOS:
+                        continue
+                    if origem_busca in BUSCAS_USADAS_MOTO:
+                        continue
                     if link and link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
                         candidatos.append(escolhido)
                         BASES_VISTAS.add(base)
@@ -570,7 +610,10 @@ def get_shopee_offers():
                         ULTIMOS_TITULOS.append(normalizar_texto(titulo))
                         escolhidos += 1
                         logging.info(f"{nicho}: fallback escolhido {titulo} | categoria={cat}")
-
+                        if modelo:
+                            MODELOS_USADOS.add(modelo)
+                        if origem_busca:
+                            BUSCAS_USADAS_MOTO.add(origem_busca)
                         if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
                             ULTIMAS_BUSCAS_SHOPEE.pop(0)
                         if len(ULTIMOS_TITULOS) > 150:
