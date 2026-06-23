@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V13.2 - COTAS + SUBCATEGORIA + MOTO ROTATIVO")
+print("VERSAO SHOPEE V13.3 - COTAS + SUBCATEGORIA + MOTO ROTATIVO + FALLBACK")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -125,22 +125,14 @@ KEYWORDS = {
 }
 
 SUBCATEGORIAS = {
-    "caixa_som": [
-        "caixa de som", "caixa som", "soundbar", "speaker", "bluetooth karaok", "karaokê", "karaoke"
-    ],
-    "fone": [
-        "fone", "earbuds", "headset", "fone de ouvido", "auricular"
-    ],
-    "smartwatch": [
-        "smartwatch", "relogio inteligente", "relógio inteligente"
-    ],
+    "caixa_som": ["caixa de som", "caixa som", "soundbar", "speaker", "bluetooth karaok", "karaokê", "karaoke"],
+    "fone": ["fone", "earbuds", "headset", "fone de ouvido", "auricular"],
+    "smartwatch": ["smartwatch", "relogio inteligente", "relógio inteligente"],
     "ssd": ["ssd"],
     "mouse": ["mouse"],
     "teclado": ["teclado"],
     "airfryer": ["air fryer", "airfryer"],
-    "aspirador": [
-        "aspirador", "aspira po", "aspira pó", "aspirador robo", "aspirador robô", "robot vacuum", "robo aspirador"
-    ],
+    "aspirador": ["aspirador", "aspira po", "aspira pó", "aspirador robo", "aspirador robô", "robot vacuum", "robo aspirador"],
     "mop": ["mop"],
     "liquidificador": ["liquidificador"],
     "cafeteira": ["cafeteira"],
@@ -288,19 +280,16 @@ def oferta_score(p):
 
 def categoria_produto(titulo):
     t = normalizar_texto(titulo)
-
     for categoria, palavras in SUBCATEGORIAS.items():
         for palavra in palavras:
             if palavra in t:
                 return categoria
-
     if "caixa" in t and "som" in t:
         return "caixa_som"
     if "aspirador" in t or "aspira" in t:
         return "aspirador"
     if "babador" in t:
         return "babador"
-
     return "outros"
 
 
@@ -333,7 +322,6 @@ def motivo_rejeicao(p):
             return "rating_baixo"
         if link in ULTIMAS_BUSCAS_SHOPEE or link in usados_no_ciclo:
             return "link_repetido"
-
         return None
     except Exception as e:
         return f"erro_validacao:{type(e).__name__}"
@@ -501,7 +489,6 @@ def get_shopee_offers():
                 salvar_estado(estado)
             else:
                 kws = KEYWORDS.get(nicho, [])
-                kws = kws[:]
                 random.shuffle(kws)
                 kws_selecionadas = kws[:4] if len(kws) > 4 else kws
 
@@ -532,6 +519,8 @@ def get_shopee_offers():
             filtrados.sort(key=oferta_score, reverse=True)
 
             escolhidos = 0
+            pendentes_moto = []
+
             for escolhido in filtrados:
                 if escolhidos >= cota:
                     break
@@ -541,13 +530,18 @@ def get_shopee_offers():
                 link = escolhido.get("offerLink") or escolhido.get("productLink")
                 cat = categoria_produto(titulo)
 
-                if nicho != "Moto" and cat in SUBCATEGORIAS_USADAS:
-                    logging.info(f"{nicho}: pulou categoria repetida -> {cat} ({titulo})")
-                    continue
-
                 if base and base in BASES_VISTAS:
                     logging.info(f"{nicho}: pulou por base repetida -> {titulo}")
                     continue
+
+                if nicho == "Moto":
+                    if cat in SUBCATEGORIAS_USADAS:
+                        pendentes_moto.append((escolhido, titulo, base, link, cat))
+                        continue
+                else:
+                    if cat in SUBCATEGORIAS_USADAS:
+                        logging.info(f"{nicho}: pulou categoria repetida -> {cat} ({titulo})")
+                        continue
 
                 if link and link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
                     candidatos.append(escolhido)
@@ -557,13 +551,30 @@ def get_shopee_offers():
                     ULTIMAS_BUSCAS_SHOPEE.append(link)
                     ULTIMOS_TITULOS.append(normalizar_texto(titulo))
                     escolhidos += 1
-
                     logging.info(f"{nicho}: escolhido {titulo} | categoria={cat}")
 
                     if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
                         ULTIMAS_BUSCAS_SHOPEE.pop(0)
                     if len(ULTIMOS_TITULOS) > 150:
                         ULTIMOS_TITULOS.pop(0)
+
+            if nicho == "Moto" and escolhidos < cota and pendentes_moto:
+                for escolhido, titulo, base, link, cat in pendentes_moto:
+                    if escolhidos >= cota:
+                        break
+                    if link and link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
+                        candidatos.append(escolhido)
+                        BASES_VISTAS.add(base)
+                        usados_no_ciclo.add(link)
+                        ULTIMAS_BUSCAS_SHOPEE.append(link)
+                        ULTIMOS_TITULOS.append(normalizar_texto(titulo))
+                        escolhidos += 1
+                        logging.info(f"{nicho}: fallback escolhido {titulo} | categoria={cat}")
+
+                        if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
+                            ULTIMAS_BUSCAS_SHOPEE.pop(0)
+                        if len(ULTIMOS_TITULOS) > 150:
+                            ULTIMOS_TITULOS.pop(0)
 
             if escolhidos < cota:
                 logging.warning(f"{nicho}: só conseguiu {escolhidos}/{cota}")
@@ -685,7 +696,6 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"BOT REINICIANDO: {e}", exc_info=True)
             time.sleep(15)
-
 
 
 
