@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V13 - COTAS POR NICHO + SUBCATEGORIA UNICA + ANTI-REPETICAO")
+print("VERSAO SHOPEE V13.1 - COTAS + SUBCATEGORIA + MOTO ROTATIVO")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -44,6 +44,78 @@ PRECO_MAX = 10000.0
 COMISSAO_MIN = 0.03
 VENDAS_MIN = 5
 RATING_MIN = 4.0
+
+# PASSO 1 - lista específica de buscas para Moto
+MOTO_BUSCAS = [
+    # KIT RELAÇÃO
+    "kit relacao titan 160 riffel",
+    "kit relacao fazer 250 riffel",
+    "kit relacao xre 300 riffel",
+    "kit relacao cb300 riffel",
+    "kit relacao lander 250 scud",
+    "kit relacao bros 160 scud",
+
+    # KIT EMBREAGEM
+    "kit embreagem titan 160 hamp",
+    "kit embreagem fazer 250 cobreq",
+    "kit embreagem xre 300 cobreq",
+    "kit embreagem cb300 cobreq",
+
+    # KIT CABOS
+    "kit cabos titan 160 scud",
+    "kit cabos fazer 250 scud",
+    "kit cabos xre 300 scud",
+    "kit cabos lander 250 scud",
+
+    # BATERIA
+    "bateria titan 160 heliar",
+    "bateria fazer 250 heliar",
+    "bateria xre 300 yuasa",
+    "bateria cb300 yuasa",
+
+    # PASTILHAS
+    "pastilha freio titan 160 cobreq",
+    "pastilha freio fazer 250 cobreq",
+    "pastilha freio xre 300 diafrag",
+    "pastilha freio cb300 diafrag",
+
+    # GUIDÃO
+    "guidao titan 160 protork",
+    "guidao fazer 250 protork",
+    "guidao xre 300 protork",
+    "guidao bros 160 protork",
+
+    # VELA
+    "vela iridium titan 160 ngk",
+    "vela iridium fazer 250 ngk",
+    "vela iridium xre 300 ngk",
+    "vela iridium cb300 ngk",
+
+    # CAPACETE
+    "capacete norisk",
+    "capacete asx",
+    "capacete san marino",
+
+    # ESTATOR
+    "estator titan 160 magnetron",
+    "estator fazer 250 magnetron",
+    "estator xre 300 magnetron",
+
+    # CHICOTE
+    "chicote principal titan 160 magnetron",
+    "chicote principal fazer 250 magnetron",
+    "chicote principal xre 300 magnetron",
+
+    # AMORTECEDOR
+    "amortecedor titan 160 cofap",
+    "amortecedor fazer 250 cofap",
+    "amortecedor xre 300 cofap",
+
+    # MANOPLAS
+    "manopla titan 160 circuit",
+    "manopla fazer 250 circuit",
+    "manopla xre 300 circuit"
+]
 
 KEYWORDS = {
     "Moda feminina": [
@@ -76,7 +148,6 @@ KEYWORDS = {
     ]
 }
 
-# Mapa de subcategorias (para não repetir "tipo de produto" no mesmo ciclo)
 SUBCATEGORIAS = {
     "caixa_som": [
         "caixa de som", "caixa som", "soundbar", "speaker", "bluetooth karaok", "karaokê", "karaoke"
@@ -96,7 +167,7 @@ SUBCATEGORIAS = {
     ],
     "mop": ["mop"],
     "liquidificador": ["liquidificador"],
-    "cafeteira": ["cafeteira", "cafeteira"],
+    "cafeteira": ["cafeteira"],
     "ventilador": ["ventilador"],
     "babador": ["babador"],
     "berco": ["berço", "berco"],
@@ -126,6 +197,28 @@ usados_no_ciclo = set()
 BASES_VISTAS = set()
 SUBCATEGORIAS_USADAS = set()
 REJEICOES = Counter()
+
+# PASSO 2 - memória de posição das buscas
+ESTADO_FILE = "estado_buscas.json"
+
+
+def carregar_estado():
+    try:
+        if os.path.exists(ESTADO_FILE):
+            with open(ESTADO_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except:
+        pass
+    return {"Moto": 0}
+
+
+def salvar_estado(estado):
+    try:
+        with open(ESTADO_FILE, "w", encoding="utf-8") as f:
+            json.dump(estado, f)
+    except Exception as e:
+        logging.error(f"Erro salvando estado: {e}")
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
@@ -226,7 +319,6 @@ def categoria_produto(titulo):
             if palavra in t:
                 return categoria
 
-    # fallback simples por nichos óbvios
     if "caixa" in t and "som" in t:
         return "caixa_som"
     if "aspirador" in t or "aspira" in t:
@@ -320,7 +412,6 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=Fals
     chamada_grupo = f"📢 Quer mais ofertas assim? Entre no nosso grupo: {LINK_GRUPO_OFERTAS}"
     chamada_acao = random.choice(CHAMADAS_ACAO)
 
-    # anti-monotonia para aberturas e gatilhos
     abertura = random.choice([a for a in aberturas if a not in usadas_abertura] or aberturas)
     usadas_abertura.add(abertura)
     gatilho = random.choice([g for g in gatilhos if g not in usadas_gatilho] or gatilhos)
@@ -424,12 +515,24 @@ def get_shopee_offers():
     for nicho, cota in COTAS_POR_NICHO.items():
         try:
             produtos_brutos = []
-            kws = KEYWORDS.get(nicho, [])
 
-            # escolhe só algumas keywords para aumentar variedade
-            kws = kws[:]  # copia
-            random.shuffle(kws)
-            kws_selecionadas = kws[:4] if len(kws) > 4 else kws
+            # PASSO 3 - lógica especial de rotação para Moto
+            if nicho == "Moto":
+                estado = carregar_estado()
+                indice = estado.get("Moto", 0)
+                kws_selecionadas = []
+                for _ in range(4):
+                    kws_selecionadas.append(
+                        MOTO_BUSCAS[indice % len(MOTO_BUSCAS)]
+                    )
+                    indice += 1
+                estado["Moto"] = indice
+                salvar_estado(estado)
+            else:
+                kws = KEYWORDS.get(nicho, [])
+                kws = kws[:]
+                random.shuffle(kws)
+                kws_selecionadas = kws[:4] if len(kws) > 4 else kws
 
             for kw in kws_selecionadas:
                 if len(produtos_brutos) >= 80:
@@ -454,7 +557,6 @@ def get_shopee_offers():
             if rejeitados_local:
                 logging.info(f"{nicho}: rejeições {dict(rejeitados_local)}")
 
-            # embaralha antes de ordenar para quebrar empates
             random.shuffle(filtrados)
             filtrados.sort(key=oferta_score, reverse=True)
 
@@ -468,7 +570,6 @@ def get_shopee_offers():
                 link = escolhido.get("offerLink") or escolhido.get("productLink")
                 cat = categoria_produto(titulo)
 
-                # não repetir subcategoria no mesmo ciclo
                 if cat in SUBCATEGORIAS_USADAS:
                     logging.info(f"{nicho}: pulou categoria repetida -> {cat} ({titulo})")
                     continue
@@ -614,7 +715,6 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"BOT REINICIANDO: {e}", exc_info=True)
             time.sleep(15)
-
 
 
 
