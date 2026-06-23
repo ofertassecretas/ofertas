@@ -570,8 +570,8 @@ def get_shopee_offers():
                 link = escolhido.get("offerLink") or escolhido.get("productLink")
                 cat = categoria_produto(titulo)
 
-                if cat in SUBCATEGORIAS_USADAS:
-                    logging.info(f"{nicho}: pulou categoria repetida -> {cat} ({titulo})")
+                if nicho != "Moto":
+                    if categoria in SUBCATEGORIAS_USADAS:
                     continue
 
                 if base and base in BASES_VISTAS:
