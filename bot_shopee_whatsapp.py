@@ -650,7 +650,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         logging.info("Loop de ofertas iniciado")
 
         if not dentro_do_horario():
-            logging.info("Fora do horário (05:30–21:30)")
+            logging.info("Fora do horário (05:30–21:50)")
             return
 
         usadas_abertura.clear()
