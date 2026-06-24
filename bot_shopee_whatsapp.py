@@ -649,9 +649,11 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     try:
         logging.info("Loop de ofertas iniciado")
 
-        if not dentro_do_horario():
-            logging.info("Fora do horário (05:30–22:50)")
-            return
+        def dentro_do_horario():
+    agora_sp = datetime.now(tz=FUSO_BR)
+    hora = agora_sp.time()
+    logging.info(f"Hora SP: {agora_sp.strftime('%Y-%m-%d %H:%M:%S')} | Hora filtrada: {hora}")
+    return dt_time(5, 30) <= hora <= dt_time(22, 50)
 
         usadas_abertura.clear()
         usadas_gatilho.clear()
