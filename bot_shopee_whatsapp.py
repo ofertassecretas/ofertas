@@ -304,9 +304,24 @@ def categoria_produto(titulo):
 
 def extrair_modelo_moto(titulo):
     t = normalizar_texto(titulo)
-    for modelo in MODELOS_MOTO:
-        if modelo in t:
-            return modelo
+
+    padroes = {
+        "titan 160": [r"\btitan\b.*\b160\b", r"\bcg\b.*\b160\b.*\btitan\b", r"\btitan\b.*\bfan\b", r"\btitan\b.*\bstart\b", r"\btitan\b.*\bcargo\b"],
+        "bros 160": [r"\bbros\b.*\b160\b"],
+        "xre 300": [r"\bxre\b.*\b300\b"],
+        "cb300": [r"\bcb\s*300\b", r"\bcb300\b"],
+        "fazer 250": [r"\bfazer\b.*\b250\b"],
+        "lander 250": [r"\blander\b.*\b250\b"],
+    }
+
+    for modelo, regexes in padroes.items():
+        for padrao in regexes:
+            if re.search(padrao, t):
+                return modelo
+
+    if any(x in t for x in ["cg 160", "fan 160", "titan fan", "titan start", "titan cargo"]):
+        return "titan 160"
+
     return "outros"
 
 
@@ -562,7 +577,7 @@ def get_shopee_offers():
                     continue
 
                 if nicho == "Moto":
-                    if modelo and modelo in MODELOS_USADOS:
+                    if modelo != "outros" and modelo in MODELOS_USADOS:
                         logging.info(f"{nicho}: pulou modelo repetido -> {modelo} ({titulo})")
                         continue
                     if origem_busca and origem_busca in BUSCAS_USADAS_MOTO:
@@ -583,7 +598,7 @@ def get_shopee_offers():
                     escolhidos += 1
                     logging.info(f"{nicho}: escolhido {titulo} | categoria={cat}")
                     if nicho == "Moto":
-                        if modelo:
+                        if modelo != "outros":
                             MODELOS_USADOS.add(modelo)
                         if origem_busca:
                             BUSCAS_USADAS_MOTO.add(origem_busca)
@@ -598,7 +613,7 @@ def get_shopee_offers():
                         break
                     modelo = extrair_modelo_moto(titulo)
                     origem_busca = escolhido.get("_busca_origem")
-                    if modelo in MODELOS_USADOS:
+                    if modelo != "outros" and modelo in MODELOS_USADOS:
                         continue
                     if origem_busca in BUSCAS_USADAS_MOTO:
                         continue
@@ -610,7 +625,7 @@ def get_shopee_offers():
                         ULTIMOS_TITULOS.append(normalizar_texto(titulo))
                         escolhidos += 1
                         logging.info(f"{nicho}: fallback escolhido {titulo} | categoria={cat}")
-                        if modelo:
+                        if modelo != "outros":
                             MODELOS_USADOS.add(modelo)
                         if origem_busca:
                             BUSCAS_USADAS_MOTO.add(origem_busca)
