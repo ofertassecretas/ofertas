@@ -177,6 +177,9 @@ REJEICOES = Counter()
 
 ESTADO_FILE = "estado_buscas.json"
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+FUSO_BR = ZoneInfo("America/Sao_Paulo")
+
 
 def carregar_estado():
     try:
@@ -196,13 +199,11 @@ def salvar_estado(estado):
         logging.error(f"Erro salvando estado: {e}")
 
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-FUSO_BR = ZoneInfo("America/Sao_Paulo")
-
-
 def dentro_do_horario():
-    agora = datetime.now(FUSO_BR).time()
-    return dt_time(5, 30) <= agora <= dt_time(21, 30)
+    agora_sp = datetime.now(tz=FUSO_BR)
+    hora = agora_sp.time()
+    logging.info(f"DEBUG TIME | SP={agora_sp.strftime('%Y-%m-%d %H:%M:%S')} | HORA={hora}")
+    return dt_time(5, 30) <= hora <= dt_time(22, 50)
 
 
 def normalizar_texto(txt):
@@ -238,7 +239,6 @@ def tem_bloqueio(titulo):
 def titulo_duplicado_forte(titulo):
     t = normalizar_texto(titulo)
     base = chave_base_titulo(titulo)
-
     for prev in ULTIMOS_TITULOS:
         if t == prev:
             return True
@@ -304,7 +304,6 @@ def categoria_produto(titulo):
 
 def extrair_modelo_moto(titulo):
     t = normalizar_texto(titulo)
-
     padroes = {
         "titan 160": [r"\btitan\b.*\b160\b", r"\bcg\b.*\b160\b.*\btitan\b", r"\btitan\b.*\bfan\b", r"\btitan\b.*\bstart\b", r"\btitan\b.*\bcargo\b"],
         "bros 160": [r"\bbros\b.*\b160\b"],
@@ -313,15 +312,12 @@ def extrair_modelo_moto(titulo):
         "fazer 250": [r"\bfazer\b.*\b250\b"],
         "lander 250": [r"\blander\b.*\b250\b"],
     }
-
     for modelo, regexes in padroes.items():
         for padrao in regexes:
             if re.search(padrao, t):
                 return modelo
-
     if any(x in t for x in ["cg 160", "fan 160", "titan fan", "titan start", "titan cargo"]):
         return "titan 160"
-
     return "outros"
 
 
@@ -375,6 +371,7 @@ CHAMADAS_ACAO = [
     "⭐ OFERTA QUENTE AGORA!",
     "🛒 NÃO DEIXA ESCAPAR!"
 ]
+
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=False):
     aberturas = [
@@ -597,11 +594,13 @@ def get_shopee_offers():
                     ULTIMOS_TITULOS.append(normalizar_texto(titulo))
                     escolhidos += 1
                     logging.info(f"{nicho}: escolhido {titulo} | categoria={cat}")
+
                     if nicho == "Moto":
                         if modelo != "outros":
                             MODELOS_USADOS.add(modelo)
                         if origem_busca:
                             BUSCAS_USADAS_MOTO.add(origem_busca)
+
                     if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
                         ULTIMAS_BUSCAS_SHOPEE.pop(0)
                     if len(ULTIMOS_TITULOS) > 150:
@@ -649,15 +648,10 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     try:
         logging.info("Loop de ofertas iniciado")
 
-        def dentro_do_horario():
-    agora_sp = datetime.now(tz=FUSO_BR)
-    agora_utc = datetime.now(tz=ZoneInfo("UTC"))
-    hora = agora_sp.time()
-    logging.info(
-        f"DEBUG TIME | SP={agora_sp.strftime('%Y-%m-%d %H:%M:%S')} | UTC={agora_utc.strftime('%Y-%m-%d %H:%M:%S')}"
-    )
-    return dt_time(5, 30) <= hora <= dt_time(22, 50)
-        
+        if not dentro_do_horario():
+            logging.info("Fora do horário (05:30–22:50)")
+            return
+
         usadas_abertura.clear()
         usadas_gatilho.clear()
         shopee_ofertas = get_shopee_offers()
