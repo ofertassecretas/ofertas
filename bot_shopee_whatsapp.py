@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V13.4 - COTAS + SUBCATEGORIA + MOTO ROTATIVO + FALLBACK + DIVERSIDADE MOTO")
+print("VERSAO SHOPEE V13.5 - COTAS + SUBCATEGORIA + MOTO ROTATIVO + FALLBACK PROGRESSIVO")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -575,9 +575,11 @@ def get_shopee_offers():
 
                 if nicho == "Moto":
                     if modelo != "outros" and modelo in MODELOS_USADOS:
+                        pendentes_moto.append((escolhido, titulo, base, link, cat))
                         logging.info(f"{nicho}: pulou modelo repetido -> {modelo} ({titulo})")
                         continue
                     if origem_busca and origem_busca in BUSCAS_USADAS_MOTO:
+                        pendentes_moto.append((escolhido, titulo, base, link, cat))
                         logging.info(f"{nicho}: pulou busca repetida -> {origem_busca}")
                         continue
                 else:
@@ -607,15 +609,20 @@ def get_shopee_offers():
                         ULTIMOS_TITULOS.pop(0)
 
             if nicho == "Moto" and escolhidos < cota and pendentes_moto:
+                pendentes_moto.sort(key=oferta_score, reverse=True)
+
                 for escolhido, titulo, base, link, cat in pendentes_moto:
                     if escolhidos >= cota:
                         break
+
                     modelo = extrair_modelo_moto(titulo)
                     origem_busca = escolhido.get("_busca_origem")
+
                     if modelo != "outros" and modelo in MODELOS_USADOS:
                         continue
-                    if origem_busca in BUSCAS_USADAS_MOTO:
+                    if origem_busca and origem_busca in BUSCAS_USADAS_MOTO:
                         continue
+
                     if link and link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
                         candidatos.append(escolhido)
                         BASES_VISTAS.add(base)
@@ -624,14 +631,61 @@ def get_shopee_offers():
                         ULTIMOS_TITULOS.append(normalizar_texto(titulo))
                         escolhidos += 1
                         logging.info(f"{nicho}: fallback escolhido {titulo} | categoria={cat}")
+
                         if modelo != "outros":
                             MODELOS_USADOS.add(modelo)
                         if origem_busca:
                             BUSCAS_USADAS_MOTO.add(origem_busca)
+
                         if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
                             ULTIMAS_BUSCAS_SHOPEE.pop(0)
                         if len(ULTIMOS_TITULOS) > 150:
                             ULTIMOS_TITULOS.pop(0)
+
+            if nicho == "Moto" and escolhidos < cota:
+                usados_modelo_local = set()
+                usados_busca_local = set()
+
+                for escolhido in filtrados:
+                    if escolhidos >= cota:
+                        break
+
+                    titulo = str(escolhido.get("productName", "")).strip()
+                    link = escolhido.get("offerLink") or escolhido.get("productLink")
+                    base = chave_base_titulo(titulo)
+                    cat = categoria_produto(titulo)
+                    modelo = extrair_modelo_moto(titulo)
+                    origem_busca = escolhido.get("_busca_origem")
+
+                    if link in usados_no_ciclo or link in ULTIMAS_BUSCAS_SHOPEE:
+                        continue
+                    if base and base in BASES_VISTAS:
+                        continue
+                    if origem_busca and origem_busca in usados_busca_local:
+                        continue
+                    if modelo != "outros" and modelo in usados_modelo_local:
+                        continue
+
+                    candidatos.append(escolhido)
+                    BASES_VISTAS.add(base)
+                    SUBCATEGORIAS_USADAS.add(cat)
+                    usados_no_ciclo.add(link)
+                    ULTIMAS_BUSCAS_SHOPEE.append(link)
+                    ULTIMOS_TITULOS.append(normalizar_texto(titulo))
+                    escolhidos += 1
+                    logging.info(f"{nicho}: relax fallback escolhido {titulo} | categoria={cat}")
+
+                    if modelo != "outros":
+                        usados_modelo_local.add(modelo)
+                        MODELOS_USADOS.add(modelo)
+                    if origem_busca:
+                        usados_busca_local.add(origem_busca)
+                        BUSCAS_USADAS_MOTO.add(origem_busca)
+
+                    if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
+                        ULTIMAS_BUSCAS_SHOPEE.pop(0)
+                    if len(ULTIMOS_TITULOS) > 150:
+                        ULTIMOS_TITULOS.pop(0)
 
             if escolhidos < cota:
                 logging.warning(f"{nicho}: só conseguiu {escolhidos}/{cota}")
@@ -753,7 +807,6 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"BOT REINICIANDO: {e}", exc_info=True)
             time.sleep(15)
-
 
 
 
