@@ -10,12 +10,12 @@ import html
 import re
 from collections import Counter
 from difflib import SequenceMatcher
-from datetime import datetime, timedelta, time as dt_time
+from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V13.6 - MOTO DEDUPE FORTE + FALLBACK PROGRESSIVO")
+print("VERSAO SHOPEE V14 - MATRIZ + VARIEDADE NICHOS")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -36,7 +36,7 @@ COTAS_POR_NICHO = {
     "Moto": 2,
     "Maternidade": 2,
     "Casa": 2,
-    "Eletroeletrônicos": 2
+    "Eletroeletrônicos": 2,
 }
 
 PRECO_MIN = 15.0
@@ -45,117 +45,265 @@ COMISSAO_MIN = 0.03
 VENDAS_MIN = 5
 RATING_MIN = 4.0
 
-MOTO_BUSCAS = [
-    "kit relacao titan 160 riffel",
-    "kit relacao fazer 250 riffel",
-    "kit relacao xre 300 riffel",
-    "kit relacao cb300 riffel",
-    "kit relacao lander 250 scud",
-    "kit relacao bros 160 scud",
-    "kit embreagem titan 160 hamp",
-    "kit embreagem fazer 250 cobreq",
-    "kit embreagem xre 300 cobreq",
-    "kit embreagem cb300 cobreq",
-    "kit cabos titan 160 scud",
-    "kit cabos fazer 250 scud",
-    "kit cabos xre 300 scud",
-    "kit cabos lander 250 scud",
-    "bateria titan 160 heliar",
-    "bateria fazer 250 heliar",
-    "bateria xre 300 yuasa",
-    "bateria cb300 yuasa",
-    "pastilha freio titan 160 cobreq",
-    "pastilha freio fazer 250 cobreq",
-    "pastilha freio xre 300 diafrag",
-    "pastilha freio cb300 diafrag",
-    "guidao titan 160 protork",
-    "guidao fazer 250 protork",
-    "guidao xre 300 protork",
-    "guidao bros 160 protork",
-    "vela iridium titan 160 ngk",
-    "vela iridium fazer 250 ngk",
-    "vela iridium xre 300 ngk",
-    "vela iridium cb300 ngk",
-    "capacete norisk",
-    "capacete asx",
-    "capacete san marino",
-    "estator titan 160 magnetron",
-    "estator fazer 250 magnetron",
-    "estator xre 300 magnetron",
-    "chicote principal titan 160 magnetron",
-    "chicote principal fazer 250 magnetron",
-    "chicote principal xre 300 magnetron",
-    "amortecedor titan 160 cofap",
-    "amortecedor fazer 250 cofap",
-    "amortecedor xre 300 cofap",
-    "manopla titan 160 circuit",
-    "manopla fazer 250 circuit",
-    "manopla xre 300 circuit"
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+FUSO_BR = ZoneInfo("America/Sao_Paulo")
+
+# ==========================
+# 1) MATRIZ MOTO
+# ==========================
+
+PRODUTOS_MOTO = [
+    "kit relacao",
+    "kit embreagem",
+    "bateria",
+    "refil bomba combustivel",
+    "chicote fiação principal",
+    "estator",
+    "chave ignição",
+    "punho chave luz",
+    "kit pisca seta",
+    "par pneu 90/90/18 2.75/18",
+    "par pneu 140/70/17 110/70/17",
+    "par pneu 110/90/17 90/90/19",
+    "bloco optico",
+    "carburador corpo de injeção",
+    "kit cilindro",
+    "jogo de juntas",
+    "biela",
+    "valvulas escape admissão",
+    "disco de freio dianteiro",
+    "disco de freio traseiro",
+    "tubo interno",
+    "vela iridium",
+    "pastilha freio",
+    "guidao",
+    "manopla",
 ]
 
-KEYWORDS = {
-    "Moda feminina": [
-        "vestido feminino", "blusa feminina", "saia feminina", "tenis feminino",
-        "sandalia feminina", "bolsa feminina", "shorts feminino", "conjunto feminino",
-        "macacao feminino", "calca feminina"
-    ],
-    "Moda masculina": [
-        "bermuda masculina", "camisa masculina", "tenis masculino", "sapato masculino",
-        "calca masculina", "kit cueca", "blaser masculino", "jaqueta masculina",
-        "camisa polo masculina", "carteira masculina"
-    ],
-    "Moto": [
-        "escapamento moto", "pneu moto", "retrovisor moto", "capacete moto",
-        "bateria moto", "kit relacao moto", "freio moto", "pastilha freio moto",
-        "farol moto", "carenagem moto"
-    ],
-    "Maternidade": [
-        "kit enxoval bebe", "carrinho bebe", "berco bebe", "chocalho bebe",
-        "mordedor bebe", "babador bebe", "cadeirinha bebe", "tapete infantil",
-        "brinquedo educativo bebe", "ninho bebe"
-    ],
-    "Casa": [
-        "air fryer", "aspirador", "mop", "organizador cozinha", "cafeteira",
-        "liquidificador", "batedeira", "panela eletrica", "tapete infantil", "ventilador"
-    ],
-    "Eletroeletrônicos": [
-        "smartwatch", "fone bluetooth", "ssd", "carregador turbo", "power bank",
-        "caixa de som bluetooth", "tablet", "mouse gamer", "teclado mecanico", "headset gamer"
-    ]
+MODELOS_MOTO = [
+    "titan 160",
+    "fan 160",
+    "start 160",
+    "cargo 160",
+    "fazer 250",
+    "lander 250",
+    "tenere 250",
+    "xre 300",
+    "cb300",
+    "bros 160",
+]
+
+MARCAS_MOTO = {
+    "kit relacao": ["riffel", "scud"],
+    "kit embreagem": ["cobreq", "hamp"],
+    "bateria": ["heliar", "yuasa"],
+    "vela iridium": ["ngk"],
+    "kit cilindro": ["kmp"],
+    "biela": ["txk"],
+    "chave ignição": ["magnetron"],
+    "chicote fiação principal": ["magnetron"],
+    "refil bomba combustivel": ["magnetro", "scud"],
+    "estator": ["magnetron"],
+    "pastilha freio": ["cobreq", "diafrag"],
+    "guidao": ["protork"],
+    "manopla": ["circuit"],
 }
 
-SUBCATEGORIAS = {
-    "caixa_som": ["caixa de som", "caixa som", "soundbar", "speaker", "bluetooth karaok", "karaokê", "karaoke"],
-    "fone": ["fone", "earbuds", "headset", "fone de ouvido", "auricular"],
-    "smartwatch": ["smartwatch", "relogio inteligente", "relógio inteligente"],
-    "ssd": ["ssd"],
-    "mouse": ["mouse"],
-    "teclado": ["teclado"],
-    "airfryer": ["air fryer", "airfryer"],
-    "aspirador": ["aspirador", "aspira po", "aspira pó", "aspirador robo", "aspirador robô", "robot vacuum", "robo aspirador"],
-    "mop": ["mop"],
-    "liquidificador": ["liquidificador"],
-    "cafeteira": ["cafeteira"],
-    "ventilador": ["ventilador"],
-    "babador": ["babador"],
-    "berco": ["berço", "berco"],
-    "carrinho": ["carrinho bebe", "carrinho bebê", "carrinho infantil", "carrinho"],
-    "mordedor": ["mordedor"],
-    "tapete_infantil": ["tapete infantil", "tapete de atividades", "tapete de atividades térmico"],
-    "capacete": ["capacete"],
-    "retrovisor": ["retrovisor"],
-    "kit_relacao": ["kit relação", "kit relacao"],
-    "escapamento": ["escapamento"],
-    "pneu": ["pneu"],
-    "pastilha": ["pastilha freio", "pastilha de freio"],
-    "roupa_feminina": ["vestido", "saia", "blusa", "cropped", "shorts", "macacao", "macacão", "calça feminina"],
-    "tenis_feminino": ["tenis feminino", "tênis feminino"],
-    "tenis_masculino": ["tenis masculino", "tênis masculino"],
-    "cueca": ["cueca"],
-    "bolsa": ["bolsa"],
-    "carteira": ["carteira"],
-    "roupa_masculina": ["camisa masculina", "camiseta masculina", "bermuda masculina", "jaqueta masculina"],
+# NICHOS genéricos: aqui é mais simples, só família de produto + algumas variações
+PRODUTOS_NICHO = {
+    "Casa": [
+        "air fryer",
+        "aspirador",
+        "liquidificador",
+        "capa para colchão",
+        "jogo de pratos",
+        "jogo de copos",
+        "talher",
+        "panos de prato",
+        "toalhas de banho",
+        "coberta manta",
+        "lençol",
+        "cobre leito",
+        "mangueira de jardim",
+        "tapete",
+        "torneira de cozinha",
+        "filtro de barro",
+        "guarda roupas casal",
+        "guarda roupas portatil",
+        "cama casal",
+        "forma de silicone",
+        "sapateira",
+        "umidificador",
+        "ar condicionado",
+        "jogo de panelas",
+        "cortinas",
+        "tintas",
+        "frigideiras",
+        "rede de dormir",
+        "pipoqueria",
+        "cafeteira",
+        "mop",
+        "ventilador",
+        "batedeira",
+        "panela eletrica",
+    ],
+    "Maternidade": [
+        "carrinho bebe",
+        "berco bebe",
+        "fralda descartavel",
+        "fralda de pano",
+        "naninha",
+        "sapatinho",
+        "pagãozinho",
+        "coberdrom dupla face",
+        "kit toalha umedecida",
+        "toalha infantil banho",
+        "banheira",
+        "mictorio infantil",
+        "patinete",
+        "bebê riborn",
+        "carrinhos",
+        "piscina de bolinhas",
+        "kit bolsa maternidade",
+        "canguru",
+        "mosqueteiro",
+        "kit mamadeira",
+        "kit bicos",
+        "baba eletronica",
+        "ninho bebe",
+        "kit enxoval bebe",
+        "babador bebe",
+        "mordedor bebe",
+        "tapete infantil",
+    ],
+    "Eletroeletrônicos": [
+        "smartwatch",
+        "fone bluetooth",
+        "caixa de som bluetooth",
+        "bastão pau de selfie",
+        "celular",
+        "smartphone",
+        "televisão",
+        "video game",
+        "fones de ouvido",
+        "capinha celular",
+        "pelicula celular",
+        "massageador",
+        "balança digital",
+        "aparelho medidor de pressão",
+        "massageador portatil",
+        "webcam camera",
+        "pen drive",
+        "impressora termica",
+        "maquina de impressão 3d",
+        "computador",
+        "cpu gamer",
+        "cpu",
+        "notbook",
+        "drone",
+        "camera de segurança",
+        "golpro",
+        "tablet",
+        "ssd",
+        "mouse gamer",
+        "teclado mecanico",
+        "headset gamer",
+        "power bank",
+    ],
+    "Moda feminina": [
+        "vestido feminino",
+        "conjunto feminino",
+        "kit calcinhas",
+        "biquines",
+        "saida de praia",
+        "maquiagens",
+        "roupa academia",
+        "calça jean",
+        "calça leggin",
+        "saia longa",
+        "vestido lovito",
+        "sandalias",
+        "pijamas",
+        "pijamas mãe e filha",
+        "blusa regata",
+        "kit sutian",
+        "bermuda modeladora",
+        "oculos de sol",
+        "calça social",
+        "vestido midi",
+        "jaqueta feminina",
+        "casaco feminino",
+        "conjunto alfaiataria",
+        "short feminino",
+        "macacao feminino",
+        "tenis feminino",
+        "bolsa feminina",
+    ],
+    "Moda masculina": [
+        "camiseta masculina",
+        "relogios esportivos",
+        "bermudas jeans",
+        "relogio de quartzo",
+        "camisetas regatas",
+        "camisa polo",
+        "camisa de linho",
+        "terno",
+        "blazer",
+        "camisa tshort",
+        "kit meias",
+        "barbeador",
+        "meias esportivas",
+        "oculos de sol",
+        "toucas",
+        "calção de futebol",
+        "tenis futebol",
+        "chuteiras",
+        "camisa termica",
+        "bermuda masculina",
+        "jaqueta masculina",
+        "tenis masculino",
+        "carteira masculina",
+        "kit cueca",
+    ],
 }
+
+# Para nichos não-Moto, podemos ter “variações” simples (estilo / uso) se quiser:
+VARIACOES_NICHO = {
+    "Casa": [
+        "inoxidavel",
+        "inverter",
+        "digital",
+        "sem fio",
+        "2 em 1",
+        "gourmet",
+    ],
+    "Maternidade": [
+        "recem nascido",
+        "anti refluxo",
+        "multifuncional",
+    ],
+    "Eletroeletrônicos": [
+        "gamer",
+        "pro",
+        "bluetooth 5.0",
+    ],
+    "Moda feminina": [
+        "plus size",
+        "casual",
+        "social",
+    ],
+    "Moda masculina": [
+        "casual",
+        "social",
+        "slim",
+    ],
+}
+
+# ==========================
+# 2) ESTADO / MEMÓRIA
+# ==========================
+
+ESTADO_FILE = "estado_buscas.json"
 
 ULTIMAS_BUSCAS_SHOPEE = []
 ULTIMOS_TITULOS = []
@@ -166,11 +314,6 @@ BASES_VISTAS = set()
 SUBCATEGORIAS_USADAS = set()
 REJEICOES = Counter()
 
-ESTADO_FILE = "estado_buscas.json"
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-FUSO_BR = ZoneInfo("America/Sao_Paulo")
-
 
 def carregar_estado():
     try:
@@ -179,7 +322,12 @@ def carregar_estado():
                 return json.load(f)
     except:
         pass
-    return {"Moto": 0}
+    # Mantém indices separados: um para produto, um para modelo, um para nichos
+    return {
+        "moto_prod_idx": 0,
+        "moto_model_idx": 0,
+        "ultimo_nicho_ordem": 0,
+    }
 
 
 def salvar_estado(estado):
@@ -191,10 +339,8 @@ def salvar_estado(estado):
 
 
 def dentro_do_horario():
-    agora_sp = datetime.now(tz=FUSO_BR)
-    hora = agora_sp.time()
-    logging.info(f"DEBUG TIME | SP={agora_sp.strftime('%Y-%m-%d %H:%M:%S')} | HORA={hora}")
-    return dt_time(5, 30) <= hora <= dt_time(22, 50)
+    agora = datetime.now(FUSO_BR).time()
+    return dt_time(5, 30) <= agora <= dt_time(21, 30)
 
 
 def normalizar_texto(txt):
@@ -212,10 +358,10 @@ def chave_base_titulo(titulo):
         "premium", "novo", "promocao", "promoção", "super", "original", "profissional",
         "casual", "masculino", "feminino", "infantil", "adulto", "unissex",
         "estica", "kit", "com", "de", "para", "o", "a", "promo", "oferta",
-        "modelo", "versao", "versão", "linha", "envio", "riffel", "riffel"
+        "modelo", "versao", "versão", "linha", "envio"
     }
     tokens = [x for x in t.split() if x not in stop and len(x) > 2]
-    return " ".join(tokens[:6])
+    return " ".join(tokens[:5])
 
 
 def tem_bloqueio(titulo):
@@ -233,7 +379,7 @@ def titulo_duplicado_forte(titulo):
     for prev in ULTIMOS_TITULOS:
         if t == prev:
             return True
-        if SequenceMatcher(None, t, prev).ratio() >= 0.90:
+        if SequenceMatcher(None, t, prev).ratio() >= 0.86:
             return True
         if base and base == chave_base_titulo(prev):
             return True
@@ -276,48 +422,6 @@ def oferta_score(p):
         return score
     except Exception:
         return 0
-
-
-def categoria_produto(titulo):
-    t = normalizar_texto(titulo)
-    for categoria, palavras in SUBCATEGORIAS.items():
-        for palavra in palavras:
-            if palavra in t:
-                return categoria
-    if "caixa" in t and "som" in t:
-        return "caixa_som"
-    if "aspirador" in t or "aspira" in t:
-        return "aspirador"
-    if "babador" in t:
-        return "babador"
-    return "outros"
-
-
-def extrair_modelo_moto(titulo):
-    t = normalizar_texto(titulo)
-    padroes = {
-        "titan 160": [r"\btitan\b.*\b160\b", r"\bcg\b.*\b160\b.*\btitan\b", r"\btitan\b.*\bfan\b", r"\btitan\b.*\bstart\b", r"\btitan\b.*\bcargo\b"],
-        "bros 160": [r"\bbros\b.*\b160\b"],
-        "xre 300": [r"\bxre\b.*\b300\b"],
-        "cb300": [r"\bcb\s*300\b", r"\bcb300\b"],
-        "fazer 250": [r"\bfazer\b.*\b250\b"],
-        "lander 250": [r"\blander\b.*\b250\b"],
-    }
-    for modelo, regexes in padroes.items():
-        for padrao in regexes:
-            if re.search(padrao, t):
-                return modelo
-    if any(x in t for x in ["cg 160", "fan 160", "titan fan", "titan start", "titan cargo"]):
-        return "titan 160"
-    return "outros"
-
-
-def assinatura_moto(titulo):
-    t = normalizar_texto(titulo)
-    base = chave_base_titulo(titulo)
-    modelo = extrair_modelo_moto(titulo)
-    familia = "kit_relacao" if "kit relacao" in t or "kit relação" in t else "outra"
-    return (modelo, familia, base)
 
 
 def motivo_rejeicao(p):
@@ -401,6 +505,7 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=Fals
 
     chamada_grupo = f"📢 Quer mais ofertas assim? Entre no nosso grupo: {LINK_GRUPO_OFERTAS}"
     chamada_acao = random.choice(CHAMADAS_ACAO)
+
     abertura = random.choice([a for a in aberturas if a not in usadas_abertura] or aberturas)
     usadas_abertura.add(abertura)
     gatilho = random.choice([g for g in gatilhos if g not in usadas_gatilho] or gatilhos)
@@ -492,209 +597,194 @@ def buscar_produtos_da_categoria_kw(palavra_chave, categoria_selecionada):
     return data.get("data", {}).get("productOfferV2", {}).get("nodes", []) or []
 
 
+# ==========================
+# 3) SELEÇÃO INTELIGENTE POR NICHO
+# ==========================
+
+def gerar_buscas_moto(estado, max_pairs=4):
+    """Gera até max_pairs combinações (produto, modelo, marca) rotacionando matriz Moto."""
+    buscas = []
+    prod_idx = estado.get("moto_prod_idx", 0)
+    model_idx = estado.get("moto_model_idx", 0)
+
+    # Embaralha a ordem dos modelos em cada ciclo para dar sensação de variedade
+    modelos = MODELOS_MOTO[:]
+    random.shuffle(modelos)
+
+    while len(buscas) < max_pairs:
+        produto = PRODUTOS_MOTO[prod_idx % len(PRODUTOS_MOTO)]
+        modelos_ciclo = modelos
+        modelo = modelos_ciclo[model_idx % len(modelos_ciclo)]
+        marcas = MARCAS_MOTO.get(produto, [""])
+
+        marca = random.choice(marcas) if marcas else ""
+        partes = [produto, modelo]
+        if marca:
+            partes.append(marca)
+        kw = " ".join(partes)
+
+        buscas.append(kw)
+
+        # Avança modelo; quando roda todos, avança produto
+        model_idx += 1
+        if model_idx >= len(modelos_ciclo):
+            model_idx = 0
+            prod_idx += 1
+
+    estado["moto_prod_idx"] = prod_idx
+    estado["moto_model_idx"] = model_idx
+    return buscas, estado
+
+
+def gerar_buscas_nicho_generico(nicho, max_kws=4):
+    base_prods = PRODUTOS_NICHO.get(nicho, [])
+    if not base_prods:
+        return []
+
+    prods = base_prods[:]
+    random.shuffle(prods)
+    prods = prods[:max_kws]
+
+    variacoes = VARIACOES_NICHO.get(nicho, [])
+    kws = []
+    for p in prods:
+        if variacoes:
+            v = random.choice(variacoes)
+            kws.append(f"{p} {v}")
+        else:
+            kws.append(p)
+    return kws
+
+
+def selecionar_ofertas_nicho(nicho, cota, estado):
+    global BASES_VISTAS, SUBCATEGORIAS_USADAS, REJEICOES
+
+    produtos_brutos = []
+    if nicho == "Moto":
+        kws, estado = gerar_buscas_moto(estado, max_pairs=6)
+    else:
+        kws = gerar_buscas_nicho_generico(nicho, max_kws=6)
+
+    for kw in kws:
+        if len(produtos_brutos) >= 80:
+            break
+        resultados = buscar_produtos_da_categoria_kw(kw, nicho)
+        produtos_brutos.extend(resultados)
+
+    logging.info(f"{nicho}: {len(produtos_brutos)} produtos brutos")
+
+    filtrados = []
+    rejeitados_local = Counter()
+
+    for p in produtos_brutos:
+        motivo = motivo_rejeicao(p)
+        if motivo is None:
+            filtrados.append(p)
+        else:
+            rejeitados_local[motivo] += 1
+            REJEICOES[motivo] += 1
+
+    logging.info(f"{nicho}: {len(filtrados)} passaram no filtro")
+    if rejeitados_local:
+        logging.info(f"{nicho}: rejeições {dict(rejeitados_local)}")
+
+    random.shuffle(filtrados)
+    filtrados.sort(key=oferta_score, reverse=True)
+
+    escolhidos = []
+    usadas_familia = set()
+
+    for p in filtrados:
+        if len(escolhidos) >= cota:
+            break
+        titulo = str(p.get("productName", "")).strip()
+        base = chave_base_titulo(titulo)
+        link = p.get("offerLink") or p.get("productLink")
+
+        if base and base in BASES_VISTAS:
+            logging.info(f"{nicho}: pulou por base repetida -> {titulo}")
+            continue
+        if not link or link in usados_no_ciclo or link in ULTIMAS_BUSCAS_SHOPEE:
+            continue
+
+        # família simples = primeira palavra relevante do título
+        familia = normalizar_texto(titulo).split()[:2]
+        familia = " ".join(familia)
+
+        if nicho == "Moto":
+            # em Moto, tenta não repetir família no mesmo ciclo,
+            # mas se estiver muito escasso, aceita.
+            if familia in usadas_familia and len(filtrados) > cota * 2:
+                logging.info(f"{nicho}: pulou familia repetida no ciclo -> {familia} ({titulo})")
+                continue
+        else:
+            # outros nichos: evita repetir família no mesmo ciclo
+            if familia in usadas_familia:
+                logging.info(f"{nicho}: pulou familia repetida -> {familia} ({titulo})")
+                continue
+
+        escolhidos.append(p)
+        usadas_familia.add(familia)
+        BASES_VISTAS.add(base)
+        usados_no_ciclo.add(link)
+        ULTIMAS_BUSCAS_SHOPEE.append(link)
+        ULTIMOS_TITULOS.append(normalizar_texto(titulo))
+
+        logging.info(f"{nicho}: escolhido {titulo} | familia={familia}")
+
+        if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
+            ULTIMAS_BUSCAS_SHOPEE.pop(0)
+        if len(ULTIMOS_TITULOS) > 150:
+            ULTIMOS_TITULOS.pop(0)
+
+    if len(escolhidos) < cota:
+        logging.warning(f"{nicho}: só conseguiu {len(escolhidos)}/{cota}")
+
+    return escolhidos, estado
+
+
 def get_shopee_offers():
-    global ULTIMAS_BUSCAS_SHOPEE, ULTIMOS_TITULOS, usados_no_ciclo, BASES_VISTAS, REJEICOES, SUBCATEGORIAS_USADAS
+    global ULTIMAS_BUSCAS_SHOPEE, ULTIMOS_TITULOS, usados_no_ciclo, BASES_VISTAS, SUBCATEGORIAS_USADAS, REJEICOES
 
     logging.info("Buscando ofertas Shopee")
     usados_no_ciclo = set()
     BASES_VISTAS = set()
     SUBCATEGORIAS_USADAS = set()
     candidatos = []
-    MODELOS_USADOS = set()
-    ASSINATURAS_MOTO_USADAS = set()
-    BUSCAS_USADAS_MOTO = set()
 
-    for nicho, cota in COTAS_POR_NICHO.items():
+    estado = carregar_estado()
+
+    # Rotacionar ordem dos nichos para não ficar sempre Moto primeiro, etc.
+    nichos_ordem = list(COTAS_POR_NICHO.keys())
+    random.shuffle(nichos_ordem)
+
+    for nicho in nichos_ordem:
         try:
-            produtos_brutos = []
-
-            if nicho == "Moto":
-                estado = carregar_estado()
-                indice = estado.get("Moto", 0)
-                kws_selecionadas = []
-                for _ in range(4):
-                    kws_selecionadas.append(MOTO_BUSCAS[indice % len(MOTO_BUSCAS)])
-                    indice += 1
-                estado["Moto"] = indice
-                salvar_estado(estado)
-            else:
-                kws = KEYWORDS.get(nicho, [])
-                random.shuffle(kws)
-                kws_selecionadas = kws[:4] if len(kws) > 4 else kws
-
-            for kw in kws_selecionadas:
-                if len(produtos_brutos) >= 80:
-                    break
-                resultados = buscar_produtos_da_categoria_kw(kw, nicho)
-                if nicho == "Moto":
-                    for r in resultados:
-                        r["_busca_origem"] = kw
-                produtos_brutos.extend(resultados)
-
-            logging.info(f"{nicho}: {len(produtos_brutos)} produtos brutos")
-
-            filtrados = []
-            rejeitados_local = Counter()
-
-            for p in produtos_brutos:
-                motivo = motivo_rejeicao(p)
-                if motivo is None:
-                    filtrados.append(p)
-                else:
-                    rejeitados_local[motivo] += 1
-                    REJEICOES[motivo] += 1
-
-            logging.info(f"{nicho}: {len(filtrados)} passaram no filtro")
-            if rejeitados_local:
-                logging.info(f"{nicho}: rejeições {dict(rejeitados_local)}")
-
-            random.shuffle(filtrados)
-            filtrados.sort(key=oferta_score, reverse=True)
-
-            escolhidos = 0
-            pendentes_moto = []
-
-            for escolhido in filtrados:
-                if escolhidos >= cota:
-                    break
-
-                titulo = str(escolhido.get("productName", "")).strip()
-                base = chave_base_titulo(titulo)
-                link = escolhido.get("offerLink") or escolhido.get("productLink")
-                cat = categoria_produto(titulo)
-                modelo = None
-                origem_busca = None
-                assinatura = None
-
-                if nicho == "Moto":
-                    modelo = extrair_modelo_moto(titulo)
-                    origem_busca = escolhido.get("_busca_origem")
-                    assinatura = assinatura_moto(titulo)
-
-                if base and base in BASES_VISTAS:
-                    logging.info(f"{nicho}: pulou por base repetida -> {titulo}")
-                    continue
-
-                if nicho == "Moto":
-                    if assinatura in ASSINATURAS_MOTO_USADAS:
-                        pendentes_moto.append((escolhido, titulo, base, link, cat, assinatura))
-                        logging.info(f"{nicho}: pulou assinatura repetida -> {assinatura} ({titulo})")
-                        continue
-                    if origem_busca and origem_busca in BUSCAS_USADAS_MOTO:
-                        pendentes_moto.append((escolhido, titulo, base, link, cat, assinatura))
-                        logging.info(f"{nicho}: pulou busca repetida -> {origem_busca}")
-                        continue
-                else:
-                    if cat in SUBCATEGORIAS_USADAS:
-                        logging.info(f"{nicho}: pulou categoria repetida -> {cat} ({titulo})")
-                        continue
-
-                if link and link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
-                    candidatos.append(escolhido)
-                    BASES_VISTAS.add(base)
-                    SUBCATEGORIAS_USADAS.add(cat)
-                    usados_no_ciclo.add(link)
-                    ULTIMAS_BUSCAS_SHOPEE.append(link)
-                    ULTIMOS_TITULOS.append(normalizar_texto(titulo))
-                    escolhidos += 1
-                    logging.info(f"{nicho}: escolhido {titulo} | categoria={cat}")
-
-                    if nicho == "Moto":
-                        if modelo != "outros":
-                            MODELOS_USADOS.add(modelo)
-                        if assinatura:
-                            ASSINATURAS_MOTO_USADAS.add(assinatura)
-                        if origem_busca:
-                            BUSCAS_USADAS_MOTO.add(origem_busca)
-
-                    if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
-                        ULTIMAS_BUSCAS_SHOPEE.pop(0)
-                    if len(ULTIMOS_TITULOS) > 150:
-                        ULTIMOS_TITULOS.pop(0)
-
-            if nicho == "Moto" and escolhidos < cota and pendentes_moto:
-                pendentes_moto.sort(key=oferta_score, reverse=True)
-
-                for escolhido, titulo, base, link, cat, assinatura in pendentes_moto:
-                    if escolhidos >= cota:
-                        break
-
-                    origem_busca = escolhido.get("_busca_origem")
-                    if assinatura in ASSINATURAS_MOTO_USADAS:
-                        continue
-                    if origem_busca and origem_busca in BUSCAS_USADAS_MOTO:
-                        continue
-                    if link and link not in usados_no_ciclo and link not in ULTIMAS_BUSCAS_SHOPEE:
-                        candidatos.append(escolhido)
-                        BASES_VISTAS.add(base)
-                        usados_no_ciclo.add(link)
-                        ULTIMAS_BUSCAS_SHOPEE.append(link)
-                        ULTIMOS_TITULOS.append(normalizar_texto(titulo))
-                        escolhidos += 1
-                        logging.info(f"{nicho}: fallback escolhido {titulo} | categoria={cat}")
-
-                        ASSINATURAS_MOTO_USADAS.add(assinatura)
-                        if origem_busca:
-                            BUSCAS_USADAS_MOTO.add(origem_busca)
-
-                        if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
-                            ULTIMAS_BUSCAS_SHOPEE.pop(0)
-                        if len(ULTIMOS_TITULOS) > 150:
-                            ULTIMOS_TITULOS.pop(0)
-
-            if nicho == "Moto" and escolhidos < cota:
-                for escolhido in filtrados:
-                    if escolhidos >= cota:
-                        break
-
-                    titulo = str(escolhido.get("productName", "")).strip()
-                    link = escolhido.get("offerLink") or escolhido.get("productLink")
-                    base = chave_base_titulo(titulo)
-                    cat = categoria_produto(titulo)
-                    assinatura = assinatura_moto(titulo)
-                    origem_busca = escolhido.get("_busca_origem")
-
-                    if link in usados_no_ciclo or link in ULTIMAS_BUSCAS_SHOPEE:
-                        continue
-                    if assinatura in ASSINATURAS_MOTO_USADAS:
-                        continue
-                    if base and base in BASES_VISTAS:
-                        continue
-
-                    candidatos.append(escolhido)
-                    BASES_VISTAS.add(base)
-                    SUBCATEGORIAS_USADAS.add(cat)
-                    usados_no_ciclo.add(link)
-                    ULTIMAS_BUSCAS_SHOPEE.append(link)
-                    ULTIMOS_TITULOS.append(normalizar_texto(titulo))
-                    escolhidos += 1
-                    ASSINATURAS_MOTO_USADAS.add(assinatura)
-                    if origem_busca:
-                        BUSCAS_USADAS_MOTO.add(origem_busca)
-                    logging.info(f"{nicho}: relax fallback escolhido {titulo} | categoria={cat}")
-
-                    if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
-                        ULTIMAS_BUSCAS_SHOPEE.pop(0)
-                    if len(ULTIMOS_TITULOS) > 150:
-                        ULTIMOS_TITULOS.pop(0)
-
-            if escolhidos < cota:
-                logging.warning(f"{nicho}: só conseguiu {escolhidos}/{cota}")
-
+            cota = COTAS_POR_NICHO.get(nicho, 0)
+            if cota <= 0:
+                continue
+            escolhidos, estado = selecionar_ofertas_nicho(nicho, cota, estado)
+            candidatos.extend(escolhidos)
         except Exception as e:
             logging.error(f"Erro no nicho {nicho}: {e}", exc_info=True)
+
+    salvar_estado(estado)
 
     candidatos.sort(key=oferta_score, reverse=True)
     logging.info(f"Shopee OK: {len(candidatos[:MAX_OFERTAS])} produtos únicos para envio")
     return candidatos[:MAX_OFERTAS]
 
 
+# ==========================
+# 4) ENVIO TELEGRAM
+# ==========================
+
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     try:
         logging.info("Loop de ofertas iniciado")
 
         if not dentro_do_horario():
-            logging.info("Fora do horário (05:30–22:50)")
+            logging.info("Fora do horário (05:30–21:30)")
             return
 
         usadas_abertura.clear()
@@ -798,7 +888,6 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"BOT REINICIANDO: {e}", exc_info=True)
             time.sleep(15)
-
 
 
 
