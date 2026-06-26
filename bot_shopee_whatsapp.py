@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V15 - MATRIZ + HISTORICO + CHAVE INTELIGENTE")
+print("VERSAO SHOPEE V15.1 - VARIEDADE + MENOS BLOQUEIO")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -28,9 +28,9 @@ SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 CHECK_INTERVAL = 5400
 
 MAX_OFERTAS = 10
-MIN_OFERTAS = 6
+MIN_OFERTAS = 4
 HISTORICO_DIAS = 7
-SIMILARIDADE_MAX = 0.84
+SIMILARIDADE_MAX = 0.88
 
 COTAS_POR_NICHO = {
     "Moda feminina": 1,
@@ -44,7 +44,7 @@ COTAS_POR_NICHO = {
 PRECO_MIN = 15.0
 PRECO_MAX = 10000.0
 COMISSAO_MIN = 0.03
-VENDAS_MIN = 5
+VENDAS_MIN = 2
 RATING_MIN = 4.0
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -566,26 +566,7 @@ def parse_familia_from_title(titulo):
     for fam in sorted(PRODUTOS_MOTO, key=len, reverse=True):
         if normalizar_texto(fam) in t:
             return normalizar_texto(fam).replace(" ", "_")
-    for fam in ["caixa som", "fone", "smartwatch", "ssd", "mouse", "teclado", "air fryer", "aspirador", "mop"]:
-        if fam in t:
-            return fam.replace(" ", "_")
     return "outros"
-
-def carregar_historico():
-    try:
-        if os.path.exists(HISTORICO_FILE):
-            with open(HISTORICO_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-    except:
-        pass
-    return {}
-
-def salvar_historico(hist):
-    try:
-        with open(HISTORICO_FILE, "w", encoding="utf-8") as f:
-            json.dump(hist, f)
-    except Exception as e:
-        logging.error(f"Erro salvando historico: {e}")
 
 def historico_bloqueia(chave):
     hist = carregar_historico()
@@ -643,7 +624,11 @@ def chave_inteligente(familia, modelo):
     return f"{familia}:{modelo}"
 
 def validar_modelo_titulo(titulo, modelo):
-    return normalizar_texto(modelo) in normalizar_texto(titulo)
+    if not modelo:
+        return True
+    t = normalizar_texto(titulo)
+    m = normalizar_texto(modelo)
+    return m in t or any(x in t for x in m.split())
 
 def selecionar_ofertas_nicho(nicho, cota, estado):
     global BASES_VISTAS, REJEICOES
@@ -684,7 +669,6 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
 
     escolhidos = []
     chaves_ciclo = set()
-    familias_ciclo = set()
     titulos_ciclo = []
 
     for p, modelo_kw in filtrados:
@@ -705,26 +689,20 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
             if not validar_modelo_titulo(titulo, modelo_kw):
                 continue
             chave = chave_inteligente(familia, modelo_kw)
-            if chave in chaves_ciclo:
-                continue
-            if historico_bloqueia(chave):
-                continue
         else:
             chave = f"{nicho}:{familia}"
-            if chave in chaves_ciclo:
-                continue
-            if historico_bloqueia(chave):
-                continue
 
+        if chave in chaves_ciclo:
+            continue
+        if historico_bloqueia(chave):
+            continue
         if titulo_duplicado_forte(titulo):
             continue
-
         if any(SequenceMatcher(None, normalizar_texto(titulo), t).ratio() >= SIMILARIDADE_MAX for t in titulos_ciclo):
             continue
 
         escolhidos.append(p)
         chaves_ciclo.add(chave)
-        familias_ciclo.add(familia)
         titulos_ciclo.append(normalizar_texto(titulo))
         BASES_VISTAS.add(base)
         usados_no_ciclo.add(link)
@@ -876,9 +854,6 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"BOT REINICIANDO: {e}", exc_info=True)
             time.sleep(15)
-
-
-
 
         
 
