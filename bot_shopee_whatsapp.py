@@ -8,7 +8,7 @@ import json
 import os
 import html
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 from difflib import SequenceMatcher
 from datetime import datetime, time as dt_time, timedelta
 from zoneinfo import ZoneInfo
@@ -273,6 +273,13 @@ VARIACOES_NICHO = {
     "Moda masculina": ["casual", "social", "slim"],
 }
 
+FAMILIAS_EXTRA = {
+    "air_fryer": ["air fryer", "airfryer", "fritadeira"],
+    "fone_bluetooth": ["fone bluetooth", "fones de ouvido", "headset", "earbud"],
+    "smartwatch": ["smartwatch", "relogio inteligente", "relógio inteligente"],
+    "caixa_som": ["caixa de som", "speaker", "soundbar"],
+}
+
 def carregar_estado():
     try:
         if os.path.exists(ESTADO_FILE):
@@ -282,8 +289,12 @@ def carregar_estado():
             estado = {}
     except:
         estado = {}
+
     for nicho in ["Moto", "Casa", "Maternidade", "Eletroeletrônicos", "Moda feminina", "Moda masculina"]:
         estado.setdefault(f"{nicho}_idx", 0)
+
+    estado.setdefault("Moto_modelo_idx", 0)
+    estado.setdefault("Moto_produto_idx", 0)
     return estado
 
 def salvar_estado(estado):
@@ -545,6 +556,9 @@ def parse_familia_from_title(titulo):
     for fam in sorted(PRODUTOS_MOTO, key=len, reverse=True):
         if normalizar_texto(fam) in t:
             return normalizar_texto(fam).replace(" ", "_")
+    for familia, termos in FAMILIAS_EXTRA.items():
+        if any(normalizar_texto(term) in t for term in termos):
+            return familia
     return "outros"
 
 def selecionar_ofertas_nicho(nicho, cota, estado):
@@ -581,6 +595,7 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
     escolhidos = []
     chaves_ciclo = set()
     titulos_ciclo = []
+    familias_ciclo = Counter()
 
     for p, tpl in filtrados:
         if len(escolhidos) >= cota:
@@ -599,6 +614,11 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
         if nicho == "Moto" and not validar_modelo_titulo(titulo, tpl[1]):
             continue
 
+        if familia != "outros":
+            limite = 2 if nicho == "Moto" else 3
+            if familias_ciclo[familia] >= limite:
+                continue
+
         chave = chave_inteligente(familia, modelo)
         if chave in chaves_ciclo:
             continue
@@ -612,6 +632,7 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
         escolhidos.append(p)
         chaves_ciclo.add(chave)
         titulos_ciclo.append(normalizar_texto(titulo))
+        familias_ciclo[familia] += 1
         BASES_VISTAS.add(base)
         usados_no_ciclo.add(link)
         ULTIMAS_BUSCAS_SHOPEE.append(link)
@@ -837,5 +858,4 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"BOT REINICIANDO: {e}", exc_info=True)
             time.sleep(15)
-
 
