@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V16 - CATALOGO SEQUENCIAL")
+print("VERSAO SHOPEE V16 - CATÁLOGO SEQUENCIAL")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -265,16 +265,12 @@ PRODUTOS_NICHO = {
     ],
 }
 
-ESTADO_FILE = "estado_buscas.json"
-HISTORICO_FILE = "historico_envios.json"
-
-CATALOGOS = {
-    "Moto": [],
-    "Casa": [],
-    "Maternidade": [],
-    "Eletroeletrônicos": [],
-    "Moda feminina": [],
-    "Moda masculina": [],
+VARIACOES_NICHO = {
+    "Casa": ["inoxidavel", "inverter", "digital", "sem fio", "2 em 1", "gourmet"],
+    "Maternidade": ["recem nascido", "anti refluxo", "multifuncional"],
+    "Eletroeletrônicos": ["gamer", "pro", "bluetooth 5.0"],
+    "Moda feminina": ["plus size", "casual", "social"],
+    "Moda masculina": ["casual", "social", "slim"],
 }
 
 def carregar_estado():
@@ -286,7 +282,7 @@ def carregar_estado():
             estado = {}
     except:
         estado = {}
-    for nicho in CATALOGOS:
+    for nicho in ["Moto", "Casa", "Maternidade", "Eletroeletrônicos", "Moda feminina", "Moda masculina"]:
         estado.setdefault(f"{nicho}_idx", 0)
     return estado
 
@@ -489,27 +485,27 @@ def montar_catalogo():
 
     catalogo_casa = []
     for produto in PRODUTOS_NICHO["Casa"]:
-        for var in VARIACOES_NICHO["Casa"]:
+        for var in VARIACOES_NICHO.get("Casa", []):
             catalogo_casa.append((produto, var, ""))
 
     catalogo_mat = []
     for produto in PRODUTOS_NICHO["Maternidade"]:
-        for var in VARIACOES_NICHO["Maternidade"]:
+        for var in VARIACOES_NICHO.get("Maternidade", []):
             catalogo_mat.append((produto, var, ""))
 
     catalogo_eletro = []
     for produto in PRODUTOS_NICHO["Eletroeletrônicos"]:
-        for var in VARIACOES_NICHO["Eletroeletrônicos"]:
+        for var in VARIACOES_NICHO.get("Eletroeletrônicos", []):
             catalogo_eletro.append((produto, var, ""))
 
     catalogo_moda_f = []
     for produto in PRODUTOS_NICHO["Moda feminina"]:
-        for var in VARIACOES_NICHO["Moda feminina"]:
+        for var in VARIACOES_NICHO.get("Moda feminina", []):
             catalogo_moda_f.append((produto, var, ""))
 
     catalogo_moda_m = []
     for produto in PRODUTOS_NICHO["Moda masculina"]:
-        for var in VARIACOES_NICHO["Moda masculina"]:
+        for var in VARIACOES_NICHO.get("Moda masculina", []):
             catalogo_moda_m.append((produto, var, ""))
 
     return {
@@ -665,6 +661,19 @@ def get_shopee_offers():
     logging.info(f"Shopee OK: {len(candidatos[:MAX_OFERTAS])} produtos exclusivos para envio")
     return candidatos[:MAX_OFERTAS]
 
+CHAMADAS_ACAO = [
+    "👇 CORRE QUE TÁ ACABANDO!",
+    "⚡ CLIQUE ANTES QUE AUMENTE!",
+    "🚀 ESTOQUE LIMITADO - AGORA!",
+    "💥 MELHOR PREÇO DO ANO!",
+    "🎯 COMPRE ANTES DOS OUTROS!",
+    "🔥 VOOU DAS PRATELEIRAS!",
+    "⏰ PROMOÇÃO ACABA HOJE!",
+    "💰 ECONOMIA REAL - CORRE!",
+    "⭐ OFERTA QUENTE AGORA!",
+    "🛒 NÃO DEIXA ESCAPAR!"
+]
+
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=False):
     aberturas = [
         "🚨 Isso aqui não é comum aparecer assim",
@@ -691,18 +700,7 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=Fals
         "Resolve de verdade"
     ]
     chamada_grupo = f"📢 Quer mais ofertas assim? Entre no nosso grupo: {LINK_GRUPO_OFERTAS}"
-    chamada_acao = random.choice([
-        "👇 CORRE QUE TÁ ACABANDO!",
-        "⚡ CLIQUE ANTES QUE AUMENTE!",
-        "🚀 ESTOQUE LIMITADO - AGORA!",
-        "💥 MELHOR PREÇO DO ANO!",
-        "🎯 COMPRE ANTES DOS OUTROS!",
-        "🔥 VOOU DAS PRATELEIRAS!",
-        "⏰ PROMOÇÃO ACABA HOJE!",
-        "💰 ECONOMIA REAL - CORRE!",
-        "⭐ OFERTA QUENTE AGORA!",
-        "🛒 NÃO DEIXA ESCAPAR!"
-    ])
+    chamada_acao = random.choice(CHAMADAS_ACAO)
     abertura = random.choice([a for a in aberturas if a not in usadas_abertura] or aberturas)
     usadas_abertura.add(abertura)
     gatilho = random.choice([g for g in gatilhos if g not in usadas_gatilho] or gatilhos)
@@ -766,7 +764,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 nome = html.escape(item["productName"])
                 preco = float(item["priceMin"])
                 img = item["imageUrl"]
-
                 rating = float(item.get("ratingStar", 4.5))
                 vendas = int(item.get("sales", 100))
                 comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
@@ -777,8 +774,8 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 msg = gerar_copy(nome, preco_f, vendas_f, rating, comissao, link, for_whatsapp=False)
                 zap_msg = gerar_copy(nome, preco_f, vendas_f, rating, 0, link, for_whatsapp=True)
                 zap = gerar_link_whatsapp_from_html(zap_msg)
-                msg += f'\\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
-                msg += "\\n━━━━━━━━━━━━━━━\\n📢 <b>Ofertas Secretas</b>"
+                msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
+                msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
                 selecionadas.append({"msg": msg, "img": img})
             except Exception as e:
                 logging.error(f"Erro Shopee item: {e}", exc_info=True)
@@ -840,6 +837,5 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"BOT REINICIANDO: {e}", exc_info=True)
             time.sleep(15)
-        
 
 
