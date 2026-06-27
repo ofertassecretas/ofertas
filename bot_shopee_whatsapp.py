@@ -8,14 +8,14 @@ import json
 import os
 import html
 import re
-from collections import Counter, defaultdict
+from collections import Counter
 from difflib import SequenceMatcher
 from datetime import datetime, time as dt_time, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V16 - CATÁLOGO SEQUENCIAL")
+print("VERSAO SHOPEE V17 - CATÁLOGO SEQUENCIAL INTELIGENTE")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -51,62 +51,64 @@ usados_no_ciclo = set()
 BASES_VISTAS = set()
 REJEICOES = Counter()
 
-PRODUTOS_MOTO = [
+MOTOS = [
+    "titan 150",
+    "cb 300",
+    "factor 150",
+    "titan 160",
+    "tornado",
+    "fazer 150",
+    "titan 125",
+    "bros 160",
+    "twister 250",
+    "biz 125",
+    "pop 110",
+    "xre 300",
+    "croosser 150",
+    "xre 190",
+    "fazer 250",
+    "lander 250",
+    "bros 150",
+    "tenere 250",
+    "biz 100",
+    "twister 300",
+]
+
+PECAS_MOTO = [
     "kit relacao",
     "kit embreagem",
     "bateria",
     "refil bomba combustivel",
     "chicote fiação principal",
+    "bucha balança",
+    "burrinho de freio",
+    "estribo",
+    "pedal de marcha",
+    "pedal de freio",
+    "rolamento virabrequim",
     "estator",
     "chave ignição",
     "punho chave luz",
     "kit pisca seta",
-    "par pneu 90/90/18 2.75/18",
-    "par pneu 140/70/17 110/70/17",
-    "par pneu 110/90/17 90/90/19",
+    "par pneu",
     "bloco optico",
+    "retentor de bengala",
+    "bucha amortecedor",
     "carburador corpo de injeção",
     "kit cilindro",
     "jogo de juntas",
     "biela",
     "valvulas escape admissão",
-    "disco de freio dianteiro",
-    "disco de freio traseiro",
+    "disco de freio",
     "tubo interno",
     "vela iridium",
     "pastilha freio",
     "guidao",
     "manopla",
+    "amortecedor",
+    "retrovisor",
+    "farol",
 ]
-
-MODELOS_MOTO = [
-    "titan 160",
-    "fan 160",
-    "start 160",
-    "cargo 160",
-    "fazer 250",
-    "lander 250",
-    "tenere 250",
-    "xre 300",
-    "cb300",
-    "bros 160",
-]
-
-MARCAS_MOTO = {
-    "kit relacao": ["riffel", "scud"],
-    "kit embreagem": ["cobreq", "hamp"],
-    "bateria": ["heliar", "yuasa"],
-    "vela iridium": ["ngk"],
-    "kit cilindro": ["kmp"],
-    "biela": ["txk"],
-    "chave ignição": ["magnetron"],
-    "chicote fiação principal": ["magnetron"],
-    "refil bomba combustivel": ["magnetron", "scud"],
-    "estator": ["magnetron"],
-    "pastilha freio": ["cobreq", "diafrag"],
-    "guidao": ["protork"],
-    "manopla": ["circuit"],
-}
 
 PRODUTOS_NICHO = {
     "Casa": [
@@ -290,17 +292,24 @@ def carregar_estado():
     except:
         estado = {}
 
-    for nicho in ["Moto", "Casa", "Maternidade", "Eletroeletrônicos", "Moda feminina", "Moda masculina"]:
-        estado.setdefault(f"{nicho}_idx", 0)
+    estado.setdefault("Moto", {})
+    for nicho in ["Casa", "Maternidade", "Eletroeletrônicos", "Moda feminina", "Moda masculina"]:
+        estado.setdefault(nicho, {})
 
-    estado.setdefault("Moto_modelo_idx", 0)
-    estado.setdefault("Moto_produto_idx", 0)
+    estado["Moto"].setdefault("moto_idx", 0)
+    estado["Moto"].setdefault("peca_idx", 0)
+    estado["Moto"].setdefault("resultado_idx", {})
+
+    for nicho in ["Casa", "Maternidade", "Eletroeletrônicos", "Moda feminina", "Moda masculina"]:
+        estado[nicho].setdefault("produto_idx", 0)
+        estado[nicho].setdefault("resultado_idx", {})
+
     return estado
 
 def salvar_estado(estado):
     try:
         with open(ESTADO_FILE, "w", encoding="utf-8") as f:
-            json.dump(estado, f)
+            json.dump(estado, f, ensure_ascii=False)
     except Exception as e:
         logging.error(f"Erro salvando estado: {e}")
 
@@ -316,7 +325,7 @@ def carregar_historico():
 def salvar_historico(hist):
     try:
         with open(HISTORICO_FILE, "w", encoding="utf-8") as f:
-            json.dump(hist, f)
+            json.dump(hist, f, ensure_ascii=False)
     except Exception as e:
         logging.error(f"Erro salvando historico: {e}")
 
@@ -486,47 +495,45 @@ def registrar_historico(chave):
     hist[chave] = datetime.now(FUSO_BR).isoformat()
     salvar_historico(hist)
 
+def parse_familia_from_title(titulo):
+    t = normalizar_texto(titulo)
+    for fam in sorted(MOTOS, key=len, reverse=True):
+        if normalizar_texto(fam) in t:
+            return normalizar_texto(fam).replace(" ", "_")
+    for familia, termos in FAMILIAS_EXTRA.items():
+        if any(normalizar_texto(term) in t for term in termos):
+            return familia
+    return "outros"
+
+def chave_resultado(nicho, chave):
+    return f"{nicho}__{chave}"
+
+def carregar_indice_resultado(estado, nicho, chave):
+    return estado.setdefault(nicho, {}).setdefault("resultado_idx", {}).get(chave, 0)
+
+def salvar_indice_resultado(estado, nicho, chave, valor):
+    estado.setdefault(nicho, {}).setdefault("resultado_idx", {})[chave] = valor
+
 def montar_catalogo():
-    catalogo_moto = []
-    for produto in PRODUTOS_MOTO:
-        marcas = MARCAS_MOTO.get(produto, [""])
-        for modelo in MODELOS_MOTO:
-            for marca in marcas:
-                catalogo_moto.append((produto, modelo, marca))
-
-    catalogo_casa = []
-    for produto in PRODUTOS_NICHO["Casa"]:
-        for var in VARIACOES_NICHO.get("Casa", []):
-            catalogo_casa.append((produto, var, ""))
-
-    catalogo_mat = []
-    for produto in PRODUTOS_NICHO["Maternidade"]:
-        for var in VARIACOES_NICHO.get("Maternidade", []):
-            catalogo_mat.append((produto, var, ""))
-
-    catalogo_eletro = []
-    for produto in PRODUTOS_NICHO["Eletroeletrônicos"]:
-        for var in VARIACOES_NICHO.get("Eletroeletrônicos", []):
-            catalogo_eletro.append((produto, var, ""))
-
-    catalogo_moda_f = []
-    for produto in PRODUTOS_NICHO["Moda feminina"]:
-        for var in VARIACOES_NICHO.get("Moda feminina", []):
-            catalogo_moda_f.append((produto, var, ""))
-
-    catalogo_moda_m = []
-    for produto in PRODUTOS_NICHO["Moda masculina"]:
-        for var in VARIACOES_NICHO.get("Moda masculina", []):
-            catalogo_moda_m.append((produto, var, ""))
-
-    return {
-        "Moto": catalogo_moto,
-        "Casa": catalogo_casa,
-        "Maternidade": catalogo_mat,
-        "Eletroeletrônicos": catalogo_eletro,
-        "Moda feminina": catalogo_moda_f,
-        "Moda masculina": catalogo_moda_m,
+    catalogos = {
+        "Moto": [],
+        "Casa": [],
+        "Maternidade": [],
+        "Eletroeletrônicos": [],
+        "Moda feminina": [],
+        "Moda masculina": [],
     }
+    for p in PRODUTOS_NICHO["Casa"]:
+        catalogos["Casa"].append((p, "", ""))
+    for p in PRODUTOS_NICHO["Maternidade"]:
+        catalogos["Maternidade"].append((p, "", ""))
+    for p in PRODUTOS_NICHO["Eletroeletrônicos"]:
+        catalogos["Eletroeletrônicos"].append((p, "", ""))
+    for p in PRODUTOS_NICHO["Moda feminina"]:
+        catalogos["Moda feminina"].append((p, "", ""))
+    for p in PRODUTOS_NICHO["Moda masculina"]:
+        catalogos["Moda masculina"].append((p, "", ""))
+    return catalogos
 
 CATALOGOS = montar_catalogo()
 
@@ -534,15 +541,37 @@ def get_proximo_bloco(nicho, estado, tamanho=2):
     catalogo = CATALOGOS[nicho]
     if not catalogo:
         return [], estado
-    idx = estado.get(f"{nicho}_idx", 0)
+    idx = estado.setdefault(nicho, {}).get("produto_idx", 0)
     bloco = catalogo[idx:idx + tamanho]
     if len(bloco) < tamanho:
         bloco = bloco + catalogo[:tamanho - len(bloco)]
-    estado[f"{nicho}_idx"] = (idx + tamanho) % len(catalogo)
+    estado[nicho]["produto_idx"] = (idx + tamanho) % len(catalogo)
     return bloco, estado
 
-def chave_inteligente(familia, modelo):
-    return f"{familia}:{modelo}"
+def get_proxima_combinacao_moto(estado, tamanho_motos=2):
+    moto_state = estado.setdefault("Moto", {})
+    moto_idx = moto_state.get("moto_idx", 0)
+    peca_idx = moto_state.get("peca_idx", 0)
+
+    total_motos = len(MOTOS)
+    total_pecas = len(PECAS_MOTO)
+    if total_motos == 0 or total_pecas == 0:
+        return [], estado
+
+    peca_atual = PECAS_MOTO[peca_idx % total_pecas]
+    bloco_motos = []
+    for i in range(tamanho_motos):
+        bloco_motos.append(MOTOS[(moto_idx + i) % total_motos])
+
+    novo_moto_idx = moto_idx + tamanho_motos
+    if novo_moto_idx >= total_motos:
+        novo_moto_idx = novo_moto_idx % total_motos
+        peca_idx = (peca_idx + 1) % total_pecas
+
+    moto_state["moto_idx"] = novo_moto_idx
+    moto_state["peca_idx"] = peca_idx
+
+    return [(m, peca_atual) for m in bloco_motos], estado
 
 def validar_modelo_titulo(titulo, modelo):
     if not modelo:
@@ -550,16 +579,6 @@ def validar_modelo_titulo(titulo, modelo):
     t = normalizar_texto(titulo)
     m = normalizar_texto(modelo)
     return m in t or any(x in t for x in m.split())
-
-def parse_familia_from_title(titulo):
-    t = normalizar_texto(titulo)
-    for fam in sorted(PRODUTOS_MOTO, key=len, reverse=True):
-        if normalizar_texto(fam) in t:
-            return normalizar_texto(fam).replace(" ", "_")
-    for familia, termos in FAMILIAS_EXTRA.items():
-        if any(normalizar_texto(term) in t for term in termos):
-            return familia
-    return "outros"
 
 def selecionar_ofertas_nicho(nicho, cota, estado):
     global BASES_VISTAS, REJEICOES
@@ -611,7 +630,16 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
             continue
         if not link or link in usados_no_ciclo or link in ULTIMAS_BUSCAS_SHOPEE:
             continue
-        if nicho == "Moto" and not validar_modelo_titulo(titulo, tpl[1]):
+
+        if titulo_duplicado_forte(titulo):
+            continue
+        if any(SequenceMatcher(None, normalizar_texto(titulo), t).ratio() >= SIMILARIDADE_MAX for t in titulos_ciclo):
+            continue
+
+        chave = chave_resultado(nicho, f"{familia}__{modelo}")
+        idx_resultado = carregar_indice_resultado(estado, nicho, chave)
+
+        if nicho == "Moto" and not validar_modelo_titulo(titulo, tpl[0]) and not validar_modelo_titulo(titulo, tpl[1]):
             continue
 
         if familia != "outros":
@@ -619,14 +647,7 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
             if familias_ciclo[familia] >= limite:
                 continue
 
-        chave = chave_inteligente(familia, modelo)
-        if chave in chaves_ciclo:
-            continue
         if historico_bloqueia(chave):
-            continue
-        if titulo_duplicado_forte(titulo):
-            continue
-        if any(SequenceMatcher(None, normalizar_texto(titulo), t).ratio() >= SIMILARIDADE_MAX for t in titulos_ciclo):
             continue
 
         escolhidos.append(p)
@@ -638,6 +659,7 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
         ULTIMAS_BUSCAS_SHOPEE.append(link)
         ULTIMOS_TITULOS.append(normalizar_texto(titulo))
         registrar_historico(chave)
+        salvar_indice_resultado(estado, nicho, chave, idx_resultado + 1)
 
         logging.info(f"{nicho}: escolhido {titulo} | chave={chave}")
 
@@ -648,6 +670,75 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
 
     if len(escolhidos) < cota:
         logging.warning(f"{nicho}: só conseguiu {len(escolhidos)}/{cota}")
+
+    return escolhidos, estado
+
+def selecionar_ofertas_moto(cota, estado):
+    global BASES_VISTAS, REJEICOES
+    combinacoes, estado = get_proxima_combinacao_moto(estado, tamanho_motos=2)
+    escolhidos = []
+    chaves_ciclo = set()
+    titulos_ciclo = []
+
+    for moto, peca in combinacoes:
+        if len(escolhidos) >= cota:
+            break
+
+        kw = f"{peca} {moto}"
+        resultados = buscar_produtos_da_categoria_kw(kw, "Moto")
+        chave = chave_resultado("Moto", f"{normalizar_texto(moto).replace(' ', '_')}__{normalizar_texto(peca).replace(' ', '_')}")
+        idx_resultado = carregar_indice_resultado(estado, "Moto", chave)
+
+        if not resultados:
+            continue
+
+        total = len(resultados)
+        tentativas = 0
+
+        while tentativas < total:
+            p = resultados[(idx_resultado + tentativas) % total]
+            tentativas += 1
+
+            motivo = motivo_rejeicao(p)
+            if motivo is not None:
+                REJEICOES[motivo] += 1
+                continue
+
+            titulo = str(p.get("productName", "")).strip()
+            link = p.get("offerLink") or p.get("productLink")
+            base = chave_base_titulo(titulo)
+
+            if base and base in BASES_VISTAS:
+                continue
+            if not link or link in usados_no_ciclo or link in ULTIMAS_BUSCAS_SHOPEE:
+                continue
+            if not validar_modelo_titulo(titulo, moto):
+                continue
+            if titulo_duplicado_forte(titulo):
+                continue
+            if any(SequenceMatcher(None, normalizar_texto(titulo), t).ratio() >= SIMILARIDADE_MAX for t in titulos_ciclo):
+                continue
+
+            escolhidos.append(p)
+            chaves_ciclo.add(chave)
+            titulos_ciclo.append(normalizar_texto(titulo))
+            BASES_VISTAS.add(base)
+            usados_no_ciclo.add(link)
+            ULTIMAS_BUSCAS_SHOPEE.append(link)
+            ULTIMOS_TITULOS.append(normalizar_texto(titulo))
+            registrar_historico(chave)
+            salvar_indice_resultado(estado, "Moto", chave, (idx_resultado + tentativas) % total)
+
+            logging.info(f"Moto: escolhido {titulo} | chave={chave}")
+            break
+
+    if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
+        ULTIMAS_BUSCAS_SHOPEE.pop(0)
+    if len(ULTIMOS_TITULOS) > 150:
+        ULTIMOS_TITULOS.pop(0)
+
+    if len(escolhidos) < cota:
+        logging.warning(f"Moto: só conseguiu {len(escolhidos)}/{cota}")
 
     return escolhidos, estado
 
@@ -672,7 +763,10 @@ def get_shopee_offers():
 
     for nicho in nichos_ordem:
         try:
-            escolhidos, estado = selecionar_ofertas_nicho(nicho, COTAS_POR_NICHO[nicho], estado)
+            if nicho == "Moto":
+                escolhidos, estado = selecionar_ofertas_moto(COTAS_POR_NICHO[nicho], estado)
+            else:
+                escolhidos, estado = selecionar_ofertas_nicho(nicho, COTAS_POR_NICHO[nicho], estado)
             candidatos.extend(escolhidos)
         except Exception as e:
             logging.error(f"Erro no nicho {nicho}: {e}", exc_info=True)
