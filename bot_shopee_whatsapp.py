@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V17 - CATÁLOGO SEQUENCIAL INTELIGENTE")
+print("VERSAO SHOPEE V18 - CATÁLOGO SEQUENCIAL INTELIGENTE")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -29,7 +29,7 @@ CHECK_INTERVAL = 5400
 
 MAX_OFERTAS = 10
 MIN_OFERTAS = 4
-HISTORICO_DIAS = 7
+HISTORICO_DIAS = 3
 SIMILARIDADE_MAX = 0.88
 VENDAS_MIN = 2
 RATING_MIN = 4.0
@@ -608,13 +608,19 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
     if rejeitados_local:
         logging.info(f"{nicho}: rejeições {dict(rejeitados_local)}")
 
-    random.shuffle(filtrados)
     filtrados.sort(key=lambda x: oferta_score(x[0]), reverse=True)
+
+    if filtrados:
+        idx_resultado = carregar_indice_resultado(estado, nicho, filtrados[0][1][0])
+        filtrados = filtrados[idx_resultado:] + filtrados[:idx_resultado]
+    else:
+        idx_resultado = 0
 
     escolhidos = []
     chaves_ciclo = set()
     titulos_ciclo = []
     familias_ciclo = Counter()
+    motivos = Counter()
 
     for p, tpl in filtrados:
         if len(escolhidos) >= cota:
@@ -625,30 +631,35 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
         familia = parse_familia_from_title(titulo)
         modelo = normalizar_texto(tpl[1]).replace(" ", "")
         base = chave_base_titulo(titulo)
+        produto_id = hashlib.md5((link or "").encode()).hexdigest()
 
         if base and base in BASES_VISTAS:
+            motivos["base_repetida"] += 1
             continue
         if not link or link in usados_no_ciclo or link in ULTIMAS_BUSCAS_SHOPEE:
+            motivos["link_repetido"] += 1
             continue
-
+        if historico_bloqueia(produto_id):
+            motivos["historico"] += 1
+            continue
         if titulo_duplicado_forte(titulo):
+            motivos["titulo"] += 1
             continue
         if any(SequenceMatcher(None, normalizar_texto(titulo), t).ratio() >= SIMILARIDADE_MAX for t in titulos_ciclo):
+            motivos["similaridade"] += 1
+            continue
+        if nicho == "Moto" and not validar_modelo_titulo(titulo, tpl[0]) and not validar_modelo_titulo(titulo, tpl[1]):
+            motivos["modelo"] += 1
             continue
 
         chave = chave_resultado(nicho, f"{familia}__{modelo}")
-        idx_resultado = carregar_indice_resultado(estado, nicho, chave)
-
-        if nicho == "Moto" and not validar_modelo_titulo(titulo, tpl[0]) and not validar_modelo_titulo(titulo, tpl[1]):
-            continue
+        idx_resultado_atual = carregar_indice_resultado(estado, nicho, chave)
 
         if familia != "outros":
             limite = 2 if nicho == "Moto" else 3
             if familias_ciclo[familia] >= limite:
+                motivos["familia_limite"] += 1
                 continue
-
-        if historico_bloqueia(chave):
-            continue
 
         escolhidos.append(p)
         chaves_ciclo.add(chave)
@@ -658,8 +669,7 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
         usados_no_ciclo.add(link)
         ULTIMAS_BUSCAS_SHOPEE.append(link)
         ULTIMOS_TITULOS.append(normalizar_texto(titulo))
-        registrar_historico(chave)
-        salvar_indice_resultado(estado, nicho, chave, idx_resultado + 1)
+        salvar_indice_resultado(estado, nicho, tpl[0], idx_resultado_atual + 1)
 
         logging.info(f"{nicho}: escolhido {titulo} | chave={chave}")
 
@@ -667,6 +677,9 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
             ULTIMAS_BUSCAS_SHOPEE.pop(0)
         if len(ULTIMOS_TITULOS) > 150:
             ULTIMOS_TITULOS.pop(0)
+
+    if motivos:
+        logging.info(f"{nicho}: rejeições seleção {dict(motivos)}")
 
     if len(escolhidos) < cota:
         logging.warning(f"{nicho}: só conseguiu {len(escolhidos)}/{cota}")
@@ -707,10 +720,13 @@ def selecionar_ofertas_moto(cota, estado):
             titulo = str(p.get("productName", "")).strip()
             link = p.get("offerLink") or p.get("productLink")
             base = chave_base_titulo(titulo)
+            produto_id = hashlib.md5((link or "").encode()).hexdigest()
 
             if base and base in BASES_VISTAS:
                 continue
             if not link or link in usados_no_ciclo or link in ULTIMAS_BUSCAS_SHOPEE:
+                continue
+            if historico_bloqueia(produto_id):
                 continue
             if not validar_modelo_titulo(titulo, moto):
                 continue
@@ -726,7 +742,6 @@ def selecionar_ofertas_moto(cota, estado):
             usados_no_ciclo.add(link)
             ULTIMAS_BUSCAS_SHOPEE.append(link)
             ULTIMOS_TITULOS.append(normalizar_texto(titulo))
-            registrar_historico(chave)
             salvar_indice_resultado(estado, "Moto", chave, (idx_resultado + tentativas) % total)
 
             logging.info(f"Moto: escolhido {titulo} | chave={chave}")
@@ -883,6 +898,8 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 vendas = int(item.get("sales", 100))
                 comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
 
+                produto_id = hashlib.md5((link_base or "").encode()).hexdigest()
+
                 vendas_f = f"{vendas:,}".replace(",", ".")
                 preco_f = f"{preco:.2f}".replace(".", ",")
 
@@ -891,7 +908,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 zap = gerar_link_whatsapp_from_html(zap_msg)
                 msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
                 msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
-                selecionadas.append({"msg": msg, "img": img})
+                selecionadas.append({"msg": msg, "img": img, "produto_id": produto_id})
             except Exception as e:
                 logging.error(f"Erro Shopee item: {e}", exc_info=True)
 
@@ -918,6 +935,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     caption=item["msg"],
                     parse_mode="HTML"
                 )
+                registrar_historico(item["produto_id"])
                 await asyncio.sleep(40)
             except Exception as e:
                 logging.error(f"Erro Telegram: {e}", exc_info=True)
