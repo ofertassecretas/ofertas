@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V18 - CATÁLOGO SEQUENCIAL INTELIGENTE")
+print("VERSAO SHOPEE V19 - CATÁLOGO SEQUENCIAL INTELIGENTE")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -108,16 +108,31 @@ PECAS_MOTO = [
     "amortecedor",
     "retrovisor",
     "farol",
+    "lona de freio",
+    "cabo embreagem",
+    "cabo acelerador",
+    "coroa moto",
+    "pinhao moto",
+    "corrente moto",
+    "pedaleira",
+    "carenagem",
+    "lanterna traseira",
 ]
 
 PRODUTOS_NICHO = {
     "Casa": [
         "air fryer",
+        "fritadeira eletrica",
         "aspirador",
+        "aspirador vertical",
         "liquidificador",
+        "cafeteira",
+        "panela eletrica",
+        "panela de pressão",
         "capa para colchão",
         "jogo de pratos",
         "jogo de copos",
+        "copo stanley",
         "talher",
         "panos de prato",
         "toalhas de banho",
@@ -126,6 +141,7 @@ PRODUTOS_NICHO = {
         "cobre leito",
         "mangueira de jardim",
         "tapete",
+        "tapete sala",
         "torneira de cozinha",
         "filtro de barro",
         "guarda roupas casal",
@@ -137,15 +153,18 @@ PRODUTOS_NICHO = {
         "ar condicionado",
         "jogo de panelas",
         "cortinas",
-        "tintas",
+        "tintas parede",
+        "tinta spray",
         "frigideiras",
         "rede de dormir",
-        "pipoqueria",
-        "cafeteira",
+        "pipoqueira",
         "mop",
         "ventilador",
         "batedeira",
-        "panela eletrica",
+        "escorredor de louça",
+        "caixa organizadora",
+        "papel de parede",
+        "luminaria",
     ],
     "Maternidade": [
         "carrinho bebe",
@@ -170,19 +189,28 @@ PRODUTOS_NICHO = {
         "kit mamadeira",
         "kit bicos",
         "baba eletronica",
+        "babá eletronica",
         "ninho bebe",
         "kit enxoval bebe",
         "babador bebe",
         "mordedor bebe",
         "tapete infantil",
+        "cadeirinha bebe",
+        "almofada amamentacao",
+        "termometro infantil",
     ],
     "Eletroeletrônicos": [
         "smartwatch",
+        "relogio inteligente",
         "fone bluetooth",
+        "headset gamer",
         "caixa de som bluetooth",
+        "caixa de som",
+        "soundbar",
         "bastão pau de selfie",
         "celular",
         "smartphone",
+        "smart tv",
         "televisão",
         "video game",
         "fones de ouvido",
@@ -199,7 +227,7 @@ PRODUTOS_NICHO = {
         "computador",
         "cpu gamer",
         "cpu",
-        "notbook",
+        "notebook",
         "drone",
         "camera de segurança",
         "golpro",
@@ -207,14 +235,16 @@ PRODUTOS_NICHO = {
         "ssd",
         "mouse gamer",
         "teclado mecanico",
-        "headset gamer",
         "power bank",
+        "carregador turbo",
+        "suporte celular carro",
     ],
     "Moda feminina": [
         "vestido feminino",
         "conjunto feminino",
         "kit calcinhas",
         "biquines",
+        "biquini",
         "saida de praia",
         "maquiagens",
         "roupa academia",
@@ -238,6 +268,9 @@ PRODUTOS_NICHO = {
         "macacao feminino",
         "tenis feminino",
         "bolsa feminina",
+        "blazer feminino",
+        "saia jeans",
+        "top feminino",
     ],
     "Moda masculina": [
         "camiseta masculina",
@@ -264,6 +297,9 @@ PRODUTOS_NICHO = {
         "tenis masculino",
         "carteira masculina",
         "kit cueca",
+        "calça jeans masculina",
+        "camisa social masculina",
+        "moletom masculino",
     ],
 }
 
@@ -280,6 +316,14 @@ FAMILIAS_EXTRA = {
     "fone_bluetooth": ["fone bluetooth", "fones de ouvido", "headset", "earbud"],
     "smartwatch": ["smartwatch", "relogio inteligente", "relógio inteligente"],
     "caixa_som": ["caixa de som", "speaker", "soundbar"],
+    "smart_tv": ["smart tv", "televisão", "tv"],
+    "notebook": ["notebook", "notbook", "laptop"],
+    "tablet": ["tablet", "ipad", "galaxy tab", "xiaomi pad"],
+    "celular": ["celular", "smartphone", "telefone"],
+    "maternidade_bebe": ["bebe", "bebê", "fralda", "carrinho", "berco", "mamadeira", "ninho"],
+    "moda_fem": ["vestido", "conjunto", "saia", "bolsa", "sandalia", "tenis feminino"],
+    "moda_masc": ["camisa", "camiseta", "calça", "tenis masculino", "jaqueta", "bermuda"],
+    "casa_lar": ["tapete", "lençol", "cortina", "organizador", "caixa organizadora", "luminaria"],
 }
 
 def carregar_estado():
@@ -299,10 +343,22 @@ def carregar_estado():
     estado["Moto"].setdefault("moto_idx", 0)
     estado["Moto"].setdefault("peca_idx", 0)
     estado["Moto"].setdefault("resultado_idx", {})
+    estado["Moto"].setdefault("pares", [])
+    estado["Moto"].setdefault("pares_idx", 0)
+    if not estado["Moto"]["pares"]:
+        pares = [(m, p) for m in MOTOS for p in PECAS_MOTO]
+        random.shuffle(pares)
+        estado["Moto"]["pares"] = pares
 
     for nicho in ["Casa", "Maternidade", "Eletroeletrônicos", "Moda feminina", "Moda masculina"]:
         estado[nicho].setdefault("produto_idx", 0)
         estado[nicho].setdefault("resultado_idx", {})
+        estado[nicho].setdefault("produtos_ordem", [])
+        estado[nicho].setdefault("produtos_ordem_idx", 0)
+        if not estado[nicho]["produtos_ordem"]:
+            ordem = list(range(len(PRODUTOS_NICHO[nicho])))
+            random.shuffle(ordem)
+            estado[nicho]["produtos_ordem"] = ordem
 
     return estado
 
@@ -347,7 +403,7 @@ def chave_base_titulo(titulo):
         "premium", "novo", "promocao", "promoção", "super", "original", "profissional",
         "casual", "masculino", "feminino", "infantil", "adulto", "unissex",
         "estica", "kit", "com", "de", "para", "o", "a", "promo", "oferta",
-        "modelo", "versao", "versão", "linha", "envio"
+        "modelo", "versao", "versão", "linha", "envio", "usado"
     }
     tokens = [x for x in t.split() if x not in stop and len(x) > 2]
     return " ".join(tokens[:6])
@@ -401,7 +457,7 @@ def oferta_score(p):
         score += shop_type_score(st)
         if 50 <= preco <= 5000:
             score += 6
-        if any(x in nome for x in ["moto", "bebê", "bebe", "smartwatch", "ssd", "fone", "tablet"]):
+        if any(x in nome for x in ["moto", "bebê", "bebe", "smartwatch", "ssd", "fone", "tablet", "air fryer", "box", "tapete"]):
             score += 2
         return score
     except:
@@ -497,9 +553,6 @@ def registrar_historico(chave):
 
 def parse_familia_from_title(titulo):
     t = normalizar_texto(titulo)
-    for fam in sorted(MOTOS, key=len, reverse=True):
-        if normalizar_texto(fam) in t:
-            return normalizar_texto(fam).replace(" ", "_")
     for familia, termos in FAMILIAS_EXTRA.items():
         if any(normalizar_texto(term) in t for term in termos):
             return familia
@@ -515,24 +568,10 @@ def salvar_indice_resultado(estado, nicho, chave, valor):
     estado.setdefault(nicho, {}).setdefault("resultado_idx", {})[chave] = valor
 
 def montar_catalogo():
-    catalogos = {
-        "Moto": [],
-        "Casa": [],
-        "Maternidade": [],
-        "Eletroeletrônicos": [],
-        "Moda feminina": [],
-        "Moda masculina": [],
-    }
-    for p in PRODUTOS_NICHO["Casa"]:
-        catalogos["Casa"].append((p, "", ""))
-    for p in PRODUTOS_NICHO["Maternidade"]:
-        catalogos["Maternidade"].append((p, "", ""))
-    for p in PRODUTOS_NICHO["Eletroeletrônicos"]:
-        catalogos["Eletroeletrônicos"].append((p, "", ""))
-    for p in PRODUTOS_NICHO["Moda feminina"]:
-        catalogos["Moda feminina"].append((p, "", ""))
-    for p in PRODUTOS_NICHO["Moda masculina"]:
-        catalogos["Moda masculina"].append((p, "", ""))
+    catalogos = {}
+    for nicho in ["Casa", "Maternidade", "Eletroeletrônicos", "Moda feminina", "Moda masculina"]:
+        catalogos[nicho] = [(p, "", "") for p in PRODUTOS_NICHO[nicho]]
+    catalogos["Moto"] = []
     return catalogos
 
 CATALOGOS = montar_catalogo()
@@ -541,37 +580,34 @@ def get_proximo_bloco(nicho, estado, tamanho=2):
     catalogo = CATALOGOS[nicho]
     if not catalogo:
         return [], estado
+    ordem = estado.setdefault(nicho, {}).get("produtos_ordem", list(range(len(catalogo))))
     idx = estado.setdefault(nicho, {}).get("produto_idx", 0)
-    bloco = catalogo[idx:idx + tamanho]
-    if len(bloco) < tamanho:
-        bloco = bloco + catalogo[:tamanho - len(bloco)]
-    estado[nicho]["produto_idx"] = (idx + tamanho) % len(catalogo)
+    bloco = []
+    for i in range(tamanho):
+        pos = ordem[(idx + i) % len(ordem)]
+        bloco.append(catalogo[pos])
+    estado[nicho]["produto_idx"] = (idx + tamanho) % len(ordem)
+    if estado[nicho]["produto_idx"] == 0:
+        random.shuffle(ordem)
+        estado[nicho]["produtos_ordem"] = ordem
     return bloco, estado
 
-def get_proxima_combinacao_moto(estado, tamanho_motos=2):
+def get_proxima_combinacao_moto(estado, tamanho=2):
     moto_state = estado.setdefault("Moto", {})
-    moto_idx = moto_state.get("moto_idx", 0)
-    peca_idx = moto_state.get("peca_idx", 0)
-
-    total_motos = len(MOTOS)
-    total_pecas = len(PECAS_MOTO)
-    if total_motos == 0 or total_pecas == 0:
-        return [], estado
-
-    peca_atual = PECAS_MOTO[peca_idx % total_pecas]
-    bloco_motos = []
-    for i in range(tamanho_motos):
-        bloco_motos.append(MOTOS[(moto_idx + i) % total_motos])
-
-    novo_moto_idx = moto_idx + tamanho_motos
-    if novo_moto_idx >= total_motos:
-        novo_moto_idx = novo_moto_idx % total_motos
-        peca_idx = (peca_idx + 1) % total_pecas
-
-    moto_state["moto_idx"] = novo_moto_idx
-    moto_state["peca_idx"] = peca_idx
-
-    return [(m, peca_atual) for m in bloco_motos], estado
+    pares = moto_state.get("pares", [])
+    if not pares:
+        pares = [(m, p) for m in MOTOS for p in PECAS_MOTO]
+        random.shuffle(pares)
+        moto_state["pares"] = pares
+    idx = moto_state.get("pares_idx", 0)
+    bloco = []
+    for i in range(tamanho):
+        bloco.append(pares[(idx + i) % len(pares)])
+    moto_state["pares_idx"] = (idx + tamanho) % len(pares)
+    if moto_state["pares_idx"] == 0:
+        random.shuffle(pares)
+        moto_state["pares"] = pares
+    return bloco, estado
 
 def validar_modelo_titulo(titulo, modelo):
     if not modelo:
@@ -579,6 +615,19 @@ def validar_modelo_titulo(titulo, modelo):
     t = normalizar_texto(titulo)
     m = normalizar_texto(modelo)
     return m in t or any(x in t for x in m.split())
+
+def validar_relevancia_nicho(nicho, titulo, tpl):
+    t = normalizar_texto(titulo)
+    if nicho == "Eletroeletrônicos":
+        if any(x in t for x in ["capa", "pelicula", "case"]) and not any(x in t for x in ["celular", "tablet", "smartphone"]):
+            return False
+    if nicho == "Casa":
+        if any(x in t for x in ["tinta", "tintas"]) and not any(x in t for x in ["parede", "spray", "esmalte"]):
+            return False
+    if nicho == "Moto":
+        if not any(x in t for x in normalizar_texto(tpl[0]).split()):
+            return False
+    return True
 
 def selecionar_ofertas_nicho(nicho, cota, estado):
     global BASES_VISTAS, REJEICOES
@@ -608,16 +657,10 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
     if rejeitados_local:
         logging.info(f"{nicho}: rejeições {dict(rejeitados_local)}")
 
+    random.shuffle(filtrados)
     filtrados.sort(key=lambda x: oferta_score(x[0]), reverse=True)
 
-    if filtrados:
-        idx_resultado = carregar_indice_resultado(estado, nicho, filtrados[0][1][0])
-        filtrados = filtrados[idx_resultado:] + filtrados[:idx_resultado]
-    else:
-        idx_resultado = 0
-
     escolhidos = []
-    chaves_ciclo = set()
     titulos_ciclo = []
     familias_ciclo = Counter()
     motivos = Counter()
@@ -628,9 +671,9 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
 
         titulo = str(p.get("productName", "")).strip()
         link = p.get("offerLink") or p.get("productLink")
+        base = chave_base_titulo(titulo)
         familia = parse_familia_from_title(titulo)
         modelo = normalizar_texto(tpl[1]).replace(" ", "")
-        base = chave_base_titulo(titulo)
         produto_id = hashlib.md5((link or "").encode()).hexdigest()
 
         if base and base in BASES_VISTAS:
@@ -648,12 +691,15 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
         if any(SequenceMatcher(None, normalizar_texto(titulo), t).ratio() >= SIMILARIDADE_MAX for t in titulos_ciclo):
             motivos["similaridade"] += 1
             continue
+        if not validar_relevancia_nicho(nicho, titulo, tpl):
+            motivos["relevancia"] += 1
+            continue
         if nicho == "Moto" and not validar_modelo_titulo(titulo, tpl[0]) and not validar_modelo_titulo(titulo, tpl[1]):
             motivos["modelo"] += 1
             continue
 
         chave = chave_resultado(nicho, f"{familia}__{modelo}")
-        idx_resultado_atual = carregar_indice_resultado(estado, nicho, chave)
+        idx_resultado = carregar_indice_resultado(estado, nicho, chave)
 
         if familia != "outros":
             limite = 2 if nicho == "Moto" else 3
@@ -662,14 +708,13 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
                 continue
 
         escolhidos.append(p)
-        chaves_ciclo.add(chave)
         titulos_ciclo.append(normalizar_texto(titulo))
         familias_ciclo[familia] += 1
         BASES_VISTAS.add(base)
         usados_no_ciclo.add(link)
         ULTIMAS_BUSCAS_SHOPEE.append(link)
         ULTIMOS_TITULOS.append(normalizar_texto(titulo))
-        salvar_indice_resultado(estado, nicho, tpl[0], idx_resultado_atual + 1)
+        salvar_indice_resultado(estado, nicho, chave, (idx_resultado + 1) % max(1, len(filtrados)))
 
         logging.info(f"{nicho}: escolhido {titulo} | chave={chave}")
 
@@ -688,9 +733,8 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
 
 def selecionar_ofertas_moto(cota, estado):
     global BASES_VISTAS, REJEICOES
-    combinacoes, estado = get_proxima_combinacao_moto(estado, tamanho_motos=2)
+    combinacoes, estado = get_proxima_combinacao_moto(estado, tamanho=2)
     escolhidos = []
-    chaves_ciclo = set()
     titulos_ciclo = []
 
     for moto, peca in combinacoes:
@@ -736,7 +780,6 @@ def selecionar_ofertas_moto(cota, estado):
                 continue
 
             escolhidos.append(p)
-            chaves_ciclo.add(chave)
             titulos_ciclo.append(normalizar_texto(titulo))
             BASES_VISTAS.add(base)
             usados_no_ciclo.add(link)
@@ -899,7 +942,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
 
                 produto_id = hashlib.md5((link_base or "").encode()).hexdigest()
-
                 vendas_f = f"{vendas:,}".replace(",", ".")
                 preco_f = f"{preco:.2f}".replace(".", ",")
 
