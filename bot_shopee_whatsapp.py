@@ -403,10 +403,13 @@ def chave_base_titulo(titulo):
         "premium", "novo", "promocao", "promoção", "super", "original", "profissional",
         "casual", "masculino", "feminino", "infantil", "adulto", "unissex",
         "estica", "kit", "com", "de", "para", "o", "a", "promo", "oferta",
-        "modelo", "versao", "versão", "linha", "envio", "usado"
+        "modelo", "versao", "versão", "linha", "envio", "usado",
+        "branco", "preto", "azul", "vermelho", "rosa", "verde", "amarelo",
+        "tamanho", "tamanhos", "unico", "único", "gamer", "led", "usb"
     }
     tokens = [x for x in t.split() if x not in stop and len(x) > 2]
-    return " ".join(tokens[:6])
+    tokens = sorted(tokens)
+    return " ".join(tokens[:8])
 
 def tem_bloqueio(titulo):
     t = normalizar_texto(titulo)
@@ -614,19 +617,49 @@ def validar_modelo_titulo(titulo, modelo):
         return True
     t = normalizar_texto(titulo)
     m = normalizar_texto(modelo)
-    return m in t or any(x in t for x in m.split())
+    palavras = [x for x in m.split() if len(x) > 2]
+    if not palavras:
+        return True
+    if len(palavras) == 1:
+        return palavras[0] in t
+    coincidencias = sum(1 for x in palavras if x in t)
+    return coincidencias >= 2
 
 def validar_relevancia_nicho(nicho, titulo, tpl):
     t = normalizar_texto(titulo)
+
     if nicho == "Eletroeletrônicos":
         if any(x in t for x in ["capa", "pelicula", "case"]) and not any(x in t for x in ["celular", "tablet", "smartphone"]):
             return False
+        if any(x in t for x in ["smart tv", "televisao", "televisão"]) and any(x in t for x in ["mouse", "teclado", "ssd", "notebook"]):
+            return False
+
     if nicho == "Casa":
         if any(x in t for x in ["tinta", "tintas"]) and not any(x in t for x in ["parede", "spray", "esmalte"]):
             return False
+
     if nicho == "Moto":
-        if not any(x in t for x in normalizar_texto(tpl[0]).split()):
+        moto = normalizar_texto(tpl[0])
+        peca = normalizar_texto(tpl[1])
+        tokens_moto = [x for x in moto.split() if len(x) > 2]
+        tokens_peca = [x for x in peca.split() if len(x) > 2]
+        if tokens_moto and sum(1 for x in tokens_moto if x in t) < max(1, min(2, len(tokens_moto))):
             return False
+        if tokens_peca and sum(1 for x in tokens_peca if x in t) < 1:
+            return False
+
+    if nicho == "Moda feminina":
+        if any(x in t for x in ["masculino", "homem", "masc"]):
+            return False
+
+    if nicho == "Moda masculina":
+        if any(x in t for x in ["feminino", "mulher", "menina"]):
+            return False
+
+    if nicho == "Maternidade":
+        if any(x in t for x in ["organizador", "cozinha", "banheiro", "carro"]) and not any(x in t for x in ["bebe", "bebê", "infantil", "maternidade", "fralda", "carrinho", "mamadeira", "ninho"]):
+            return False
+
     return True
 
 def selecionar_ofertas_nicho(nicho, cota, estado):
@@ -674,7 +707,8 @@ def selecionar_ofertas_nicho(nicho, cota, estado):
         base = chave_base_titulo(titulo)
         familia = parse_familia_from_title(titulo)
         modelo = normalizar_texto(tpl[1]).replace(" ", "")
-        produto_id = hashlib.md5((link or "").encode()).hexdigest()
+        assinatura = f"{chave_base_titulo(titulo)}|{link or ''}"
+        produto_id = hashlib.md5(assinatura.encode()).hexdigest()
 
         if base and base in BASES_VISTAS:
             motivos["base_repetida"] += 1
@@ -764,7 +798,8 @@ def selecionar_ofertas_moto(cota, estado):
             titulo = str(p.get("productName", "")).strip()
             link = p.get("offerLink") or p.get("productLink")
             base = chave_base_titulo(titulo)
-            produto_id = hashlib.md5((link or "").encode()).hexdigest()
+            assinatura = f"{chave_base_titulo(titulo)}|{link or ''}"
+            produto_id = hashlib.md5(assinatura.encode()).hexdigest()
 
             if base and base in BASES_VISTAS:
                 continue
@@ -772,7 +807,7 @@ def selecionar_ofertas_moto(cota, estado):
                 continue
             if historico_bloqueia(produto_id):
                 continue
-            if not validar_modelo_titulo(titulo, moto):
+            if not validar_modelo_titulo(titulo, moto) and not validar_modelo_titulo(titulo, peca):
                 continue
             if titulo_duplicado_forte(titulo):
                 continue
@@ -941,7 +976,8 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 vendas = int(item.get("sales", 100))
                 comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
 
-                produto_id = hashlib.md5((link_base or "").encode()).hexdigest()
+                assinatura = f"{item.get('productName', '')}|{link_base or ''}"
+                produto_id = hashlib.md5(assinatura.encode()).hexdigest()
                 vendas_f = f"{vendas:,}".replace(",", ".")
                 preco_f = f"{preco:.2f}".replace(".", ",")
 
