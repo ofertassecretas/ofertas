@@ -642,7 +642,9 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 await asyncio.sleep(40)
             except Exception as e:
                 logging.error(f"Erro Telegram VIP: {e}", exc_info=True)
-
+       
+        logging.info("=== ENTROU NO BLOCO FREE ===")
+        
         # Lógica do grupo FREE – aproveita as mesmas ofertas
         logging.info("=== BLOCO FREE ESTÁ SENDO EXECUTADO ===")
         estado = carregar_estado()
