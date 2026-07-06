@@ -644,6 +644,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 logging.error(f"Erro Telegram VIP: {e}", exc_info=True)
 
         # Lógica do grupo FREE – aproveita as mesmas ofertas
+        logging.info("=== BLOCO FREE ESTÁ SENDO EXECUTADO ===")
         estado = carregar_estado()
         idx = estado.get("free_nicho_idx", 0)
         nicho_alvo = NICHOS_FREE_ROTA[idx % len(NICHOS_FREE_ROTA)]
