@@ -30,7 +30,7 @@ SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
-CHECK_INTERVAL = 5400
+CHECK_INTERVAL = 5400  # 1h30
 
 MAX_OFERTAS = 10
 MIN_OFERTAS = 4
@@ -97,8 +97,9 @@ FAMILIAS_EXTRA = {
     "moto_geral": ["capacete", "vela", "pastilha", "lona", "kit relação", "corrente", "coroa", "pinhão", "guidao", "guidão", "retrovisor", "farol", "lanterna"],
 }
 
-# Nichos usados no rodízio do grupo FREE
+# Nichos usados em rodízio para o grupo Free
 NICHOS_FREE_ROTA = ["Moto", "Casa", "Moda feminina", "Moda masculina", "Maternidade", "Eletroeletrônicos"]
+
 
 def carregar_estado():
     try:
@@ -131,10 +132,11 @@ def carregar_estado():
             random.shuffle(ordem)
             estado[nicho]["produtos_ordem"] = ordem
 
-    # Estado do rodízio do grupo FREE
+    # índice do rodízio Free
     estado.setdefault("free_nicho_idx", 0)
 
     return estado
+
 
 def salvar_estado(estado):
     try:
@@ -142,6 +144,7 @@ def salvar_estado(estado):
             json.dump(estado, f, ensure_ascii=False)
     except Exception as e:
         logging.error(f"Erro salvando estado: {e}")
+
 
 def carregar_historico():
     try:
@@ -152,6 +155,7 @@ def carregar_historico():
         pass
     return {}
 
+
 def salvar_historico(hist):
     try:
         with open(HISTORICO_FILE, "w", encoding="utf-8") as f:
@@ -159,9 +163,11 @@ def salvar_historico(hist):
     except Exception as e:
         logging.error(f"Erro salvando historico: {e}")
 
+
 def dentro_do_horario():
     agora = datetime.now(FUSO_BR).time()
     return dt_time(5, 30) <= agora <= dt_time(21, 30)
+
 
 def normalizar_texto(txt):
     if not txt:
@@ -171,6 +177,7 @@ def normalizar_texto(txt):
     txt = re.sub(r"\s+", " ", txt)
     return txt
 
+
 def chave_base_titulo(titulo):
     t = normalizar_texto(titulo)
     stop = {"premium", "novo", "promocao", "promoção", "super", "original", "profissional", "casual", "masculino", "feminino", "infantil", "adulto", "unissex", "estica", "kit", "com", "de", "para", "o", "a", "promo", "oferta", "modelo", "versao", "versão", "linha", "envio", "usado", "branco", "preto", "azul", "vermelho", "rosa", "verde", "amarelo", "tamanho", "tamanhos", "unico", "único", "gamer", "led", "usb"}
@@ -178,10 +185,12 @@ def chave_base_titulo(titulo):
     tokens = sorted(tokens)
     return " ".join(tokens[:8])
 
+
 def tem_bloqueio(titulo):
     t = normalizar_texto(titulo)
     palavras = ["teste", "amostra", "não compre", "nao compre", "produto teste", "exemplo", "dummy", "vela led", "vela decorativa", "decorativa", "decoração", "casamento", "festa"]
     return any(p in t for p in palavras)
+
 
 def titulo_duplicado_forte(titulo):
     t = normalizar_texto(titulo)
@@ -194,6 +203,7 @@ def titulo_duplicado_forte(titulo):
         if base and base == chave_base_titulo(prev):
             return True
     return False
+
 
 def shop_type_score(shop_type):
     try:
@@ -208,6 +218,7 @@ def shop_type_score(shop_type):
         return 0
     except:
         return 0
+
 
 def oferta_score(p, termo=""):
     try:
@@ -234,6 +245,7 @@ def oferta_score(p, termo=""):
         return score
     except:
         return 0
+
 
 def motivo_rejeicao(p):
     try:
@@ -265,15 +277,18 @@ def motivo_rejeicao(p):
     except Exception as e:
         return f"erro_validacao:{type(e).__name__}"
 
+
 def gerar_link_whatsapp_from_html(msg_html):
     texto = re.sub(r"<[^>]+>", "", msg_html)
     return f"https://wa.me/?text={quote(texto)}"
+
 
 def aplicar_id_afiliado(link):
     parsed = urlparse(link)
     query = parse_qs(parsed.query)
     query["af_siteid"] = AFILIADO_ID
     return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
+
 
 def buscar_produtos_da_categoria_kw(palavra_chave, categoria_selecionada):
     logging.info(f"Buscando em {categoria_selecionada}: {palavra_chave}")
@@ -305,6 +320,7 @@ def buscar_produtos_da_categoria_kw(palavra_chave, categoria_selecionada):
     data = r.json()
     return data.get("data", {}).get("productOfferV2", {}).get("nodes", []) or []
 
+
 def historico_bloqueia(chave):
     hist = carregar_historico()
     if chave not in hist:
@@ -315,10 +331,12 @@ def historico_bloqueia(chave):
     except:
         return False
 
+
 def registrar_historico(chave):
     hist = carregar_historico()
     hist[chave] = datetime.now(FUSO_BR).isoformat()
     salvar_historico(hist)
+
 
 def parse_familia_from_title(titulo):
     t = normalizar_texto(titulo)
@@ -327,19 +345,25 @@ def parse_familia_from_title(titulo):
             return familia
     return "outros"
 
+
 def chave_resultado(nicho, chave):
     return f"{nicho}__{chave}"
+
 
 def carregar_indice_resultado(estado, nicho, chave):
     return estado.setdefault(nicho, {}).setdefault("resultado_idx", {}).get(chave, 0)
 
+
 def salvar_indice_resultado(estado, nicho, chave, valor):
     estado.setdefault(nicho, {}).setdefault("resultado_idx", {})[chave] = valor
+
 
 def montar_catalogo():
     return {n: [(p, "", "") for p in ps] for n, ps in PRODUTOS_NICHO.items()}
 
+
 CATALOGOS = montar_catalogo()
+
 
 def get_proximo_termo(nicho, estado):
     catalogo = CATALOGOS[nicho]
@@ -351,6 +375,7 @@ def get_proximo_termo(nicho, estado):
         random.shuffle(ordem)
         estado[nicho]["produtos_ordem"] = ordem
     return catalogo[pos], estado
+
 
 def get_proxima_combinacao_moto(estado):
     moto_state = estado.setdefault("Moto", {})
@@ -367,6 +392,7 @@ def get_proxima_combinacao_moto(estado):
         moto_state["pares"] = pares
     return par, estado
 
+
 def validar_modelo_titulo(titulo, termo):
     t = normalizar_texto(titulo)
     m = normalizar_texto(termo)
@@ -374,6 +400,7 @@ def validar_modelo_titulo(titulo, termo):
     if not palavras:
         return True
     return sum(1 for x in palavras if x in t) >= max(1, min(2, len(palavras)))
+
 
 def validar_relevancia_nicho(nicho, titulo, termo=None, modelo=None, peca=None):
     t = normalizar_texto(titulo)
@@ -398,6 +425,7 @@ def validar_relevancia_nicho(nicho, titulo, termo=None, modelo=None, peca=None):
         if termo and not validar_modelo_titulo(titulo, termo):
             return False
     return True
+
 
 def selecionar_ofertas_termo(nicho, termo, cota, estado, e_moto=False, peca=None):
     global BASES_VISTAS, REJEICOES
@@ -482,6 +510,7 @@ def selecionar_ofertas_termo(nicho, termo, cota, estado, e_moto=False, peca=None
         logging.warning(f"{nicho}: só conseguiu {len(escolhidos)}/{cota}")
     return escolhidos, estado
 
+
 def get_shopee_offers():
     global usados_no_ciclo, BASES_VISTAS
     usados_no_ciclo = set()
@@ -514,7 +543,9 @@ def get_shopee_offers():
     logging.info(f"Shopee OK: {len(candidatos[:MAX_OFERTAS])} produtos exclusivos para envio")
     return candidatos[:MAX_OFERTAS]
 
+
 CHAMADAS_ACAO = ["👇 CORRE QUE TÁ ACABANDO!", "⚡ CLIQUE ANTES QUE AUMENTE!", "🚀 ESTOQUE LIMITADO - AGORA!", "💥 MELHOR PREÇO DO ANO!", "🎯 COMPRE ANTES DOS OUTROS!", "🔥 VOOU DAS PRATELEIRAS!", "⏰ PROMOÇÃO ACABA HOJE!", "💰 ECONOMIA REAL - CORRE!", "⭐ OFERTA QUENTE AGORA!", "🛒 NÃO DEIXA ESCAPAR!"]
+
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=False):
     aberturas = ["🚨 Isso aqui não é comum aparecer assim", "👀 Achei isso aqui e fui conferir…", "🔥 Isso aqui tá com cara de oportunidade", "💥 Esse aqui tá chamando atenção de quem compra", "🛑 Para tudo e olha isso aqui", "🤯 Sério… olha esse achado", "⚠️ Isso aqui pode desaparecer rápido", "👁️ Pouca gente viu isso ainda", "📉 Esse preço aqui não costuma durar", "🚀 Esse aqui tá começando a rodar forte"]
@@ -561,22 +592,23 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=Fals
 <a href="{LINK_GRUPO_OFERTAS}">📲 Entrar no grupo de ofertas</a>
 """
 
+
 def detectar_nicho_da_oferta(item):
     titulo = normalizar_texto(item.get("productName", ""))
-    # Regras simples de identificação por palavras-chave
-    if any(x in titulo for x in ["titan", "biz", "bros", "xre", "moto", "capacete"]):
+    if any(x in titulo for x in ["titan", "biz", "bros", "xre", "moto", "capacete", "cg 125", "cg 150"]):
         return "Moto"
-    if any(x in titulo for x in ["fralda", "bebê", "bebe", "carrinho", "maternidade", "berço", "berco", "mamadeira", "ninho"]):
+    if any(x in titulo for x in ["fralda", "bebê", "bebe", "carrinho", "maternidade", "berço", "berco", "mamadeira", "ninho", "naninha", "tapete infantil"]):
         return "Maternidade"
-    if any(x in titulo for x in ["smartwatch", "fone", "bluetooth", "caixa de som", "soundbar", "celular", "smartphone", "notebook", "tablet", "tv", "televisão", "ssd", "mouse", "teclado", "camera", "gopro"]):
+    if any(x in titulo for x in ["smartwatch", "fone", "bluetooth", "caixa de som", "soundbar", "celular", "smartphone", "notebook", "tablet", "tv", "televisão", "ssd", "mouse", "teclado", "camera", "gopro", "headset", "bastão pau de selfie", "massageador"]):
         return "Eletroeletrônicos"
-    if any(x in titulo for x in ["vestido", "saia", "bolsa", "pijamas", "conjunto feminino", "body feminino", "tenis feminino", "sandalia"]):
+    if any(x in titulo for x in ["vestido", "saia", "bolsa", "pijamas", "conjunto feminino", "body feminino", "tenis feminino", "sandalia", "kidstep", "feminino"]):
         return "Moda feminina"
-    if any(x in titulo for x in ["camiseta", "camisa", "bermuda", "jaqueta masculina", "tenis masculino", "sapatenis", "cueca", "carteira masculina"]):
+    if any(x in titulo for x in ["camiseta", "camisa", "bermuda", "jaqueta masculina", "tenis masculino", "sapatenis", "cueca", "carteira masculina", "cacharrel", "masculina"]):
         return "Moda masculina"
-    if any(x in titulo for x in ["air fryer", "aspirador", "liquidificador", "cafeteira", "cama", "cortina", "tapete", "panelas", "mop", "ventilador", "luminaria", "papel de parede"]):
+    if any(x in titulo for x in ["air fryer", "aspirador", "liquidificador", "cafeteira", "cama", "cortina", "tapete", "panelas", "mop", "ventilador", "luminaria", "escorredor de louça", "umidificador"]):
         return "Casa"
-    return None  # Se não bater em nada, não entra no rodízio
+    return None
+
 
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -594,7 +626,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             logging.warning(f"Apenas {len(shopee_ofertas)} ofertas válidas. Pulando envio.")
             return
 
-        # Monta mensagens para o VIP normalmente
+        # Monta mensagens para o VIP
         for item in shopee_ofertas[:MAX_OFERTAS]:
             try:
                 link_base = item.get("offerLink") or item.get("productLink")
@@ -609,18 +641,18 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 produto_id = hashlib.md5(assinatura.encode()).hexdigest()
                 vendas_f = f"{vendas:,}".replace(",", ".")
                 preco_f = f"{preco:.2f}".replace(".", ",")
+
                 msg = gerar_copy(nome, preco_f, vendas_f, rating, comissao, link, for_whatsapp=False)
                 zap_msg = gerar_copy(nome, preco_f, vendas_f, rating, 0, link, for_whatsapp=True)
                 zap = gerar_link_whatsapp_from_html(zap_msg)
-                
                 msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
-               
                 msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
+
                 selecionadas.append({
                     "msg": msg,
                     "img": img,
                     "produto_id": produto_id,
-                    "item_raw": item  # mantém referência ao item original
+                    "item_raw": item,
                 })
             except Exception as e:
                 logging.error(f"Erro Shopee item: {e}", exc_info=True)
@@ -630,23 +662,30 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             logging.warning("Nenhuma oferta encontrada")
             return
 
-        # Envio para o VIP (igual ao que já existia)
-        await context.bot.send_message(chat_id=CHAT_ID_DESTINO, text="🚨 <b>OFERTAS NOVAS CHEGANDO...</b>", parse_mode="HTML")
+        # Envio para o VIP (grupo principal)
+        await context.bot.send_message(
+            chat_id=CHAT_ID_DESTINO,
+            text="🚨 <b>OFERTAS NOVAS CHEGANDO...</b>",
+            parse_mode="HTML",
+        )
         await asyncio.sleep(5)
 
         for item in selecionadas:
             try:
                 logging.info("Enviando produto para VIP")
-                await context.bot.send_photo(chat_id=CHAT_ID_DESTINO, photo=item["img"], caption=item["msg"], parse_mode="HTML")
+                await context.bot.send_photo(
+                    chat_id=CHAT_ID_DESTINO,
+                    photo=item["img"],
+                    caption=item["msg"],
+                    parse_mode="HTML",
+                )
                 registrar_historico(item["produto_id"])
                 await asyncio.sleep(40)
             except Exception as e:
                 logging.error(f"Erro Telegram VIP: {e}", exc_info=True)
-       
+
+        # Lógica do grupo FREE – 1 oferta aproveitando as mesmas
         logging.info("=== ENTROU NO BLOCO FREE ===")
-        
-        # Lógica do grupo FREE – aproveita as mesmas ofertas
-        logging.info("=== BLOCO FREE ESTÁ SENDO EXECUTADO ===")
         estado = carregar_estado()
         idx = estado.get("free_nicho_idx", 0)
         nicho_alvo = NICHOS_FREE_ROTA[idx % len(NICHOS_FREE_ROTA)]
@@ -655,6 +694,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         oferta_free = None
         for item in selecionadas:
             nicho_detectado = detectar_nicho_da_oferta(item["item_raw"])
+            logging.info(f"Nicho detectado para oferta: {nicho_detectado}")
             if nicho_detectado == nicho_alvo:
                 oferta_free = item
                 break
@@ -668,7 +708,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     chat_id=FREE_CHAT_ID,
                     photo=oferta_free["img"],
                     caption=oferta_free["msg"],
-                    parse_mode="HTML"
+                    parse_mode="HTML",
                 )
                 registrar_historico(oferta_free["produto_id"])
             except Exception as e:
@@ -682,18 +722,22 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.error(f"ERRO CRITICO: {e}", exc_info=True)
 
+
 async def keep_alive():
     while True:
         logging.info("BOT VIVO")
         await asyncio.sleep(300)
+
 
 async def post_init(app):
     app.job_queue.run_repeating(send_ofertas, interval=CHECK_INTERVAL, first=10)
     asyncio.create_task(keep_alive())
     logging.info("🤖 BOT RODANDO ESTAVEL")
 
+
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logging.error(f"ERRO TELEGRAM: {context.error}", exc_info=True)
+
 
 if __name__ == "__main__":
     if not TELEGRAM_TOKEN:
