@@ -20,7 +20,12 @@ print("VERSAO SHOPEE V20 - SELECAO HUMANA POR TERMO")
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
 
+# Grupo VIP (já existente)
 CHAT_ID_DESTINO = -1003848415150
+
+# Grupo FREE (novo)
+FREE_CHAT_ID = -1003886228244
+
 SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
@@ -92,6 +97,9 @@ FAMILIAS_EXTRA = {
     "moto_geral": ["capacete", "vela", "pastilha", "lona", "kit relação", "corrente", "coroa", "pinhão", "guidao", "guidão", "retrovisor", "farol", "lanterna"],
 }
 
+# Nichos usados no rodízio do grupo FREE
+NICHOS_FREE_ROTA = ["Moto", "Casa", "Moda feminina", "Moda masculina", "Maternidade", "Eletroeletrônicos"]
+
 def carregar_estado():
     try:
         if os.path.exists(ESTADO_FILE):
@@ -122,6 +130,9 @@ def carregar_estado():
             ordem = list(range(len(PRODUTOS_NICHO[nicho])))
             random.shuffle(ordem)
             estado[nicho]["produtos_ordem"] = ordem
+
+    # Estado do rodízio do grupo FREE
+    estado.setdefault("free_nicho_idx", 0)
 
     return estado
 
@@ -550,6 +561,23 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=Fals
 <a href="{LINK_GRUPO_OFERTAS}">📲 Entrar no grupo de ofertas</a>
 """
 
+def detectar_nicho_da_oferta(item):
+    titulo = normalizar_texto(item.get("productName", ""))
+    # Regras simples de identificação por palavras-chave
+    if any(x in titulo for x in ["titan", "biz", "bros", "xre", "moto", "capacete"]):
+        return "Moto"
+    if any(x in titulo for x in ["fralda", "bebê", "bebe", "carrinho", "maternidade", "berço", "berco", "mamadeira", "ninho"]):
+        return "Maternidade"
+    if any(x in titulo for x in ["smartwatch", "fone", "bluetooth", "caixa de som", "soundbar", "celular", "smartphone", "notebook", "tablet", "tv", "televisão", "ssd", "mouse", "teclado", "camera", "gopro"]):
+        return "Eletroeletrônicos"
+    if any(x in titulo for x in ["vestido", "saia", "bolsa", "pijamas", "conjunto feminino", "body feminino", "tenis feminino", "sandalia"]):
+        return "Moda feminina"
+    if any(x in titulo for x in ["camiseta", "camisa", "bermuda", "jaqueta masculina", "tenis masculino", "sapatenis", "cueca", "carteira masculina"]):
+        return "Moda masculina"
+    if any(x in titulo for x in ["air fryer", "aspirador", "liquidificador", "cafeteira", "cama", "cortina", "tapete", "panelas", "mop", "ventilador", "luminaria", "papel de parede"]):
+        return "Casa"
+    return None  # Se não bater em nada, não entra no rodízio
+
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     try:
         logging.info("Loop de ofertas iniciado")
@@ -566,6 +594,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             logging.warning(f"Apenas {len(shopee_ofertas)} ofertas válidas. Pulando envio.")
             return
 
+        # Monta mensagens para o VIP normalmente
         for item in shopee_ofertas[:MAX_OFERTAS]:
             try:
                 link_base = item.get("offerLink") or item.get("productLink")
@@ -583,9 +612,16 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 msg = gerar_copy(nome, preco_f, vendas_f, rating, comissao, link, for_whatsapp=False)
                 zap_msg = gerar_copy(nome, preco_f, vendas_f, rating, 0, link, for_whatsapp=True)
                 zap = gerar_link_whatsapp_from_html(zap_msg)
-                msg += f'\\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
-                msg += "\\n━━━━━━━━━━━━━━━\\n📢 <b>Ofertas Secretas</b>"
-                selecionadas.append({"msg": msg, "img": img, "produto_id": produto_id})
+                
+                msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
+               
+                msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
+                selecionadas.append({
+                    "msg": msg,
+                    "img": img,
+                    "produto_id": produto_id,
+                    "item_raw": item  # mantém referência ao item original
+                })
             except Exception as e:
                 logging.error(f"Erro Shopee item: {e}", exc_info=True)
 
@@ -594,17 +630,50 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             logging.warning("Nenhuma oferta encontrada")
             return
 
+        # Envio para o VIP (igual ao que já existia)
         await context.bot.send_message(chat_id=CHAT_ID_DESTINO, text="🚨 <b>OFERTAS NOVAS CHEGANDO...</b>", parse_mode="HTML")
         await asyncio.sleep(5)
 
         for item in selecionadas:
             try:
-                logging.info("Enviando produto")
+                logging.info("Enviando produto para VIP")
                 await context.bot.send_photo(chat_id=CHAT_ID_DESTINO, photo=item["img"], caption=item["msg"], parse_mode="HTML")
                 registrar_historico(item["produto_id"])
                 await asyncio.sleep(40)
             except Exception as e:
-                logging.error(f"Erro Telegram: {e}", exc_info=True)
+                logging.error(f"Erro Telegram VIP: {e}", exc_info=True)
+
+        # Lógica do grupo FREE – aproveita as mesmas ofertas
+        estado = carregar_estado()
+        idx = estado.get("free_nicho_idx", 0)
+        nicho_alvo = NICHOS_FREE_ROTA[idx % len(NICHOS_FREE_ROTA)]
+        logging.info(f"Rodízio FREE, nicho alvo: {nicho_alvo}")
+
+        oferta_free = None
+        for item in selecionadas:
+            nicho_detectado = detectar_nicho_da_oferta(item["item_raw"])
+            if nicho_detectado == nicho_alvo:
+                oferta_free = item
+                break
+
+        if oferta_free is None:
+            logging.warning(f"Não encontrei oferta do nicho {nicho_alvo} neste ciclo para o FREE.")
+        else:
+            try:
+                logging.info(f"Enviando oferta para FREE (nicho {nicho_alvo})")
+                await context.bot.send_photo(
+                    chat_id=FREE_CHAT_ID,
+                    photo=oferta_free["img"],
+                    caption=oferta_free["msg"],
+                    parse_mode="HTML"
+                )
+                registrar_historico(oferta_free["produto_id"])
+            except Exception as e:
+                logging.error(f"Erro Telegram FREE: {e}", exc_info=True)
+
+        # Avança o rodízio do FREE e salva estado
+        estado["free_nicho_idx"] = (idx + 1) % len(NICHOS_FREE_ROTA)
+        salvar_estado(estado)
 
         logging.info("Loop finalizado")
     except Exception as e:
