@@ -74,10 +74,10 @@ PECAS_MOTO = [
 ]
 
 PRODUTOS_NICHO = {
-    "Casa": ["air fryer", "vasos decorativos", "quadros", "fritadeira eletrica", "geladeira", "fogão 6 bocas", "sapateira", "freezer", "mesa com cadeira", "lava louça", "lava roupa", "kooktop 5 bocas", "aspirador", "aspirador vertical", "liquidificador", "cafeteira", "panela eletrica", "panela de pressão", "capa para colchão", "jogo de pratos", "jogo de copos", "copo stanley", "talher", "panos de prato", "toalhas de banho", "coberta manta", "lençol", "cobre leito", "mangueira de jardim", "tapete", "tapete sala", "torneira de cozinha", "filtro de barro", "guarda roupas casal", "guarda roupas portatil", "cama casal", "forma de silicone", "sapateira", "umidificador", "ar condicionado", "jogo de panelas", "cortinas", "tintas parede", "tinta spray", "frigideiras", "rede de dormir", "pipoqueira", "mop", "ventilador", "batedeira", "escorredor de louça", "caixa organizadora", "papel de parede", "luminaria"],
-    "Maternidade": ["carrinho bebe", "berco bebe", "fralda descartavel", "brinquedos sensoriais", "fralda de pano", "naninha", "sapatinho", "pagãozinho", "coberdrom dupla face", "kit toalha umedecida", "toalha infantil banho", "banheira", "mictorio infantil", "bebê reborn", "carrinhos", "piscina de bolinhas", "kit bolsa maternidade", "canguru", "mosqueteiro", "kit mamadeira", "kit bicos", "baba eletronica", "babá eletronica", "ninho bebe", "kit enxoval bebe", "babador bebe", "mordedor bebe", "tapete infantil", "cadeirinha bebe", "almofada amamentacao", "termometro infantil"],
-    "Eletroeletrônicos": ["smartwatch", "iphone", "relogio inteligente", "fone bluetooth", "headset gamer", "celular samsung", "caixa de som bluetooth", "caixa de som", "soundbar", "bastão pau de selfie", "celular redmi", "smartphone", "smart tv", "televisão", "video game", "fones de ouvido", "capinha celular", "celuar poco", "pelicula celular", "massageador", "balança digital", "aparelho medidor de pressão", "massageador portatil", "celular xiaomi", "webcam camera", "pen drive", "impressora termica", "maquina de impressão 3d", "computador", "cpu gamer", "cpu", "notebook", "drone", "camera de segurança", "gopro", "tablet", "ssd", "mouse gamer", "teclado mecanico", "power bank", "carregador turbo", "suporte celular carro"],
-    "Moda feminina": ["vestido feminino", "conjunto feminino", "biquines lovito", "kit calcinhas", "biquines", "biquini", "saida de praia", "maquiagens", "roupa academia", "calça jean", "calça leggin", "saia longa", "vestido lovito", "sandalias", "pijamas", "pijamas mãe e filha", "tenis lovito", "blusa regata", "kit sutian", "bermuda modeladora", "oculos de sol", "calça social", "vestido midi", "jaqueta feminina", "casaco feminino", "conjunto alfaiataria", "short feminino", "macacao feminino", "tenis feminino", "bolsa feminina", "blazer feminino", "saia jeans", "top feminino", "body feminino"],
+    "Casa": ["air fryer", "fritadeira eletrica", "aspirador", "aspirador vertical", "liquidificador", "cafeteira", "panela eletrica", "panela de pressão", "capa para colchão", "jogo de pratos", "jogo de copos", "copo stanley", "talher", "panos de prato", "toalhas de banho", "coberta manta", "lençol", "cobre leito", "mangueira de jardim", "tapete", "tapete sala", "torneira de cozinha", "filtro de barro", "guarda roupas casal", "guarda roupas portatil", "cama casal", "forma de silicone", "sapateira", "umidificador", "ar condicionado", "jogo de panelas", "cortinas", "tintas parede", "tinta spray", "frigideiras", "rede de dormir", "pipoqueira", "mop", "ventilador", "batedeira", "escorredor de louça", "caixa organizadora", "papel de parede", "luminaria"],
+    "Maternidade": ["carrinho bebe", "berco bebe", "fralda descartavel", "fralda de pano", "naninha", "sapatinho", "pagãozinho", "coberdrom dupla face", "kit toalha umedecida", "toalha infantil banho", "banheira", "mictorio infantil", "bebê reborn", "carrinhos", "piscina de bolinhas", "kit bolsa maternidade", "canguru", "mosqueteiro", "kit mamadeira", "kit bicos", "baba eletronica", "babá eletronica", "ninho bebe", "kit enxoval bebe", "babador bebe", "mordedor bebe", "tapete infantil", "cadeirinha bebe", "almofada amamentacao", "termometro infantil"],
+    "Eletroeletrônicos": ["smartwatch", "relogio inteligente", "fone bluetooth", "headset gamer", "caixa de som bluetooth", "caixa de som", "soundbar", "bastão pau de selfie", "celular", "smartphone", "smart tv", "televisão", "video game", "fones de ouvido", "capinha celular", "pelicula celular", "massageador", "balança digital", "aparelho medidor de pressão", "massageador portatil", "webcam camera", "pen drive", "impressora termica", "maquina de impressão 3d", "computador", "cpu gamer", "cpu", "notebook", "drone", "camera de segurança", "gopro", "tablet", "ssd", "mouse gamer", "teclado mecanico", "power bank", "carregador turbo", "suporte celular carro"],
+    "Moda feminina": ["vestido feminino", "conjunto feminino", "kit calcinhas", "biquines", "biquini", "saida de praia", "maquiagens", "roupa academia", "calça jean", "calça leggin", "saia longa", "vestido lovito", "sandalias", "pijamas", "pijamas mãe e filha", "blusa regata", "kit sutian", "bermuda modeladora", "oculos de sol", "calça social", "vestido midi", "jaqueta feminina", "casaco feminino", "conjunto alfaiataria", "short feminino", "macacao feminino", "tenis feminino", "bolsa feminina", "blazer feminino", "saia jeans", "top feminino", "body feminino"],
     "Moda masculina": ["camiseta masculina", "relogios esportivos", "bermudas jeans", "relogio de quartzo", "camisetas regatas", "camisa polo", "camisa de linho", "terno", "blazer", "camisa tshort", "kit meias", "barbeador", "meias esportivas", "oculos de sol", "toucas", "calção de futebol", "tenis futebol", "chuteiras", "camisa termica", "bermuda masculina", "jaqueta masculina", "tenis masculino", "carteira masculina", "kit cueca", "calça jeans masculina", "camisa social masculina", "moletom masculino", "sapatenis masculino"],
 }
 
@@ -529,17 +529,23 @@ def get_shopee_offers():
                 for _ in range(cotas[nicho]):
                     (moto, peca), estado = get_proxima_combinacao_moto(estado)
                     escolhidos, estado = selecionar_ofertas_termo(nicho, moto, 1, estado, e_moto=True, peca=peca)
-                    candidatos.extend(escolhidos)
+                    # adiciona nicho_origem
+                    for p in escolhidos:
+                        candidatos.append((nicho, p))
             else:
                 for _ in range(cotas[nicho]):
                     (termo, _, _), estado = get_proximo_termo(nicho, estado)
                     escolhidos, estado = selecionar_ofertas_termo(nicho, termo, 1, estado)
-                    candidatos.extend(escolhidos)
+                    # adiciona nicho_origem
+                    for p in escolhidos:
+                        candidatos.append((nicho, p))
         except Exception as e:
             logging.error(f"Erro no nicho {nicho}: {e}", exc_info=True)
 
     salvar_estado(estado)
-    candidatos.sort(key=lambda x: oferta_score(x), reverse=True)
+
+    # ordena por score mantendo nicho junto
+    candidatos.sort(key=lambda x: oferta_score(x[1]), reverse=True)
     logging.info(f"Shopee OK: {len(candidatos[:MAX_OFERTAS])} produtos exclusivos para envio")
     return candidatos[:MAX_OFERTAS]
 
@@ -593,23 +599,6 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=Fals
 """
 
 
-def detectar_nicho_da_oferta(item):
-    titulo = normalizar_texto(item.get("productName", ""))
-    if any(x in titulo for x in ["titan", "biz", "bros", "xre", "moto", "capacete", "cg 125", "cg 150"]):
-        return "Moto"
-    if any(x in titulo for x in ["fralda", "bebê", "bebe", "carrinho", "maternidade", "berço", "berco", "mamadeira", "ninho", "naninha", "tapete infantil"]):
-        return "Maternidade"
-    if any(x in titulo for x in ["smartwatch", "fone", "bluetooth", "caixa de som", "soundbar", "celular", "smartphone", "notebook", "tablet", "tv", "televisão", "ssd", "mouse", "teclado", "camera", "gopro", "headset", "bastão pau de selfie", "massageador"]):
-        return "Eletroeletrônicos"
-    if any(x in titulo for x in ["vestido", "saia", "bolsa", "pijamas", "conjunto feminino", "body feminino", "tenis feminino", "sandalia", "kidstep", "feminino"]):
-        return "Moda feminina"
-    if any(x in titulo for x in ["camiseta", "camisa", "bermuda", "jaqueta masculina", "tenis masculino", "sapatenis", "cueca", "carteira masculina", "cacharrel", "masculina"]):
-        return "Moda masculina"
-    if any(x in titulo for x in ["air fryer", "aspirador", "liquidificador", "cafeteira", "cama", "cortina", "tapete", "panelas", "mop", "ventilador", "luminaria", "escorredor de louça", "umidificador"]):
-        return "Casa"
-    return None
-
-
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     try:
         logging.info("Loop de ofertas iniciado")
@@ -619,6 +608,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
         usadas_abertura.clear()
         usadas_gatilho.clear()
+        # agora shopee_ofertas é lista de (nicho_origem, item_raw)
         shopee_ofertas = get_shopee_offers()
         selecionadas = []
 
@@ -627,7 +617,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             return
 
         # Monta mensagens para o VIP
-        for item in shopee_ofertas[:MAX_OFERTAS]:
+        for nicho_origem, item in shopee_ofertas[:MAX_OFERTAS]:
             try:
                 link_base = item.get("offerLink") or item.get("productLink")
                 link = aplicar_id_afiliado(link_base)
@@ -653,6 +643,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     "img": img,
                     "produto_id": produto_id,
                     "item_raw": item,
+                    "nicho_origem": nicho_origem,  # salva nicho aqui
                 })
             except Exception as e:
                 logging.error(f"Erro Shopee item: {e}", exc_info=True)
@@ -672,7 +663,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
         for item in selecionadas:
             try:
-                logging.info("Enviando produto para VIP")
+                logging.info(f"Enviando produto para VIP (nicho {item['nicho_origem']})")
                 await context.bot.send_photo(
                     chat_id=CHAT_ID_DESTINO,
                     photo=item["img"],
@@ -685,7 +676,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 logging.error(f"Erro Telegram VIP: {e}", exc_info=True)
 
         # Lógica do grupo FREE – 1 oferta aproveitando as mesmas
-        logging.info("=== ENTROU NO BLOCO FREE ===")
+        logging.info("=== ENTROU NO BLOCO GRATUITO ===")
         estado = carregar_estado()
         idx = estado.get("free_nicho_idx", 0)
         nicho_alvo = NICHOS_FREE_ROTA[idx % len(NICHOS_FREE_ROTA)]
@@ -693,9 +684,8 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
         oferta_free = None
         for item in selecionadas:
-            nicho_detectado = detectar_nicho_da_oferta(item["item_raw"])
-            logging.info(f"Nicho detectado para oferta: {nicho_detectado}")
-            if nicho_detectado == nicho_alvo:
+            logging.info(f"Nicho de origem da oferta: {item['nicho_origem']}")
+            if item["nicho_origem"] == nicho_alvo:
                 oferta_free = item
                 break
 
