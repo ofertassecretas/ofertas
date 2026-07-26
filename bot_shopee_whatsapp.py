@@ -283,6 +283,7 @@ def aplicar_id_afiliado(link):
 def buscar_produtos_da_categoria_kw(palavra_chave, categoria_selecionada):
     logging.info(f"Buscando em {categoria_selecionada}: {palavra_chave}")
     timestamp = int(time.time())
+
     query_body = f'''
     query {{
         productOfferV2(sortType: 2, limit: 50, keyword: "{palavra_chave}", isAMSOffer: true) {{
@@ -297,29 +298,33 @@ def buscar_produtos_da_categoria_kw(palavra_chave, categoria_selecionada):
                 offerLink
                 imageUrl
                 shopType
-                itemid
-                shopid
+                itemId
+                shopId
             }}
         }}
     }}
     '''
+
     payload = {"query": query_body}
     base = SHOPEE_APP_ID + str(timestamp) + json.dumps(payload, ensure_ascii=False) + SHOPEE_PASSWORD
     signature = hashlib.sha256(base.encode()).hexdigest()
+
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
     }
+
     r = requests.post(SHOPEE_GRAPHQL_URL, json=payload, headers=headers, timeout=20)
     logging.info(f"Status API: {r.status_code}")
     logging.info(r.text[:2000])
     r.raise_for_status()
+
     data = r.json()
     if "errors" in data:
         logging.error(f"Erros GraphQL: {data['errors']}")
         return []
-    nodes = data.get("data", {}).get("productOfferV2", {}).get("nodes", []) or []
-    return nodes
+
+    return data.get("data", {}).get("productOfferV2", {}).get("nodes", []) or []
 
 
 def historico_bloqueia(chave):
