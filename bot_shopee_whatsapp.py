@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V21 - SELECAO CURSOR ESTAVEL")
+print("VERSAO SHOPEE V22 - SELECAO CURSOR ESTAVEL")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
@@ -303,14 +303,23 @@ def buscar_produtos_da_categoria_kw(palavra_chave, categoria_selecionada):
         }}
     }}
     '''
-    payload = json.dumps({"query": query_body}, ensure_ascii=False)
-    base = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
+    payload = {"query": query_body}
+    base = SHOPEE_APP_ID + str(timestamp) + json.dumps(payload, ensure_ascii=False) + SHOPEE_PASSWORD
     signature = hashlib.sha256(base.encode()).hexdigest()
-    headers = {"Content-Type": "application/json", "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"}
-    r = requests.post(SHOPEE_GRAPHQL_URL, data=payload.encode("utf-8"), headers=headers, timeout=20)
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
+    }
+    r = requests.post(SHOPEE_GRAPHQL_URL, json=payload, headers=headers, timeout=20)
+    logging.info(f"Status API: {r.status_code}")
+    logging.info(r.text[:2000])
     r.raise_for_status()
     data = r.json()
-    return data.get("data", {}).get("productOfferV2", {}).get("nodes", []) or []
+    if "errors" in data:
+        logging.error(f"Erros GraphQL: {data['errors']}")
+        return []
+    nodes = data.get("data", {}).get("productOfferV2", {}).get("nodes", []) or []
+    return nodes
 
 
 def historico_bloqueia(chave):
@@ -350,15 +359,8 @@ def salvar_indice_resultado(estado, nicho, chave, valor):
     estado.setdefault(nicho, {}).setdefault("resultado_idx", {})[chave] = valor
 
 
-def montar_catalogo():
-    return {n: [(p, "", "") for p in ps] for n, ps in PRODUTOS_NICHO.items()}
-
-
-CATALOGOS = montar_catalogo()
-
-
 def get_proximo_termo(nicho, estado):
-    catalogo = CATALOGOS[nicho]
+    catalogo = PRODUTOS_NICHO[nicho]
     ordem = estado.setdefault(nicho, {}).get("produtos_ordem", list(range(len(catalogo))))
     idx = estado.setdefault(nicho, {}).get("produto_idx", 0)
     pos = ordem[idx % len(ordem)]
@@ -481,7 +483,7 @@ def selecionar_ofertas_termo(nicho, termo, cota, estado, e_moto=False, peca=None
         if not validar_relevancia_nicho(nicho, titulo, termo=termo, modelo=(termo if e_moto else None), peca=peca):
             motivos["relevancia"] += 1
             continue
-        if familia != "outros" and familias_ciclo[familia] >= (2 if nicho == "Moto" else 2):
+        if familia != "outros" and familias_ciclo[familia] >= 2:
             motivos["familia_limite"] += 1
             continue
 
@@ -494,7 +496,7 @@ def selecionar_ofertas_termo(nicho, termo, cota, estado, e_moto=False, peca=None
         ULTIMOS_TITULOS.append(normalizar_texto(titulo))
         logging.info(f"{nicho}: escolhido {titulo} | chave={chave_idx}")
 
-    novo_idx = (idx_resultado + len(ordem_iteracao)) % len(filtrados)
+    novo_idx = (idx_resultado + len(escolhidos)) % len(filtrados)
     salvar_indice_resultado(estado, nicho, chave_idx, novo_idx)
 
     if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
@@ -528,7 +530,7 @@ def get_shopee_offers():
                         candidatos.append((nicho, p))
             else:
                 for _ in range(cotas[nicho]):
-                    (termo, _, _), estado = get_proximo_termo(nicho, estado)
+                    termo, estado = get_proximo_termo(nicho, estado)
                     escolhidos, estado = selecionar_ofertas_termo(nicho, termo, 1, estado)
                     for p in escolhidos:
                         candidatos.append((nicho, p))
@@ -541,7 +543,11 @@ def get_shopee_offers():
     return candidatos[:MAX_OFERTAS]
 
 
-CHAMADAS_ACAO = ["👇 CORRE QUE TÁ ACABANDO!", "⚡ CLIQUE ANTES QUE AUMENTE!", "🚀 ESTOQUE LIMITADO - AGORA!", "💥 MELHOR PREÇO DO ANO!", "🎯 COMPRE ANTES DOS OUTROS!", "🔥 VOOU DAS PRATELEIRAS!", "⏰ PROMOÇÃO ACABA HOJE!", "💰 ECONOMIA REAL - CORRE!", "⭐ OFERTA QUENTE AGORA!", "🛒 NÃO DEIXA ESCAPAR!"]
+CHAMADAS_ACAO = [
+    "👇 CORRE QUE TÁ ACABANDO!", "⚡ CLIQUE ANTES QUE AUMENTE!", "🚀 ESTOQUE LIMITADO - AGORA!",
+    "💥 MELHOR PREÇO DO ANO!", "🎯 COMPRE ANTES DOS OUTROS!", "🔥 VOOU DAS PRATELEIRAS!",
+    "⏰ PROMOÇÃO ACABA HOJE!", "💰 ECONOMIA REAL - CORRE!", "⭐ OFERTA QUENTE AGORA!", "🛒 NÃO DEIXA ESCAPAR!"
+]
 
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=False):
@@ -648,7 +654,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         )
         await asyncio.sleep(5)
 
-        enviados_vip = []
         for item in selecionadas:
             try:
                 logging.info(f"Enviando produto para VIP (nicho {item['nicho_origem']})")
@@ -659,7 +664,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     parse_mode="HTML",
                 )
                 registrar_historico(item["produto_id"])
-                enviados_vip.append(item)
                 await asyncio.sleep(40)
             except Exception as e:
                 logging.error(f"Erro Telegram VIP: {e}", exc_info=True)
