@@ -15,22 +15,19 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V20 - SELECAO HUMANA POR TERMO")
+print("VERSAO SHOPEE V21 - SELECAO CURSOR ESTAVEL")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
 
-# Grupo VIP (já existente)
 CHAT_ID_DESTINO = -1003848415150
-
-# Grupo FREE (novo)
 FREE_CHAT_ID = -1003886228244
 
 SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
-CHECK_INTERVAL = 5400  # 1h30
+CHECK_INTERVAL = 5400
 
 MAX_OFERTAS = 10
 MIN_OFERTAS = 4
@@ -97,7 +94,6 @@ FAMILIAS_EXTRA = {
     "moto_geral": ["capacete", "vela", "pastilha", "lona", "kit relação", "corrente", "coroa", "pinhão", "guidao", "guidão", "retrovisor", "farol", "lanterna"],
 }
 
-# Nichos usados em rodízio para o grupo Free
 NICHOS_FREE_ROTA = ["Moto", "Casa", "Moda feminina", "Moda masculina", "Maternidade", "Eletroeletrônicos"]
 
 
@@ -119,22 +115,16 @@ def carregar_estado():
     estado["Moto"].setdefault("pares", [])
     estado["Moto"].setdefault("pares_idx", 0)
     if not estado["Moto"]["pares"]:
-        pares = [(m, p) for m in MOTOS for p in PECAS_MOTO]
-        random.shuffle(pares)
-        estado["Moto"]["pares"] = pares
+        estado["Moto"]["pares"] = [(m, p) for m in MOTOS for p in PECAS_MOTO]
 
     for nicho in ["Casa", "Maternidade", "Eletroeletrônicos", "Moda feminina", "Moda masculina"]:
         estado[nicho].setdefault("resultado_idx", {})
         estado[nicho].setdefault("produtos_ordem", [])
         estado[nicho].setdefault("produto_idx", 0)
         if not estado[nicho]["produtos_ordem"]:
-            ordem = list(range(len(PRODUTOS_NICHO[nicho])))
-            random.shuffle(ordem)
-            estado[nicho]["produtos_ordem"] = ordem
+            estado[nicho]["produtos_ordem"] = list(range(len(PRODUTOS_NICHO[nicho])))
 
-    # índice do rodízio Free
     estado.setdefault("free_nicho_idx", 0)
-
     return estado
 
 
@@ -307,6 +297,8 @@ def buscar_produtos_da_categoria_kw(palavra_chave, categoria_selecionada):
                 offerLink
                 imageUrl
                 shopType
+                itemid
+                shopid
             }}
         }}
     }}
@@ -371,9 +363,6 @@ def get_proximo_termo(nicho, estado):
     idx = estado.setdefault(nicho, {}).get("produto_idx", 0)
     pos = ordem[idx % len(ordem)]
     estado[nicho]["produto_idx"] = (idx + 1) % len(ordem)
-    if estado[nicho]["produto_idx"] == 0:
-        random.shuffle(ordem)
-        estado[nicho]["produtos_ordem"] = ordem
     return catalogo[pos], estado
 
 
@@ -382,14 +371,10 @@ def get_proxima_combinacao_moto(estado):
     pares = moto_state.get("pares", [])
     if not pares:
         pares = [(m, p) for m in MOTOS for p in PECAS_MOTO]
-        random.shuffle(pares)
         moto_state["pares"] = pares
     idx = moto_state.get("pares_idx", 0)
     par = pares[idx % len(pares)]
     moto_state["pares_idx"] = (idx + 1) % len(pares)
-    if moto_state["pares_idx"] == 0:
-        random.shuffle(pares)
-        moto_state["pares"] = pares
     return par, estado
 
 
@@ -427,6 +412,11 @@ def validar_relevancia_nicho(nicho, titulo, termo=None, modelo=None, peca=None):
     return True
 
 
+def produto_id_estavel(p, titulo, link):
+    base = str(p.get("itemid") or p.get("shopid") or link or titulo)
+    return hashlib.md5(base.encode()).hexdigest()
+
+
 def selecionar_ofertas_termo(nicho, termo, cota, estado, e_moto=False, peca=None):
     global BASES_VISTAS, REJEICOES
     kw = termo if not e_moto else f"{peca} {termo}"
@@ -447,7 +437,6 @@ def selecionar_ofertas_termo(nicho, termo, cota, estado, e_moto=False, peca=None
     if rejeitados_local:
         logging.info(f"{nicho}: rejeições {dict(rejeitados_local)}")
 
-    random.shuffle(filtrados)
     filtrados.sort(key=lambda x: oferta_score(x, termo), reverse=True)
 
     escolhidos = []
@@ -457,7 +446,14 @@ def selecionar_ofertas_termo(nicho, termo, cota, estado, e_moto=False, peca=None
     chave_idx = chave_resultado(nicho, normalizar_texto(kw).replace(" ", "_"))
     idx_resultado = carregar_indice_resultado(estado, nicho, chave_idx)
 
-    for p in filtrados:
+    if not filtrados:
+        salvar_indice_resultado(estado, nicho, chave_idx, 0)
+        return escolhidos, estado
+
+    inicio = idx_resultado % len(filtrados)
+    ordem_iteracao = filtrados[inicio:] + filtrados[:inicio]
+
+    for p in ordem_iteracao:
         if len(escolhidos) >= cota:
             break
 
@@ -465,8 +461,7 @@ def selecionar_ofertas_termo(nicho, termo, cota, estado, e_moto=False, peca=None
         link = p.get("offerLink") or p.get("productLink")
         base = chave_base_titulo(titulo)
         familia = parse_familia_from_title(titulo)
-        assinatura = f"{base}|{link or ''}"
-        produto_id = hashlib.md5(assinatura.encode()).hexdigest()
+        produto_id = produto_id_estavel(p, titulo, link)
 
         if base and base in BASES_VISTAS:
             motivos["base_repetida"] += 1
@@ -497,8 +492,10 @@ def selecionar_ofertas_termo(nicho, termo, cota, estado, e_moto=False, peca=None
         usados_no_ciclo.add(link)
         ULTIMAS_BUSCAS_SHOPEE.append(link)
         ULTIMOS_TITULOS.append(normalizar_texto(titulo))
-        salvar_indice_resultado(estado, nicho, chave_idx, (idx_resultado + 1) % max(1, len(filtrados)))
         logging.info(f"{nicho}: escolhido {titulo} | chave={chave_idx}")
+
+    novo_idx = (idx_resultado + len(ordem_iteracao)) % len(filtrados)
+    salvar_indice_resultado(estado, nicho, chave_idx, novo_idx)
 
     if len(ULTIMAS_BUSCAS_SHOPEE) > 300:
         ULTIMAS_BUSCAS_SHOPEE.pop(0)
@@ -519,8 +516,6 @@ def get_shopee_offers():
     estado = carregar_estado()
 
     ordem_nichos = ["Moto", "Casa", "Maternidade", "Eletroeletrônicos", "Moda feminina", "Moda masculina"]
-    random.shuffle(ordem_nichos)
-
     cotas = {"Moto": 2, "Casa": 2, "Maternidade": 2, "Eletroeletrônicos": 2, "Moda feminina": 1, "Moda masculina": 1}
 
     for nicho in ordem_nichos:
@@ -529,22 +524,18 @@ def get_shopee_offers():
                 for _ in range(cotas[nicho]):
                     (moto, peca), estado = get_proxima_combinacao_moto(estado)
                     escolhidos, estado = selecionar_ofertas_termo(nicho, moto, 1, estado, e_moto=True, peca=peca)
-                    # adiciona nicho_origem
                     for p in escolhidos:
                         candidatos.append((nicho, p))
             else:
                 for _ in range(cotas[nicho]):
                     (termo, _, _), estado = get_proximo_termo(nicho, estado)
                     escolhidos, estado = selecionar_ofertas_termo(nicho, termo, 1, estado)
-                    # adiciona nicho_origem
                     for p in escolhidos:
                         candidatos.append((nicho, p))
         except Exception as e:
             logging.error(f"Erro no nicho {nicho}: {e}", exc_info=True)
 
     salvar_estado(estado)
-
-    # ordena por score mantendo nicho junto
     candidatos.sort(key=lambda x: oferta_score(x[1]), reverse=True)
     logging.info(f"Shopee OK: {len(candidatos[:MAX_OFERTAS])} produtos exclusivos para envio")
     return candidatos[:MAX_OFERTAS]
@@ -608,7 +599,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
         usadas_abertura.clear()
         usadas_gatilho.clear()
-        # agora shopee_ofertas é lista de (nicho_origem, item_raw)
         shopee_ofertas = get_shopee_offers()
         selecionadas = []
 
@@ -616,7 +606,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             logging.warning(f"Apenas {len(shopee_ofertas)} ofertas válidas. Pulando envio.")
             return
 
-        # Monta mensagens para o VIP
         for nicho_origem, item in shopee_ofertas[:MAX_OFERTAS]:
             try:
                 link_base = item.get("offerLink") or item.get("productLink")
@@ -627,8 +616,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 rating = float(item.get("ratingStar", 4.5))
                 vendas = int(item.get("sales", 100))
                 comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
-                assinatura = f"{item.get('productName', '')}|{link_base or ''}"
-                produto_id = hashlib.md5(assinatura.encode()).hexdigest()
+                produto_id = produto_id_estavel(item, item.get("productName", ""), link_base)
                 vendas_f = f"{vendas:,}".replace(",", ".")
                 preco_f = f"{preco:.2f}".replace(".", ",")
 
@@ -643,7 +631,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     "img": img,
                     "produto_id": produto_id,
                     "item_raw": item,
-                    "nicho_origem": nicho_origem,  # salva nicho aqui
+                    "nicho_origem": nicho_origem,
                 })
             except Exception as e:
                 logging.error(f"Erro Shopee item: {e}", exc_info=True)
@@ -653,7 +641,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             logging.warning("Nenhuma oferta encontrada")
             return
 
-        # Envio para o VIP (grupo principal)
         await context.bot.send_message(
             chat_id=CHAT_ID_DESTINO,
             text="🚨 <b>OFERTAS NOVAS CHEGANDO...</b>",
@@ -661,6 +648,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         )
         await asyncio.sleep(5)
 
+        enviados_vip = []
         for item in selecionadas:
             try:
                 logging.info(f"Enviando produto para VIP (nicho {item['nicho_origem']})")
@@ -671,11 +659,11 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     parse_mode="HTML",
                 )
                 registrar_historico(item["produto_id"])
+                enviados_vip.append(item)
                 await asyncio.sleep(40)
             except Exception as e:
                 logging.error(f"Erro Telegram VIP: {e}", exc_info=True)
 
-        # Lógica do grupo FREE – 1 oferta aproveitando as mesmas
         logging.info("=== ENTROU NO BLOCO GRATUITO ===")
         estado = carregar_estado()
         idx = estado.get("free_nicho_idx", 0)
@@ -700,11 +688,9 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     caption=oferta_free["msg"],
                     parse_mode="HTML",
                 )
-                registrar_historico(oferta_free["produto_id"])
             except Exception as e:
                 logging.error(f"Erro Telegram FREE: {e}", exc_info=True)
 
-        # Avança o rodízio do FREE e salva estado
         estado["free_nicho_idx"] = (idx + 1) % len(NICHOS_FREE_ROTA)
         salvar_estado(estado)
 
