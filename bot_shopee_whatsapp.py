@@ -396,9 +396,29 @@ def validar_modelo_titulo(titulo, termo):
 
 def validar_relevancia_nicho(nicho, titulo, termo=None, modelo=None, peca=None):
     t = normalizar_texto(titulo)
-    if nicho == "Eletroeletrônicos":
-        if any(x in t for x in ["capa", "pelicula", "case"]) and not any(x in t for x in ["celular", "tablet", "smartphone", "iphone"]):
+
+    if termo:
+        termo_n = normalizar_texto(termo)
+        palavras = [p for p in termo_n.split() if len(p) > 2]
+        encontrados = sum(1 for p in palavras if p in t)
+
+        if encontrados < max(1, len(palavras)):
             return False
+
+    if nicho == "Eletroeletrônicos":
+        if termo:
+            termo_n = normalizar_texto(termo)
+
+            if termo_n in ["tablet", "notebook", "cpu", "cpu gamer", "computador", "smart tv", "televisão", "tv"]:
+                if any(x in t for x in [
+                    "capa",
+                    "pelicula",
+                    "película",
+                    "case",
+                    "suporte",
+                    "hidrogel"
+                ]):
+                    return False
         if any(x in t for x in ["smart tv", "televisao", "televisão"]) and any(x in t for x in ["mouse", "teclado", "ssd", "notebook"]):
             return False
     if nicho == "Casa" and any(x in t for x in ["tinta", "tintas"]) and not any(x in t for x in ["parede", "spray", "esmalte"]):
@@ -420,7 +440,7 @@ def validar_relevancia_nicho(nicho, titulo, termo=None, modelo=None, peca=None):
 
 
 def produto_id_estavel(p, titulo, link):
-    base = str(p.get("itemid") or p.get("shopid") or link or titulo)
+    base = str(p.get("itemId") or p.get("shopId") or link or titulo)
     return hashlib.md5(base.encode()).hexdigest()
 
 
@@ -543,7 +563,6 @@ def get_shopee_offers():
             logging.error(f"Erro no nicho {nicho}: {e}", exc_info=True)
 
     salvar_estado(estado)
-    candidatos.sort(key=lambda x: oferta_score(x[1]), reverse=True)
     logging.info(f"Shopee OK: {len(candidatos[:MAX_OFERTAS])} produtos exclusivos para envio")
     return candidatos[:MAX_OFERTAS]
 
