@@ -15,20 +15,18 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V22 - SELECAO CURSOR ESTAVEL")
+print("VERSAO SHOPEE V23 - SELECAO ESTAVEL COM HISTORICO")
 
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
-
 CHAT_ID_DESTINO = -1003848415150
 FREE_CHAT_ID = -1003886228244
-
 SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
-CHECK_INTERVAL = 5400
 
+CHECK_INTERVAL = 5400
 MAX_OFERTAS = 10
 MIN_OFERTAS = 4
 HISTORICO_DIAS = 3
@@ -54,28 +52,81 @@ BASES_VISTAS = set()
 REJEICOES = Counter()
 
 MOTOS = [
-    "titan 150", "cb 300", "factor 150", "titan 160", "tornado", "fazer 150", "titan 125",
-    "bros 160", "twister 250", "biz 125", "pop 110", "xre 300", "crosser 150", "xre 190",
-    "fazer 250", "lander 250", "bros 150", "tenere 250", "biz 100", "twister 300",
+    "titan 150", "cb 300", "factor 150", "titan 160", "tornado",
+    "fazer 150", "titan 125", "bros 160", "twister 250", "biz 125",
+    "pop 110", "xre 300", "crosser 150", "xre 190", "fazer 250",
+    "lander 250", "bros 150", "tenere 250", "biz 100", "twister 300",
 ]
 
 PECAS_MOTO = [
-    "kit relacao", "kit embreagem", "bateria", "refil bomba combustivel", "chicote fiação principal",
-    "bucha balança", "burrinho de freio", "estribo", "pedal de marcha", "pedal de freio",
-    "rolamento virabrequim", "estator", "chave ignição", "punho chave luz", "kit pisca seta",
-    "par pneu", "bloco optico", "retentor de bengala", "bucha amortecedor", "carburador corpo de injeção",
-    "kit cilindro", "jogo de juntas", "biela", "valvulas escape admissão", "disco de freio",
-    "tubo interno", "vela iridium", "pastilha freio", "guidao", "manopla", "amortecedor",
-    "retrovisor", "farol", "lona de freio", "cabo embreagem", "cabo acelerador", "coroa moto",
-    "pinhao moto", "corrente moto", "pedaleira", "carenagem", "lanterna traseira", "capacete"
+    "kit relacao", "kit embreagem", "bateria", "refil bomba combustivel",
+    "chicote fiação principal", "bucha balança", "burrinho de freio", "estribo",
+    "pedal de marcha", "pedal de freio", "rolamento virabrequim", "estator",
+    "chave ignição", "punho chave luz", "kit pisca seta", "par pneu",
+    "bloco optico", "retentor de bengala", "bucha amortecedor",
+    "carburador corpo de injeção", "kit cilindro", "jogo de juntas", "biela",
+    "valvulas escape admissão", "disco de freio", "tubo interno", "vela iridium",
+    "pastilha freio", "guidao", "manopla", "amortecedor", "retrovisor",
+    "farol", "lona de freio", "cabo embreagem", "cabo acelerador",
+    "coroa moto", "pinhao moto", "corrente moto", "pedaleira", "carenagem",
+    "lanterna traseira", "capacete"
 ]
 
 PRODUTOS_NICHO = {
-    "Casa": ["air fryer", "fritadeira eletrica", "aspirador", "aspirador vertical", "liquidificador", "cafeteira", "panela eletrica", "panela de pressão", "capa para colchão", "jogo de pratos", "jogo de copos", "copo stanley", "talher", "panos de prato", "toalhas de banho", "coberta manta", "lençol", "cobre leito", "mangueira de jardim", "tapete", "tapete sala", "torneira de cozinha", "filtro de barro", "guarda roupas casal", "guarda roupas portatil", "cama casal", "forma de silicone", "sapateira", "umidificador", "ar condicionado", "jogo de panelas", "cortinas", "tintas parede", "tinta spray", "frigideiras", "rede de dormir", "pipoqueira", "mop", "ventilador", "batedeira", "escorredor de louça", "caixa organizadora", "papel de parede", "luminaria"],
-    "Maternidade": ["carrinho bebe", "berco bebe", "fralda descartavel", "fralda de pano", "naninha", "sapatinho", "pagãozinho", "coberdrom dupla face", "kit toalha umedecida", "toalha infantil banho", "banheira", "mictorio infantil", "bebê reborn", "carrinhos", "piscina de bolinhas", "kit bolsa maternidade", "canguru", "mosqueteiro", "kit mamadeira", "kit bicos", "baba eletronica", "babá eletronica", "ninho bebe", "kit enxoval bebe", "babador bebe", "mordedor bebe", "tapete infantil", "cadeirinha bebe", "almofada amamentacao", "termometro infantil"],
-    "Eletroeletrônicos": ["smartwatch", "relogio inteligente", "fone bluetooth", "headset gamer", "caixa de som bluetooth", "caixa de som", "soundbar", "bastão pau de selfie", "celular", "smartphone", "smart tv", "televisão", "video game", "fones de ouvido", "capinha celular", "pelicula celular", "massageador", "balança digital", "aparelho medidor de pressão", "massageador portatil", "webcam camera", "pen drive", "impressora termica", "maquina de impressão 3d", "computador", "cpu gamer", "cpu", "notebook", "drone", "camera de segurança", "gopro", "tablet", "ssd", "mouse gamer", "teclado mecanico", "power bank", "carregador turbo", "suporte celular carro"],
-    "Moda feminina": ["vestido feminino", "conjunto feminino", "kit calcinhas", "biquines", "biquini", "saida de praia", "maquiagens", "roupa academia", "calça jean", "calça leggin", "saia longa", "vestido lovito", "sandalias", "pijamas", "pijamas mãe e filha", "blusa regata", "kit sutian", "bermuda modeladora", "oculos de sol", "calça social", "vestido midi", "jaqueta feminina", "casaco feminino", "conjunto alfaiataria", "short feminino", "macacao feminino", "tenis feminino", "bolsa feminina", "blazer feminino", "saia jeans", "top feminino", "body feminino"],
-    "Moda masculina": ["camiseta masculina", "relogios esportivos", "bermudas jeans", "relogio de quartzo", "camisetas regatas", "camisa polo", "camisa de linho", "terno", "blazer", "camisa tshort", "kit meias", "barbeador", "meias esportivas", "oculos de sol", "toucas", "calção de futebol", "tenis futebol", "chuteiras", "camisa termica", "bermuda masculina", "jaqueta masculina", "tenis masculino", "carteira masculina", "kit cueca", "calça jeans masculina", "camisa social masculina", "moletom masculino", "sapatenis masculino"],
+    "Casa": [
+        "air fryer", "fritadeira eletrica", "aspirador", "aspirador vertical",
+        "liquidificador", "cafeteira", "panela eletrica", "panela de pressão",
+        "capa para colchão", "jogo de pratos", "jogo de copos", "copo stanley",
+        "talher", "panos de prato", "toalhas de banho", "coberta manta",
+        "lençol", "cobre leito", "mangueira de jardim", "tapete", "tapete sala",
+        "torneira de cozinha", "filtro de barro", "guarda roupas casal",
+        "guarda roupas portatil", "cama casal", "forma de silicone", "sapateira",
+        "umidificador", "ar condicionado", "jogo de panelas", "cortinas",
+        "tintas parede", "tinta spray", "frigideiras", "rede de dormir",
+        "pipoqueira", "mop", "ventilador", "batedeira", "escorredor de louça",
+        "caixa organizadora", "papel de parede", "luminaria"
+    ],
+    "Maternidade": [
+        "carrinho bebe", "berco bebe", "fralda descartavel", "fralda de pano",
+        "naninha", "sapatinho", "pagãozinho", "coberdrom dupla face",
+        "kit toalha umedecida", "toalha infantil banho", "banheira",
+        "mictorio infantil", "bebê reborn", "carrinhos", "piscina de bolinhas",
+        "kit bolsa maternidade", "canguru", "mosqueteiro", "kit mamadeira",
+        "kit bicos", "baba eletronica", "babá eletronica", "ninho bebe",
+        "kit enxoval bebe", "babador bebe", "mordedor bebe", "tapete infantil",
+        "cadeirinha bebe", "almofada amamentacao", "termometro infantil"
+    ],
+    "Eletroeletrônicos": [
+        "smartwatch", "relogio inteligente", "fone bluetooth", "headset gamer",
+        "caixa de som bluetooth", "caixa de som", "soundbar", "bastão pau de selfie",
+        "celular", "smartphone", "smart tv", "televisão", "video game",
+        "fones de ouvido", "capinha celular", "pelicula celular", "massageador",
+        "balança digital", "aparelho medidor de pressão", "massageador portatil",
+        "webcam camera", "pen drive", "impressora termica", "maquina de impressão 3d",
+        "computador", "cpu gamer", "cpu", "notebook", "drone", "camera de segurança",
+        "gopro", "tablet", "ssd", "mouse gamer", "teclado mecanico", "power bank",
+        "carregador turbo", "suporte celular carro"
+    ],
+    "Moda feminina": [
+        "vestido feminino", "conjunto feminino", "kit calcinhas", "biquines",
+        "biquini", "saida de praia", "maquiagens", "roupa academia", "calça jean",
+        "calça leggin", "saia longa", "vestido lovito", "sandalias", "pijamas",
+        "pijamas mãe e filha", "blusa regata", "kit sutian", "bermuda modeladora",
+        "oculos de sol", "calça social", "vestido midi", "jaqueta feminina",
+        "casaco feminino", "conjunto alfaiataria", "short feminino", "macacao feminino",
+        "tenis feminino", "bolsa feminina", "blazer feminino", "saia jeans",
+        "top feminino", "body feminino"
+    ],
+    "Moda masculina": [
+        "camiseta masculina", "relogios esportivos", "bermudas jeans",
+        "relogio de quartzo", "camisetas regatas", "camisa polo", "camisa de linho",
+        "terno", "blazer", "camisa tshort", "kit meias", "barbeador",
+        "meias esportivas", "oculos de sol", "toucas", "calção de futebol",
+        "tenis futebol", "chuteiras", "camisa termica", "bermuda masculina",
+        "jaqueta masculina", "tenis masculino", "carteira masculina", "kit cueca",
+        "calça jeans masculina", "camisa social masculina", "moletom masculino",
+        "sapatenis masculino"
+    ],
 }
 
 FAMILIAS_EXTRA = {
@@ -136,7 +187,7 @@ def salvar_estado(estado):
         logging.error(f"Erro salvando estado: {e}")
 
 
-def carregar_historico():
+def carregar_HISTORICO
     try:
         if os.path.exists(HISTORICO_FILE):
             with open(HISTORICO_FILE, "r", encoding="utf-8") as f:
@@ -146,7 +197,7 @@ def carregar_historico():
     return {}
 
 
-def salvar_historico(hist):
+def salvar_historico(HISTORICO)
     try:
         with open(HISTORICO_FILE, "w", encoding="utf-8") as f:
             json.dump(hist, f, ensure_ascii=False)
@@ -170,7 +221,15 @@ def normalizar_texto(txt):
 
 def chave_base_titulo(titulo):
     t = normalizar_texto(titulo)
-    stop = {"premium", "novo", "promocao", "promoção", "super", "original", "profissional", "casual", "masculino", "feminino", "infantil", "adulto", "unissex", "estica", "kit", "com", "de", "para", "o", "a", "promo", "oferta", "modelo", "versao", "versão", "linha", "envio", "usado", "branco", "preto", "azul", "vermelho", "rosa", "verde", "amarelo", "tamanho", "tamanhos", "unico", "único", "gamer", "led", "usb"}
+    stop = {
+        "premium", "novo", "promocao", "promoção", "super", "original",
+        "profissional", "casual", "masculino", "feminino", "infantil",
+        "adulto", "unissex", "estica", "kit", "com", "de", "para",
+        "o", "a", "promo", "oferta", "modelo", "versao", "versão",
+        "linha", "envio", "usado", "branco", "preto", "azul", "vermelho",
+        "rosa", "verde", "amarelo", "tamanho", "tamanhos", "unico", "único",
+        "gamer", "led", "usb"
+    }
     tokens = [x for x in t.split() if x not in stop and len(x) > 2]
     tokens = sorted(tokens)
     return " ".join(tokens[:8])
@@ -178,7 +237,11 @@ def chave_base_titulo(titulo):
 
 def tem_bloqueio(titulo):
     t = normalizar_texto(titulo)
-    palavras = ["teste", "amostra", "não compre", "nao compre", "produto teste", "exemplo", "dummy", "vela led", "vela decorativa", "decorativa", "decoração", "casamento", "festa"]
+    palavras = [
+        "teste", "amostra", "não compre", "nao compre", "produto teste",
+        "exemplo", "dummy", "vela led", "vela decorativa", "decorativa",
+        "decoração", "casamento", "festa"
+    ]
     return any(p in t for p in palavras)
 
 
@@ -219,19 +282,35 @@ def oferta_score(p, termo=""):
         st = p.get("shopType", [])
         nome = normalizar_texto(str(p.get("productName", "")))
         termo_n = normalizar_texto(termo)
+
         score = 0
         score += min(vendas / 8, 25)
         score += rating * 2
         score += comissao * 100
         score += shop_type_score(st)
+
         if 50 <= preco <= 5000:
             score += 6
+
         if termo_n and termo_n in nome:
             score += 8
         elif termo_n and any(x in nome for x in termo_n.split()):
             score += 3
-        if any(x in nome for x in ["moto", "bebê", "bebe", "smartwatch", "ssd", "fone", "tablet", "air fryer", "tapete", "capacete"]):
-            score += 2
+
+        if any(x in nome for x in [
+    "moto",
+    "bebê",
+    "bebe",
+    "smartwatch",
+    "ssd",
+    "fone",
+    "tablet",
+    "air fryer",
+    "tapete",
+    "capacete"
+]):
+    score += 2
+
         return score
     except:
         return 0
@@ -245,6 +324,7 @@ def motivo_rejeicao(p):
         comissao = float(p.get("commissionRate", 0) or 0)
         vendas = int(p.get("sales", 0) or 0)
         rating = float(p.get("ratingStar", 0) or 0)
+
         if not titulo:
             return "sem_titulo"
         if not link:
@@ -283,52 +363,28 @@ def aplicar_id_afiliado(link):
 def buscar_produtos_da_categoria_kw(palavra_chave, categoria_selecionada):
     logging.info(f"Buscando em {categoria_selecionada}: {palavra_chave}")
     timestamp = int(time.time())
-
-    query_body = f'''
-    query {{
-        productOfferV2(sortType: 2, limit: 50, keyword: "{palavra_chave}", isAMSOffer: true) {{
-            nodes {{
-                productName
-                priceMin
-                priceMax
-                commissionRate
-                sales
-                ratingStar
-                productLink
-                offerLink
-                imageUrl
-                shopType
-                itemId
-                shopId
-            }}
-        }}
-    }}
-    '''
-
+    query_body = f''' query {{ productOfferV2(sortType: 2, limit: 50, keyword: "{palavra_chave}", isAMSOffer: true) {{ nodes {{ productName priceMin priceMax commissionRate sales ratingStar productLink offerLink imageUrl shopType itemId shopId }} }} }} '''
     payload = {"query": query_body}
     base = SHOPEE_APP_ID + str(timestamp) + json.dumps(payload, ensure_ascii=False) + SHOPEE_PASSWORD
     signature = hashlib.sha256(base.encode()).hexdigest()
-
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"
     }
-
     r = requests.post(SHOPEE_GRAPHQL_URL, json=payload, headers=headers, timeout=20)
     logging.info(f"Status API: {r.status_code}")
     logging.info(r.text[:2000])
     r.raise_for_status()
-
     data = r.json()
     if "errors" in data:
         logging.error(f"Erros GraphQL: {data['errors']}")
         return []
-
     return data.get("data", {}).get("productOfferV2", {}).get("nodes", []) or []
 
 
 def historico_bloqueia(chave):
-    hist = carregar_historico()
+    global HISTORICO
+    hist = HISTORICO
     if chave not in hist:
         return False
     try:
@@ -339,9 +395,9 @@ def historico_bloqueia(chave):
 
 
 def registrar_historico(chave):
-    hist = carregar_historico()
-    hist[chave] = datetime.now(FUSO_BR).isoformat()
-    salvar_historico(hist)
+    global HISTORICO
+
+    HISTORICO[chave] = datetime.now(FUSO_BR).isoformat()
 
 
 def parse_familia_from_title(titulo):
@@ -386,12 +442,15 @@ def get_proxima_combinacao_moto(estado):
 
 
 def validar_modelo_titulo(titulo, termo):
-    t = normalizar_texto(titulo)
-    m = normalizar_texto(termo)
-    palavras = [x for x in m.split() if len(x) > 2]
+    """
+    V23: Agora exige TODAS as palavras importantes do termo.
+    Ex: "titan 160" só aceita se tiver "titan" E "160" no título.
+    """
+    titulo = normalizar_texto(titulo)
+    palavras = [p for p in normalizar_texto(termo).split() if len(p) > 2]
     if not palavras:
         return True
-    return sum(1 for x in palavras if x in t) >= max(1, min(2, len(palavras)))
+    return all(p in titulo for p in palavras)
 
 
 def validar_relevancia_nicho(nicho, titulo, termo=None, modelo=None, peca=None):
@@ -401,34 +460,30 @@ def validar_relevancia_nicho(nicho, titulo, termo=None, modelo=None, peca=None):
         termo_n = normalizar_texto(termo)
         palavras = [p for p in termo_n.split() if len(p) > 2]
         encontrados = sum(1 for p in palavras if p in t)
-
         if encontrados < max(1, len(palavras)):
             return False
 
     if nicho == "Eletroeletrônicos":
         if termo:
             termo_n = normalizar_texto(termo)
-
             if termo_n in ["tablet", "notebook", "cpu", "cpu gamer", "computador", "smart tv", "televisão", "tv"]:
-                if any(x in t for x in [
-                    "capa",
-                    "pelicula",
-                    "película",
-                    "case",
-                    "suporte",
-                    "hidrogel"
-                ]):
+                if any(x in t for x in ["capa", "pelicula", "película", "case", "suporte", "hidrogel"]):
                     return False
         if any(x in t for x in ["smart tv", "televisao", "televisão"]) and any(x in t for x in ["mouse", "teclado", "ssd", "notebook"]):
             return False
+
     if nicho == "Casa" and any(x in t for x in ["tinta", "tintas"]) and not any(x in t for x in ["parede", "spray", "esmalte"]):
         return False
+
     if nicho == "Moda feminina" and any(x in t for x in ["masculino", "homem", "masc"]):
         return False
+
     if nicho == "Moda masculina" and any(x in t for x in ["feminino", "mulher", "menina"]):
         return False
+
     if nicho == "Maternidade" and any(x in t for x in ["organizador", "cozinha", "banheiro", "carro"]) and not any(x in t for x in ["bebe", "bebê", "infantil", "maternidade", "fralda", "carrinho", "mamadeira", "ninho"]):
         return False
+
     if nicho == "Moto":
         if modelo and not validar_modelo_titulo(titulo, modelo):
             return False
@@ -436,21 +491,38 @@ def validar_relevancia_nicho(nicho, titulo, termo=None, modelo=None, peca=None):
             return False
         if termo and not validar_modelo_titulo(titulo, termo):
             return False
+
     return True
 
 
 def produto_id_estavel(p, titulo, link):
-    base = str(p.get("itemId") or p.get("shopId") or link or titulo)
-    return hashlib.md5(base.encode()).hexdigest()
+    """
+    V23: Prioriza shopId + itemId para evitar perda de histórico
+    quando a Shopee muda o itemId.
+    """
+    item = str(p.get("itemId", "")).strip()
+    shop = str(p.get("shopId", "")).strip()
+
+    if item and shop:
+        return f"{shop}_{item}"
+
+    if item:
+        return item
+
+    if shop and titulo:
+        return hashlib.md5(f"{shop}_{normalizar_texto(titulo)}".encode()).hexdigest()
+
+    return hashlib.md5((link or titulo).encode()).hexdigest()
 
 
 def selecionar_ofertas_termo(nicho, termo, cota, estado, e_moto=False, peca=None):
     global BASES_VISTAS, REJEICOES
+
     kw = termo if not e_moto else f"{peca} {termo}"
     resultados = buscar_produtos_da_categoria_kw(kw, nicho)
-
     filtrados = []
     rejeitados_local = Counter()
+
     for p in resultados:
         motivo = motivo_rejeicao(p)
         if motivo is None:
@@ -470,6 +542,8 @@ def selecionar_ofertas_termo(nicho, termo, cota, estado, e_moto=False, peca=None
     titulos_ciclo = []
     familias_ciclo = Counter()
     motivos = Counter()
+    marcas_vistas = set()
+
     chave_idx = chave_resultado(nicho, normalizar_texto(kw).replace(" ", "_"))
     idx_resultado = carregar_indice_resultado(estado, nicho, chave_idx)
 
@@ -490,26 +564,47 @@ def selecionar_ofertas_termo(nicho, termo, cota, estado, e_moto=False, peca=None
         familia = parse_familia_from_title(titulo)
         produto_id = produto_id_estavel(p, titulo, link)
 
+        # V23: Verifica histórico por palavra-chave
+        hist = carregar_historico()
+        hist_palavras = hist.setdefault("palavras", {})
+        lista_por_kw = hist_palavras.setdefault(kw, {})
+
+        if produto_id in lista_por_kw:
+            motivos["historico_palavra"] += 1
+            continue
+
         if base and base in BASES_VISTAS:
             motivos["base_repetida"] += 1
             continue
+
         if not link or link in usados_no_ciclo or link in ULTIMAS_BUSCAS_SHOPEE:
             motivos["link_repetido"] += 1
             continue
+
         if historico_bloqueia(produto_id):
             motivos["historico"] += 1
             continue
+
         if titulo_duplicado_forte(titulo):
             motivos["titulo"] += 1
             continue
+
         if any(SequenceMatcher(None, normalizar_texto(titulo), t).ratio() >= SIMILARIDADE_MAX for t in titulos_ciclo):
             motivos["similaridade"] += 1
             continue
+
         if not validar_relevancia_nicho(nicho, titulo, termo=termo, modelo=(termo if e_moto else None), peca=peca):
             motivos["relevancia"] += 1
             continue
+
         if familia != "outros" and familias_ciclo[familia] >= 2:
             motivos["familia_limite"] += 1
+            continue
+
+        # V23: Diversidade de marcas/vendedores
+        shop_id = str(p.get("shopId", ""))
+        if shop_id and shop_id in marcas_vistas:
+            motivos["mesmo_vendedor"] += 1
             continue
 
         escolhidos.append(p)
@@ -519,6 +614,12 @@ def selecionar_ofertas_termo(nicho, termo, cota, estado, e_moto=False, peca=None
         usados_no_ciclo.add(link)
         ULTIMAS_BUSCAS_SHOPEE.append(link)
         ULTIMOS_TITULOS.append(normalizar_texto(titulo))
+        marcas_vistas.add(shop_id)
+
+        # V23: Registra no histórico por palavra-chave
+        lista_por_kw[produto_id] = datetime.now(FUSO_BR).isoformat()
+        salvar_historico(hist)
+
         logging.info(f"{nicho}: escolhido {titulo} | chave={chave_idx}")
 
     novo_idx = (idx_resultado + len(escolhidos)) % len(filtrados)
@@ -528,14 +629,17 @@ def selecionar_ofertas_termo(nicho, termo, cota, estado, e_moto=False, peca=None
         ULTIMAS_BUSCAS_SHOPEE.pop(0)
     if len(ULTIMOS_TITULOS) > 150:
         ULTIMOS_TITULOS.pop(0)
+
     if motivos:
         logging.info(f"{nicho}: rejeições seleção {dict(motivos)}")
+
     if len(escolhidos) < cota:
         logging.warning(f"{nicho}: só conseguiu {len(escolhidos)}/{cota}")
+
     return escolhidos, estado
-
-
-def get_shopee_offers():
+   
+    
+    def get_shopee_offers():
     global usados_no_ciclo, BASES_VISTAS
     usados_no_ciclo = set()
     BASES_VISTAS = set()
@@ -543,7 +647,14 @@ def get_shopee_offers():
     estado = carregar_estado()
 
     ordem_nichos = ["Moto", "Casa", "Maternidade", "Eletroeletrônicos", "Moda feminina", "Moda masculina"]
-    cotas = {"Moto": 2, "Casa": 2, "Maternidade": 2, "Eletroeletrônicos": 2, "Moda feminina": 1, "Moda masculina": 1}
+    cotas = {
+        "Moto": 2,
+        "Casa": 2,
+        "Maternidade": 2,
+        "Eletroeletrônicos": 2,
+        "Moda feminina": 1,
+        "Moda masculina": 1
+    }
 
     for nicho in ordem_nichos:
         try:
@@ -568,51 +679,78 @@ def get_shopee_offers():
 
 
 CHAMADAS_ACAO = [
-    "👇 CORRE QUE TÁ ACABANDO!", "⚡ CLIQUE ANTES QUE AUMENTE!", "🚀 ESTOQUE LIMITADO - AGORA!",
-    "💥 MELHOR PREÇO DO ANO!", "🎯 COMPRE ANTES DOS OUTROS!", "🔥 VOOU DAS PRATELEIRAS!",
-    "⏰ PROMOÇÃO ACABA HOJE!", "💰 ECONOMIA REAL - CORRE!", "⭐ OFERTA QUENTE AGORA!", "🛒 NÃO DEIXA ESCAPAR!"
+    "👇 CORRE QUE TÁ ACABANDO!",
+    "⚡ CLIQUE ANTES QUE AUMENTE!",
+    "🚀 ESTOQUE LIMITADO - AGORA!",
+    "💥 MELHOR PREÇO DO ANO!",
+    "🎯 COMPRE ANTES DOS OUTROS!",
+    "🔥 VOOU DAS PRATELEIRAS!",
+    "⏰ PROMOÇÃO ACABA HOJE!",
+    "💰 ECONOMIA REAL - CORRE!",
+    "⭐ OFERTA QUENTE AGORA!",
+    "🛒 NÃO DEIXA ESCAPAR!"
 ]
 
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=False):
-    aberturas = ["🚨 Isso aqui não é comum aparecer assim", "👀 Achei isso aqui e fui conferir…", "🔥 Isso aqui tá com cara de oportunidade", "💥 Esse aqui tá chamando atenção de quem compra", "🛑 Para tudo e olha isso aqui", "🤯 Sério… olha esse achado", "⚠️ Isso aqui pode desaparecer rápido", "👁️ Pouca gente viu isso ainda", "📉 Esse preço aqui não costuma durar", "🚀 Esse aqui tá começando a rodar forte"]
-    gatilhos = ["Preço muito abaixo do que costuma aparecer", "Avaliações acima da média", "Volume de vendas alto", "Simples e funcional", "Custo-benefício forte", "Quem compra recomenda", "Produto direto ao ponto", "Tá vendendo bem", "Boa margem pra afiliado", "Resolve de verdade"]
+    aberturas = [
+        "🚨 Isso aqui não é comum aparecer assim",
+        "👀 Achei isso aqui e fui conferir…",
+        "🔥 Isso aqui tá com cara de oportunidade",
+        "💥 Esse aqui tá chamando atenção de quem compra",
+        "🛑 Para tudo e olha isso aqui",
+        "🤯 Sério… olha esse achado",
+        "⚠️ Isso aqui pode desaparecer rápido",
+        "👁️ Pouca gente viu isso ainda",
+        "📉 Esse preço aqui não costuma durar",
+        "🚀 Esse aqui tá começando a rodar forte"
+    ]
+
+    gatilhos = [
+        "Preço muito abaixo do que costuma aparecer",
+        "Avaliações acima da média",
+        "Volume de vendas alto",
+        "Simples e funcional",
+        "Custo-benefício forte",
+        "Quem compra recomenda",
+        "Produto direto ao ponto",
+        "Tá vendendo bem",
+        "Boa margem pra afiliado",
+        "Resolve de verdade"
+    ]
+
     chamada_grupo = f"📢 Quer mais ofertas assim? Entre no nosso grupo: {LINK_GRUPO_OFERTAS}"
     chamada_acao = random.choice(CHAMADAS_ACAO)
+
     abertura = random.choice([a for a in aberturas if a not in usadas_abertura] or aberturas)
     usadas_abertura.add(abertura)
+
     gatilho = random.choice([g for g in gatilhos if g not in usadas_gatilho] or gatilhos)
     usadas_gatilho.add(gatilho)
 
     if for_whatsapp:
         return f"""{abertura}
-
 *🔥 {nome}*
-
 {gatilho}
-
 {chamada_acao}
 
 *💰 R$ {preco}*
 *⭐ {avaliacao} | 🛒 {vendas} vendas*
-
 ⚠️ Pode subir de preço
 
 🛒 COMPRAR AGORA: {link}
+
 {chamada_grupo}
 """
+
     return f"""{abertura}
-
 🔥 <b>{nome}</b>
-
 {gatilho}
-
 {chamada_acao}
 
 💰 <b>R$ {preco}</b>
 ⭐ <b>{avaliacao} | {vendas} vendas</b>
 💸 Comissão: <b>{comissao}%</b>
-
 ⚠️ Pode subir de preço
 
 <a href="{link}">🛒 COMPRAR AGORA</a>
@@ -623,12 +761,14 @@ def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=Fals
 async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
     try:
         logging.info("Loop de ofertas iniciado")
+
         if not dentro_do_horario():
             logging.info("Fora do horário (05:30–21:30)")
             return
 
         usadas_abertura.clear()
         usadas_gatilho.clear()
+
         shopee_ofertas = get_shopee_offers()
         selecionadas = []
 
@@ -646,13 +786,16 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 rating = float(item.get("ratingStar", 4.5))
                 vendas = int(item.get("sales", 100))
                 comissao = round(float(item.get("commissionRate", 0)) * 100, 2)
+
                 produto_id = produto_id_estavel(item, item.get("productName", ""), link_base)
+
                 vendas_f = f"{vendas:,}".replace(",", ".")
                 preco_f = f"{preco:.2f}".replace(".", ",")
 
                 msg = gerar_copy(nome, preco_f, vendas_f, rating, comissao, link, for_whatsapp=False)
                 zap_msg = gerar_copy(nome, preco_f, vendas_f, rating, 0, link, for_whatsapp=True)
                 zap = gerar_link_whatsapp_from_html(zap_msg)
+
                 msg += f'\n📲 <a href="{zap}">Compartilhar no WhatsApp</a>'
                 msg += "\n━━━━━━━━━━━━━━━\n📢 <b>Ofertas Secretas</b>"
 
@@ -667,6 +810,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 logging.error(f"Erro Shopee item: {e}", exc_info=True)
 
         logging.info(f"Selecionadas: {len(selecionadas)}")
+
         if not selecionadas:
             logging.warning("Nenhuma oferta encontrada")
             return
@@ -693,6 +837,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 logging.error(f"Erro Telegram VIP: {e}", exc_info=True)
 
         logging.info("=== ENTROU NO BLOCO GRATUITO ===")
+
         estado = carregar_estado()
         idx = estado.get("free_nicho_idx", 0)
         nicho_alvo = NICHOS_FREE_ROTA[idx % len(NICHOS_FREE_ROTA)]
@@ -723,6 +868,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         salvar_estado(estado)
 
         logging.info("Loop finalizado")
+
     except Exception as e:
         logging.error(f"ERRO CRITICO: {e}", exc_info=True)
 
