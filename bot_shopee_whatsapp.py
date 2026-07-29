@@ -187,7 +187,7 @@ def salvar_estado(estado):
         logging.error(f"Erro salvando estado: {e}")
 
 
-def carregar_HISTORICO
+def carregar_HISTORICO():
     try:
         if os.path.exists(HISTORICO_FILE):
             with open(HISTORICO_FILE, "r", encoding="utf-8") as f:
