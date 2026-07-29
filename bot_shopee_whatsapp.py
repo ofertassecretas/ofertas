@@ -197,7 +197,7 @@ def carregar_HISTORICO():
     return {}
 
 
-def salvar_historico(HISTORICO)
+def salvar_historico(HISTORICO):
     try:
         with open(HISTORICO_FILE, "w", encoding="utf-8") as f:
             json.dump(hist, f, ensure_ascii=False)
