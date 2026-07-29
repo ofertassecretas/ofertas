@@ -297,7 +297,7 @@ def oferta_score(p, termo=""):
         elif termo_n and any(x in nome for x in termo_n.split()):
             score += 3
 
-        if any(x in nome for x in [
+if any(x in nome for x in [
     "moto",
     "bebê",
     "bebe",
