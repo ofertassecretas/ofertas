@@ -116,12 +116,8 @@ def carregar_estado():
         estado.setdefault(nicho, {})
 
     estado["Moto"].setdefault("resultado_idx", {})
-    estado["Moto"].setdefault("pares", [])
-    estado["Moto"].setdefault("pares_idx", 0)
-    if not estado["Moto"]["pares"]:
-        pares = [(m, p) for m in MOTOS for p in PECAS_MOTO]
-        random.shuffle(pares)
-        estado["Moto"]["pares"] = pares
+    estado["Moto"].setdefault("peca_idx", 0)
+    estado["Moto"].setdefault("moto_idx", 0)
 
     for nicho in ["Casa", "Maternidade", "Eletroeletrônicos", "Moda feminina", "Moda masculina"]:
         estado[nicho].setdefault("resultado_idx", {})
@@ -377,20 +373,36 @@ def get_proximo_termo(nicho, estado):
     return catalogo[pos], estado
 
 
-def get_proxima_combinacao_moto(estado):
+def get_proximas_combinacoes_moto(estado, quantidade=2):
     moto_state = estado.setdefault("Moto", {})
-    pares = moto_state.get("pares", [])
-    if not pares:
-        pares = [(m, p) for m in MOTOS for p in PECAS_MOTO]
-        random.shuffle(pares)
-        moto_state["pares"] = pares
-    idx = moto_state.get("pares_idx", 0)
-    par = pares[idx % len(pares)]
-    moto_state["pares_idx"] = (idx + 1) % len(pares)
-    if moto_state["pares_idx"] == 0:
-        random.shuffle(pares)
-        moto_state["pares"] = pares
-    return par, estado
+
+    peca_idx = moto_state.get("peca_idx", 0)
+    moto_idx = moto_state.get("moto_idx", 0)
+
+    resultado = []
+
+    peca = PECAS_MOTO[peca_idx]
+
+    for _ in range(quantidade):
+
+        moto = MOTOS[moto_idx]
+
+        resultado.append((moto, peca))
+
+        moto_idx += 1
+
+        if moto_idx >= len(MOTOS):
+            moto_idx = 0
+
+    peca_idx += 1
+
+    if peca_idx >= len(PECAS_MOTO):
+        peca_idx = 0
+
+    moto_state["peca_idx"] = peca_idx
+    moto_state["moto_idx"] = moto_idx
+
+    return resultado, estado
 
 
 def validar_modelo_titulo(titulo, termo):
@@ -521,31 +533,59 @@ def get_shopee_offers():
     ordem_nichos = ["Moto", "Casa", "Maternidade", "Eletroeletrônicos", "Moda feminina", "Moda masculina"]
     random.shuffle(ordem_nichos)
 
-    cotas = {"Moto": 2, "Casa": 2, "Maternidade": 2, "Eletroeletrônicos": 2, "Moda feminina": 1, "Moda masculina": 1}
+    cotas = {
+        "Moto": 2,
+        "Casa": 2,
+        "Maternidade": 2,
+        "Eletroeletrônicos": 2,
+        "Moda feminina": 1,
+        "Moda masculina": 1
+    }
 
     for nicho in ordem_nichos:
         try:
             if nicho == "Moto":
-                for _ in range(cotas[nicho]):
-                    (moto, peca), estado = get_proxima_combinacao_moto(estado)
-                    escolhidos, estado = selecionar_ofertas_termo(nicho, moto, 1, estado, e_moto=True, peca=peca)
-                    # adiciona nicho_origem
+                # Usa a nova lógica de múltiplas motos para a mesma peça
+                combinacoes, estado = get_proximas_combinacoes_moto(
+                    estado,
+                    quantidade=cotas[nicho]
+                )
+
+                for moto, peca in combinacoes:
+                    escolhidos, estado = selecionar_ofertas_termo(
+                        nicho,
+                        moto,
+                        1,
+                        estado,
+                        e_moto=True,
+                        peca=peca
+                    )
+
                     for p in escolhidos:
                         candidatos.append((nicho, p))
+
             else:
-                for _ in range(cotas[nicho]):
-                    (termo, _, _), estado = get_proximo_termo(nicho, estado)
-                    escolhidos, estado = selecionar_ofertas_termo(nicho, termo, 1, estado)
-                    # adiciona nicho_origem
-                    for p in escolhidos:
-                        candidatos.append((nicho, p))
+                # Lógica original para os demais nichos (Casa, Moda, etc.)
+                (termo, _, _), estado = get_proximo_termo(nicho, estado)
+
+                escolhidos, estado = selecionar_ofertas_termo(
+                    nicho,
+                    termo,
+                    cotas[nicho],
+                    estado
+                )
+
+                for p in escolhidos:
+                    candidatos.append((nicho, p))
+
         except Exception as e:
             logging.error(f"Erro no nicho {nicho}: {e}", exc_info=True)
 
     salvar_estado(estado)
 
-    # ordena por score mantendo nicho junto
+    # Ordena por score mantendo nicho junto
     candidatos.sort(key=lambda x: oferta_score(x[1]), reverse=True)
+
     logging.info(f"Shopee OK: {len(candidatos[:MAX_OFERTAS])} produtos exclusivos para envio")
     return candidatos[:MAX_OFERTAS]
 
