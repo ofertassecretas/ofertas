@@ -74,24 +74,58 @@ PECAS_MOTO = [
 ]
 
 PRODUTOS_NICHO = {
-    "Casa": ["air fryer", "fritadeira eletrica", "aspirador", "aspirador vertical", "liquidificador", "cafeteira", "panela eletrica", "panela de pressão", "capa para colchão", "jogo de pratos", "jogo de copos", "copo stanley", "talher", "panos de prato", "toalhas de banho", "coberta manta", "lençol", "cobre leito", "mangueira de jardim", "tapete", "tapete sala", "torneira de cozinha", "filtro de barro", "guarda roupas casal", "guarda roupas portatil", "cama casal", "forma de silicone", "sapateira", "umidificador", "ar condicionado", "jogo de panelas", "cortinas", "tintas parede", "tinta spray", "frigideiras", "rede de dormir", "pipoqueira", "mop", "ventilador", "batedeira", "escorredor de louça", "caixa organizadora", "papel de parede", "luminaria"],
-    "Maternidade": ["carrinho bebe", "berco bebe", "fralda descartavel", "fralda de pano", "naninha", "sapatinho", "pagãozinho", "coberdrom dupla face", "kit toalha umedecida", "toalha infantil banho", "banheira", "mictorio infantil", "bebê reborn", "carrinhos", "piscina de bolinhas", "kit bolsa maternidade", "canguru", "mosqueteiro", "kit mamadeira", "kit bicos", "baba eletronica", "babá eletronica", "ninho bebe", "kit enxoval bebe", "babador bebe", "mordedor bebe", "tapete infantil", "cadeirinha bebe", "almofada amamentacao", "termometro infantil"],
-    "Eletroeletrônicos": ["smartwatch", "relogio inteligente", "fone bluetooth", "headset gamer", "caixa de som bluetooth", "caixa de som", "soundbar", "bastão pau de selfie", "celular", "smartphone", "smart tv", "televisão", "video game", "fones de ouvido", "capinha celular", "pelicula celular", "massageador", "balança digital", "aparelho medidor de pressão", "massageador portatil", "webcam camera", "pen drive", "impressora termica", "maquina de impressão 3d", "computador", "cpu gamer", "cpu", "notebook", "drone", "camera de segurança", "gopro", "tablet", "ssd", "mouse gamer", "teclado mecanico", "power bank", "carregador turbo", "suporte celular carro"],
-    "Moda feminina": ["vestido feminino", "conjunto feminino", "kit calcinhas", "biquines", "biquini", "saida de praia", "maquiagens", "roupa academia", "calça jean", "calça leggin", "saia longa", "vestido lovito", "sandalias", "pijamas", "pijamas mãe e filha", "blusa regata", "kit sutian", "bermuda modeladora", "oculos de sol", "calça social", "vestido midi", "jaqueta feminina", "casaco feminino", "conjunto alfaiataria", "short feminino", "macacao feminino", "tenis feminino", "bolsa feminina", "blazer feminino", "saia jeans", "top feminino", "body feminino"],
-    "Moda masculina": ["camiseta masculina", "relogios esportivos", "bermudas jeans", "relogio de quartzo", "camisetas regatas", "camisa polo", "camisa de linho", "terno", "blazer", "camisa tshort", "kit meias", "barbeador", "meias esportivas", "oculos de sol", "toucas", "calção de futebol", "tenis futebol", "chuteiras", "camisa termica", "bermuda masculina", "jaqueta masculina", "tenis masculino", "carteira masculina", "kit cueca", "calça jeans masculina", "camisa social masculina", "moletom masculino", "sapatenis masculino"],
+    "Casa": [
+        "air fryer", "fritadeira eletrica", "aspirador vertical", "aspirador robo", "liquidificador",
+        "cafeteira", "cafeteira eletrica", "cafeteira dolce gusto", "cafeteira nespresso",
+        "panela eletrica", "panela de pressão", "jogo de panelas", "mop", "ventilador",
+        "batedeira", "umidificador", "ar condicionado", "filtro de barro", "tapete sala",
+        "tapete antiderrapante", "torneira cozinha", "caixa organizadora", "sapateira",
+        "guarda roupas", "cama casal", "lençol", "cobre leito", "cortina", "luminaria",
+        "pipoqueira", "escorredor de louça", "mangueira jardim", "rede de dormir"
+    ],
+    "Maternidade": [
+        "carrinho bebe", "berco bebe", "fralda descartavel", "naninha", "kit bolsa maternidade",
+        "kit mamadeira", "babá eletronica", "ninho bebe", "kit enxoval bebe", "babador bebe",
+        "mordedor bebe", "tapete infantil", "cadeirinha bebe", "almofada amamentacao",
+        "termometro infantil", "banheira bebe", "mosqueteiro", "canguru bebe", "toalha infantil",
+        "fralda de pano", "coberdrom bebe", "bebe reborn", "kit bicos"
+    ],
+    "Eletroeletrônicos": [
+        "smartwatch", "relogio inteligente", "fone bluetooth", "headset gamer", "caixa de som bluetooth",
+        "soundbar", "celular", "smartphone", "smart tv", "televisão", "video game", "fone sem fio",
+        "webcam", "pen drive", "impressora termica", "notebook", "tablet", "ssd", "mouse gamer",
+        "teclado mecanico", "power bank", "carregador turbo", "suporte celular carro",
+        "camera de segurança", "gopro", "drone", "aparelho medidor de pressão", "balança digital",
+        "massageador", "massageador portatil"
+    ],
+    "Moda feminina": [
+        "vestido feminino", "conjunto feminino", "biquini", "saida de praia", "roupa academia",
+        "calça jeans", "calça legging", "saia longa", "vestido midi", "jaqueta feminina",
+        "casaco feminino", "conjunto alfaiataria", "short feminino", "macacao feminino",
+        "tenis feminino", "bolsa feminina", "blazer feminino", "saia jeans", "top feminino",
+        "body feminino", "pijama feminino", "blusa regata", "oculos de sol", "kit sutian"
+    ],
+    "Moda masculina": [
+        "camiseta masculina", "bermuda masculina", "camisa polo", "camisa de linho", "camisa social masculina",
+        "moletom masculino", "jaqueta masculina", "tenis masculino", "carteira masculina",
+        "kit cueca", "calça jeans masculina", "camisa termica", "sapatenis masculino",
+        "camisa tshort", "kit meias", "barbeador", "chuteiras", "calção de futebol", "oculos de sol"
+    ],
 }
 
 FAMILIAS_EXTRA = {
-    "air_fryer": ["air fryer", "airfryer", "fritadeira"],
-    "fone_bluetooth": ["fone bluetooth", "fones de ouvido", "headset", "earbud"],
-    "smartwatch": ["smartwatch", "relogio inteligente", "relógio inteligente"],
+    "air_fryer": ["air fryer", "airfryer", "fritadeira", "fritadeira eletrica"],
+    "eletro_cozinha": ["cafeteira", "liquidificador", "batedeira", "panela eletrica", "pipoqueira", "mop"],
+    "aspiradores": ["aspirador", "aspirador vertical", "aspirador robo"],
+    "fone_bluetooth": ["fone bluetooth", "fone sem fio", "fones de ouvido", "headset", "earbud"],
+    "smartwatch": ["smartwatch", "relogio inteligente", "relógio inteligente", "watch"],
     "caixa_som": ["caixa de som", "speaker", "soundbar"],
     "smart_tv": ["smart tv", "televisão", "tv"],
     "notebook": ["notebook", "notbook", "laptop"],
     "tablet": ["tablet", "ipad", "galaxy tab", "xiaomi pad"],
-    "celular": ["celular", "smartphone", "telefone", "iphone"],
+    "celular": ["celular", "smartphone", "telefone", "iphone", "android"],
     "maternidade_bebe": ["bebe", "bebê", "fralda", "carrinho", "berco", "mamadeira", "ninho", "babá", "baba"],
-    "moda_fem": ["vestido", "conjunto", "saia", "bolsa", "sandalia", "tenis feminino", "body"],
+    "moda_fem": ["vestido", "conjunto", "saia", "bolsa", "sandalia", "tenis feminino", "body", "pijama"],
     "moda_masc": ["camisa", "camiseta", "calça", "tenis masculino", "jaqueta", "bermuda", "sapatenis"],
     "casa_lar": ["tapete", "lençol", "cortina", "organizador", "caixa organizadora", "luminaria", "pipoqueira", "air fryer"],
     "moto_geral": ["capacete", "vela", "pastilha", "lona", "kit relação", "corrente", "coroa", "pinhão", "guidao", "guidão", "retrovisor", "farol", "lanterna"],
@@ -128,9 +162,7 @@ def carregar_estado():
             random.shuffle(ordem)
             estado[nicho]["produtos_ordem"] = ordem
 
-    # índice do rodízio Free
     estado.setdefault("free_nicho_idx", 0)
-
     return estado
 
 
@@ -176,7 +208,13 @@ def normalizar_texto(txt):
 
 def chave_base_titulo(titulo):
     t = normalizar_texto(titulo)
-    stop = {"premium", "novo", "promocao", "promoção", "super", "original", "profissional", "casual", "masculino", "feminino", "infantil", "adulto", "unissex", "estica", "kit", "com", "de", "para", "o", "a", "promo", "oferta", "modelo", "versao", "versão", "linha", "envio", "usado", "branco", "preto", "azul", "vermelho", "rosa", "verde", "amarelo", "tamanho", "tamanhos", "unico", "único", "gamer", "led", "usb"}
+    stop = {
+        "premium", "novo", "promocao", "promoção", "super", "original", "profissional", "casual",
+        "masculino", "feminino", "infantil", "adulto", "unissex", "estica", "kit", "com",
+        "de", "para", "o", "a", "promo", "oferta", "modelo", "versao", "versão", "linha",
+        "envio", "usado", "branco", "preto", "azul", "vermelho", "rosa", "verde", "amarelo",
+        "tamanho", "tamanhos", "unico", "único", "gamer", "led", "usb", "mini", "max", "pro"
+    }
     tokens = [x for x in t.split() if x not in stop and len(x) > 2]
     tokens = sorted(tokens)
     return " ".join(tokens[:8])
@@ -184,7 +222,11 @@ def chave_base_titulo(titulo):
 
 def tem_bloqueio(titulo):
     t = normalizar_texto(titulo)
-    palavras = ["teste", "amostra", "não compre", "nao compre", "produto teste", "exemplo", "dummy", "vela led", "vela decorativa", "decorativa", "decoração", "casamento", "festa"]
+    palavras = [
+        "teste", "amostra", "não compre", "nao compre", "produto teste", "exemplo", "dummy",
+        "vela led", "vela decorativa", "decorativa", "decoração", "casamento", "festa",
+        "réplica", "replica", "genérico", "generico", "display", "mostruario", "brinde"
+    ]
     return any(p in t for p in palavras)
 
 
@@ -216,6 +258,27 @@ def shop_type_score(shop_type):
         return 0
 
 
+def pontuar_marca(nome):
+    marcas_fortes = [
+        "samsung", "motorola", "xiaomi", "poco", "redmi", "iphone", "apple", "philco",
+        "mondial", "britania", "britânia", "electrolux", "oster", "philips", "walita",
+        "lenovo", "asus", "dell", "acer", "haylou", "amazfit", "mibro", "huawei",
+        "colcci", "lovito", "farm", "lancome", "lance", "lupo", "adidas", "nike"
+    ]
+    nome_n = normalizar_texto(nome)
+    return 4 if any(m in nome_n for m in marcas_fortes) else 0
+
+
+def penalidade_termo_fraco(nome):
+    fracos = [
+        "genérico", "generico", "universal", "mini", "infantil", "brinquedo", "adesivo",
+        "capa", "case", "pelicula", "display", "mostruario", "decorativo", "réplica",
+        "replica", "dummy", "refil", "kit reposicao", "reposição", "reposicao"
+    ]
+    nome_n = normalizar_texto(nome)
+    return -5 if any(x in nome_n for x in fracos) else 0
+
+
 def oferta_score(p, termo=""):
     try:
         vendas = int(p.get("sales", 0) or 0)
@@ -225,19 +288,40 @@ def oferta_score(p, termo=""):
         st = p.get("shopType", [])
         nome = normalizar_texto(str(p.get("productName", "")))
         termo_n = normalizar_texto(termo)
+
         score = 0
-        score += min(vendas / 8, 25)
-        score += rating * 2
+        score += min(vendas / 6, 30)
+        score += rating * 2.5
         score += comissao * 100
         score += shop_type_score(st)
-        if 50 <= preco <= 5000:
-            score += 6
-        if termo_n and termo_n in nome:
-            score += 8
-        elif termo_n and any(x in nome for x in termo_n.split()):
+        score += pontuar_marca(nome)
+        score += penalidade_termo_fraco(nome)
+
+        if 40 <= preco <= 3000:
+            score += 7
+        elif 3000 < preco <= 7000:
             score += 3
-        if any(x in nome for x in ["moto", "bebê", "bebe", "smartwatch", "ssd", "fone", "tablet", "air fryer", "tapete", "capacete"]):
+
+        if termo_n and termo_n in nome:
+            score += 10
+        elif termo_n and any(x in nome for x in termo_n.split()):
+            score += 4
+
+        termos_bonus = [
+            "smartwatch", "relogio inteligente", "air fryer", "aspirador", "fone", "notebook",
+            "tablet", "caixa de som", "ssd", "celular", "smart tv", "cafeteira", "mop",
+            "berco", "carrinho bebe", "vestido", "jaqueta", "camiseta", "tenis", "capacete"
+        ]
+        if any(x in nome for x in termos_bonus):
             score += 2
+
+        if vendas >= 1000:
+            score += 4
+        if rating >= 4.7:
+            score += 2
+        if comissao >= 0.08:
+            score += 2
+
         return score
     except:
         return 0
@@ -251,6 +335,7 @@ def motivo_rejeicao(p):
         comissao = float(p.get("commissionRate", 0) or 0)
         vendas = int(p.get("sales", 0) or 0)
         rating = float(p.get("ratingStar", 0) or 0)
+
         if not titulo:
             return "sem_titulo"
         if not link:
@@ -416,19 +501,33 @@ def validar_modelo_titulo(titulo, termo):
 
 def validar_relevancia_nicho(nicho, titulo, termo=None, modelo=None, peca=None):
     t = normalizar_texto(titulo)
+
     if nicho == "Eletroeletrônicos":
         if any(x in t for x in ["capa", "pelicula", "case"]) and not any(x in t for x in ["celular", "tablet", "smartphone", "iphone"]):
             return False
         if any(x in t for x in ["smart tv", "televisao", "televisão"]) and any(x in t for x in ["mouse", "teclado", "ssd", "notebook"]):
             return False
+        if any(x in t for x in ["teclado", "mouse", "ssd"]) and any(x in t for x in ["capa", "pelicula", "case"]):
+            return False
+
     if nicho == "Casa" and any(x in t for x in ["tinta", "tintas"]) and not any(x in t for x in ["parede", "spray", "esmalte"]):
         return False
+
     if nicho == "Moda feminina" and any(x in t for x in ["masculino", "homem", "masc"]):
         return False
+
     if nicho == "Moda masculina" and any(x in t for x in ["feminino", "mulher", "menina"]):
         return False
+
     if nicho == "Maternidade" and any(x in t for x in ["organizador", "cozinha", "banheiro", "carro"]) and not any(x in t for x in ["bebe", "bebê", "infantil", "maternidade", "fralda", "carrinho", "mamadeira", "ninho"]):
         return False
+
+    if termo:
+        termo_n = normalizar_texto(termo)
+        if len(termo_n.split()) == 1 and termo_n in ["celular", "smartphone", "notebook", "tablet", "smart tv", "fone bluetooth", "smartwatch"]:
+            if not any(x in t for x in termo_n.split()):
+                return False
+
     if nicho == "Moto":
         if modelo and not validar_modelo_titulo(titulo, modelo):
             return False
@@ -436,6 +535,7 @@ def validar_relevancia_nicho(nicho, titulo, termo=None, modelo=None, peca=None):
             return False
         if termo and not validar_modelo_titulo(titulo, termo):
             return False
+
     return True
 
 
@@ -545,7 +645,6 @@ def get_shopee_offers():
     for nicho in ordem_nichos:
         try:
             if nicho == "Moto":
-                # Usa a nova lógica de múltiplas motos para a mesma peça
                 combinacoes, estado = get_proximas_combinacoes_moto(
                     estado,
                     quantidade=cotas[nicho]
@@ -565,7 +664,6 @@ def get_shopee_offers():
                         candidatos.append((nicho, p))
 
             else:
-                # Lógica original para os demais nichos (Casa, Moda, etc.)
                 (termo, _, _), estado = get_proximo_termo(nicho, estado)
 
                 escolhidos, estado = selecionar_ofertas_termo(
@@ -583,19 +681,51 @@ def get_shopee_offers():
 
     salvar_estado(estado)
 
-    # Ordena por score mantendo nicho junto
     candidatos.sort(key=lambda x: oferta_score(x[1]), reverse=True)
 
     logging.info(f"Shopee OK: {len(candidatos[:MAX_OFERTAS])} produtos exclusivos para envio")
     return candidatos[:MAX_OFERTAS]
 
 
-CHAMADAS_ACAO = ["👇 CORRE QUE TÁ ACABANDO!", "⚡ CLIQUE ANTES QUE AUMENTE!", "🚀 ESTOQUE LIMITADO - AGORA!", "💥 MELHOR PREÇO DO ANO!", "🎯 COMPRE ANTES DOS OUTROS!", "🔥 VOOU DAS PRATELEIRAS!", "⏰ PROMOÇÃO ACABA HOJE!", "💰 ECONOMIA REAL - CORRE!", "⭐ OFERTA QUENTE AGORA!", "🛒 NÃO DEIXA ESCAPAR!"]
+CHAMADAS_ACAO = [
+    "👇 CORRE QUE TÁ ACABANDO!",
+    "⚡ CLIQUE ANTES QUE AUMENTE!",
+    "🚀 ESTOQUE LIMITADO - AGORA!",
+    "💥 MELHOR PREÇO DO ANO!",
+    "🎯 COMPRE ANTES DOS OUTROS!",
+    "🔥 VOOU DAS PRATELEIRAS!",
+    "⏰ PROMOÇÃO ACABA HOJE!",
+    "💰 ECONOMIA REAL - CORRE!",
+    "⭐ OFERTA QUENTE AGORA!",
+    "🛒 NÃO DEIXA ESCAPAR!"
+]
 
 
 def gerar_copy(nome, preco, vendas, avaliacao, comissao, link, for_whatsapp=False):
-    aberturas = ["🚨 Isso aqui não é comum aparecer assim", "👀 Achei isso aqui e fui conferir…", "🔥 Isso aqui tá com cara de oportunidade", "💥 Esse aqui tá chamando atenção de quem compra", "🛑 Para tudo e olha isso aqui", "🤯 Sério… olha esse achado", "⚠️ Isso aqui pode desaparecer rápido", "👁️ Pouca gente viu isso ainda", "📉 Esse preço aqui não costuma durar", "🚀 Esse aqui tá começando a rodar forte"]
-    gatilhos = ["Preço muito abaixo do que costuma aparecer", "Avaliações acima da média", "Volume de vendas alto", "Simples e funcional", "Custo-benefício forte", "Quem compra recomenda", "Produto direto ao ponto", "Tá vendendo bem", "Boa margem pra afiliado", "Resolve de verdade"]
+    aberturas = [
+        "🚨 Isso aqui não é comum aparecer assim",
+        "👀 Achei isso aqui e fui conferir…",
+        "🔥 Isso aqui tá com cara de oportunidade",
+        "💥 Esse aqui tá chamando atenção de quem compra",
+        "🛑 Para tudo e olha isso aqui",
+        "🤯 Sério… olha esse achado",
+        "⚠️ Isso aqui pode desaparecer rápido",
+        "👁️ Pouca gente viu isso ainda",
+        "📉 Esse preço aqui não costuma durar",
+        "🚀 Esse aqui tá começando a rodar forte"
+    ]
+    gatilhos = [
+        "Preço muito abaixo do que costuma aparecer",
+        "Avaliações acima da média",
+        "Volume de vendas alto",
+        "Simples e funcional",
+        "Custo-benefício forte",
+        "Quem compra recomenda",
+        "Produto direto ao ponto",
+        "Tá vendendo bem",
+        "Boa margem pra afiliado",
+        "Resolve de verdade"
+    ]
     chamada_grupo = f"📢 Quer mais ofertas assim? Entre no nosso grupo: {LINK_GRUPO_OFERTAS}"
     chamada_acao = random.choice(CHAMADAS_ACAO)
     abertura = random.choice([a for a in aberturas if a not in usadas_abertura] or aberturas)
@@ -648,7 +778,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
         usadas_abertura.clear()
         usadas_gatilho.clear()
-        # agora shopee_ofertas é lista de (nicho_origem, item_raw)
+
         shopee_ofertas = get_shopee_offers()
         selecionadas = []
 
@@ -656,7 +786,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             logging.warning(f"Apenas {len(shopee_ofertas)} ofertas válidas. Pulando envio.")
             return
 
-        # Monta mensagens para o VIP
         for nicho_origem, item in shopee_ofertas[:MAX_OFERTAS]:
             try:
                 link_base = item.get("offerLink") or item.get("productLink")
@@ -683,7 +812,7 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     "img": img,
                     "produto_id": produto_id,
                     "item_raw": item,
-                    "nicho_origem": nicho_origem,  # salva nicho aqui
+                    "nicho_origem": nicho_origem,
                 })
             except Exception as e:
                 logging.error(f"Erro Shopee item: {e}", exc_info=True)
@@ -693,7 +822,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             logging.warning("Nenhuma oferta encontrada")
             return
 
-        # Envio para o VIP (grupo principal)
         await context.bot.send_message(
             chat_id=CHAT_ID_DESTINO,
             text="🚨 <b>OFERTAS NOVAS CHEGANDO...</b>",
@@ -715,7 +843,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 logging.error(f"Erro Telegram VIP: {e}", exc_info=True)
 
-        # Lógica do grupo FREE – 1 oferta aproveitando as mesmas
         logging.info("=== ENTROU NO BLOCO GRATUITO ===")
         estado = carregar_estado()
         idx = estado.get("free_nicho_idx", 0)
@@ -744,7 +871,6 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 logging.error(f"Erro Telegram FREE: {e}", exc_info=True)
 
-        # Avança o rodízio do FREE e salva estado
         estado["free_nicho_idx"] = (idx + 1) % len(NICHOS_FREE_ROTA)
         salvar_estado(estado)
 
