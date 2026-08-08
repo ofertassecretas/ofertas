@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 import requests
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V22 - SELECAO INTELIGENTE")
+print("VERSAO SHOPEE V23 - NICHO PROTEGIDO + COMISSAO FLEXIVEL")
 
 # =========================================================
 # CONFIGURACAO
@@ -38,13 +38,13 @@ HORARIO_INICIO = dt_time(5, 30)
 HORARIO_FIM = dt_time(21, 30)
 
 # Filtros minimos: devem proteger qualidade sem estrangular o pool.
-HISTORICO_DIAS = 5
+HISTORICO_DIAS = 7
 SIMILARIDADE_MAX = 0.90
 VENDAS_MIN = 2
 RATING_MIN = 4.0
 PRECO_MIN = 15.0
 PRECO_MAX = 10000.0
-COMISSAO_MIN = 0.03
+COMISSAO_MIN = 0.0
 
 # Limites agora sao usados como penalizacao, nao como bloqueio precoce.
 LIMITE_VENDEDOR_PENALIDADE = 1
@@ -65,7 +65,7 @@ BUSCAS_POR_NICHO = {
 META_NICHO = {
     "Moto": 2,
     "Casa": 2,
-    "Maternidade": 1,
+    "Maternidade": 2,
     "Eletroeletronicos": 2,
     "Moda feminina": 1,
     "Moda masculina": 1,
@@ -485,16 +485,18 @@ def oferta_score(produto, termo="", nicho=None):
         score += penalidade_termo_fraco(nome)
 
         # Comissao importa, mas nao pode dominar vendas/qualidade.
-        score += min(comissao * 100, 18)
+        score += min(comissao * 40, 6)
 
         # Potencial de comissao em reais.
         comissao_r = valor_comissao(preco, comissao)
+        # A comissao agora e apenas um desempate comercial.
+        # Venda, relevancia e qualidade continuam mandando no ranking.
         if comissao_r >= 100:
-            score += 7
+            score += 4
         elif comissao_r >= 50:
-            score += 5
-        elif comissao_r >= 20:
             score += 3
+        elif comissao_r >= 20:
+            score += 2
         elif comissao_r >= 10:
             score += 1
 
@@ -536,7 +538,7 @@ def oferta_score(produto, termo="", nicho=None):
         if vendas >= 10000:
             score += 2
         if comissao >= 0.08:
-            score += 2
+            score += 1
 
         palavras = len(nome.split())
         if 3 <= palavras <= 14:
@@ -630,8 +632,6 @@ def motivo_rejeicao(produto):
             return "preco_baixo"
         if preco > PRECO_MAX:
             return "preco_alto"
-        if comissao < COMISSAO_MIN:
-            return "comissao_baixa"
         if vendas < VENDAS_MIN:
             return "vendas_baixas"
         if avaliacao and avaliacao < RATING_MIN:
@@ -690,7 +690,6 @@ def oferta_e_estrela(produto, nicho, termo):
         score >= 80
         and rating >= 4.6
         and vendas >= 500
-        and (comissao >= 0.05 or comissao_r >= 30)
     ) or (
         any(t in nome for t in TERMOS_ESTRELA)
         and score >= 78
@@ -798,8 +797,12 @@ def coletar_pool_nicho(nicho, estado):
             unicos[chave] = produto
     resultados = list(unicos.values())
 
+    baixas = sum(
+        1 for p in resultados if float(p.get("commissionRate", 0) or 0) < 0.05
+    )
     logging.info(
-        f"{nicho}: pool={len(resultados)} | buscas={len(buscas)} | rejeicoes={dict(motivos)}"
+        f"{nicho}: pool={len(resultados)} | buscas={len(buscas)} | "
+        f"comissao<5%={baixas} | rejeicoes={dict(motivos)}"
     )
     return resultados, estado, motivos
 
@@ -865,108 +868,149 @@ def selecionar_do_pool(pool, nicho, quantidade, candidatos_global=None):
     return selecionados
 
 
+def _score_selecao(produto, selecionados, usados_nicho, usados_familia, usados_marca, usados_vendedor, bases):
+    """Score final usado somente na montagem das 10 vagas."""
+    nicho = produto["_nicho"]
+    familia = produto["_familia"]
+    marca = produto["_marca"]
+    vendedor = produto["_vendedor"]
+    titulo = produto.get("productName", "")
+    base = assinatura_diversidade(titulo) if nicho != "Moto" else chave_base_titulo(titulo)
+    score = float(produto.get("_score_base", 0))
+
+    # Diversidade: repeticao perde pontos, mas nao e bloqueio absoluto.
+    if usados_marca[marca] >= 1 and marca != "sem_marca":
+        score -= 4 * usados_marca[marca]
+    if usados_familia[familia] >= 1 and familia != "outros":
+        score -= 7 * usados_familia[familia]
+    if usados_vendedor[vendedor] >= 1:
+        score -= 4 * usados_vendedor[vendedor]
+    if base in bases:
+        score -= 18
+
+    for item in selecionados:
+        ratio = SequenceMatcher(
+            None, sem_acento(titulo), sem_acento(item.get("productName", ""))
+        ).ratio()
+        if ratio >= SIMILARIDADE_MAX:
+            score -= 25
+        elif ratio >= 0.82:
+            score -= 8
+
+    if oferta_e_estrela(produto, nicho, produto.get("_termo_busca", "")):
+        score += 5
+
+    # Produtos principais de eletronicos recebem uma pequena prioridade.
+    if nicho == "Eletroeletronicos":
+        nome = sem_acento(titulo)
+        if any(t in nome for t in ["smart tv", "televisao", "tv", "celular", "smartphone", "notebook", "iphone"]):
+            score += 7
+
+    # Moto recebe um pequeno reforco por relevancia do modelo/peca.
+    if nicho == "Moto":
+        termo = sem_acento(produto.get("_termo_busca", ""))
+        nome = sem_acento(titulo)
+        if termo and termo in nome:
+            score += 8
+        vendas = int(produto.get("sales", 0) or 0)
+        if vendas >= 500:
+            score += 3
+        if vendas >= 1000:
+            score += 3
+
+    return score, base
+
+
 def selecionar_final_global(pools, max_ofertas=10):
-    # Monta uma lista unica com todos os candidatos e escolhe por valor + diversidade.
-    todos = []
+    """Seleciona as 10 ofertas com vagas protegidas por nicho.
+
+    A comissao nao e mais um filtro. Nicho, vendas, relevancia e qualidade
+    dominam; comissao apenas ajuda como criterio secundario.
+    """
+    candidatos_por_nicho = {}
+
     for nicho, pool in pools.items():
+        validos = []
         for produto in pool:
             produto = dict(produto)
             produto["_nicho"] = nicho
-            todos.append(produto)
-
-    if not todos:
-        return []
-
-    # Remove produtos que ja estao no historico apenas se nao forem estrelas.
-    candidatos = []
-    for produto in todos:
-        pid = chave_produto(produto, produto["_nicho"])
-        estrela = oferta_e_estrela(produto, produto["_nicho"], produto.get("_termo_busca", ""))
-        if historico_bloqueia(pid) and not estrela:
-            continue
-        candidatos.append(produto)
+            pid = chave_produto(produto, nicho)
+            # Historico agora e bloqueio real. Nem produto estrela pode furar.
+            if historico_bloqueia(pid):
+                continue
+            validos.append(produto)
+        candidatos_por_nicho[nicho] = validos
 
     selecionados = []
+    usados_nicho = Counter()
     usados_familia = Counter()
     usados_marca = Counter()
     usados_vendedor = Counter()
-    usados_nicho = Counter()
     bases = set()
 
-    for rodada in range(max_ofertas):
-        if not candidatos:
-            break
-
+    def escolher_melhor(nicho, candidatos):
         ranking = []
         for produto in candidatos:
-            nicho = produto["_nicho"]
-            familia = produto["_familia"]
-            marca = produto["_marca"]
-            vendedor = produto["_vendedor"]
-            titulo = produto.get("productName", "")
-            base = assinatura_diversidade(titulo) if nicho != "Moto" else chave_base_titulo(titulo)
-            score = produto["_score_base"]
-
-            # Diversidade por nicho: respeita meta sem transformar em cota obrigatoria.
-            meta = META_NICHO.get(nicho, 1)
-            if usados_nicho[nicho] >= meta:
-                score -= 10
-
-            # Se um nicho ainda nao apareceu, ganha prioridade moderada.
-            if usados_nicho[nicho] == 0:
-                score += 5
-
-            # Marca/familia/vendedor: penalizacao progressiva.
-            if usados_marca[marca] >= 1 and marca != "sem_marca":
-                score -= 4 * usados_marca[marca]
-            if usados_familia[familia] >= 1 and familia != "outros":
-                score -= 7 * usados_familia[familia]
-            if usados_vendedor[vendedor] >= 1:
-                score -= 4 * usados_vendedor[vendedor]
-
-            if base in bases:
-                score -= 18
-
-            # Similaridade com selecionados.
-            for item in selecionados:
-                ratio = SequenceMatcher(
-                    None,
-                    sem_acento(titulo),
-                    sem_acento(item.get("productName", "")),
-                ).ratio()
-                if ratio >= SIMILARIDADE_MAX:
-                    score -= 25
-                elif ratio >= 0.82:
-                    score -= 8
-
-            # Produto estrela pode furar parte das penalidades.
-            if oferta_e_estrela(produto, nicho, produto.get("_termo_busca", "")):
-                score += 8
-
-            # Eletronicos estrategicos: garante presenca sem forcar qualquer produto ruim.
-            if nicho == "Eletroeletronicos":
-                nome = sem_acento(titulo)
-                if any(t in nome for t in ["smart tv", "televisao", "celular", "smartphone", "notebook", "iphone"]):
-                    score += 5
-
+            score, base = _score_selecao(
+                produto, selecionados, usados_nicho, usados_familia,
+                usados_marca, usados_vendedor, bases
+            )
             ranking.append((score, produto, base))
-
         ranking.sort(key=lambda x: x[0], reverse=True)
-        score_escolha, escolhido, base = ranking[0]
+        return ranking[0] if ranking else None
 
-        # Se score ficou muito ruim, fazemos uma rodada de recuperacao depois.
-        if score_escolha < 35 and len(selecionados) >= MIN_OFERTAS:
-            break
+    # FASE 1: protege a presenca dos nichos.
+    for nicho in NICHOS:
+        meta = META_NICHO.get(nicho, 0)
+        candidatos = candidatos_por_nicho.get(nicho, [])
+        for _ in range(meta):
+            if not candidatos or len(selecionados) >= max_ofertas:
+                break
+            escolha = escolher_melhor(nicho, candidatos)
+            if not escolha:
+                break
+            _, produto, base = escolha
+            selecionados.append(produto)
+            candidatos.remove(produto)
+            usados_nicho[nicho] += 1
+            usados_marca[produto["_marca"]] += 1
+            usados_familia[produto["_familia"]] += 1
+            usados_vendedor[produto["_vendedor"]] += 1
+            bases.add(base)
 
+    # FASE 2: se algum nicho nao tinha candidatos suficientes, completa
+    # com as melhores oportunidades restantes, sem perder diversidade.
+    restantes = []
+    for nicho, candidatos in candidatos_por_nicho.items():
+        for produto in candidatos:
+            restantes.append(produto)
+
+    while restantes and len(selecionados) < max_ofertas:
+        ranking = []
+        for produto in restantes:
+            score, base = _score_selecao(
+                produto, selecionados, usados_nicho, usados_familia,
+                usados_marca, usados_vendedor, bases
+            )
+            ranking.append((score, produto, base))
+        ranking.sort(key=lambda x: x[0], reverse=True)
+        _, escolhido, base = ranking[0]
+        restantes.remove(escolhido)
         selecionados.append(escolhido)
-        candidatos.remove(escolhido)
         usados_nicho[escolhido["_nicho"]] += 1
         usados_marca[escolhido["_marca"]] += 1
         usados_familia[escolhido["_familia"]] += 1
         usados_vendedor[escolhido["_vendedor"]] += 1
         bases.add(base)
 
-    return selecionados
+    # Log de auditoria para sabermos imediatamente se algum nicho faltou.
+    distribuicao = Counter(item["_nicho"] for item in selecionados)
+    logging.info(f"DISTRIBUICAO FINAL: {dict(distribuicao)}")
+    logging.info(
+        "MOTO FINAL: %d/%d | CANDIDATOS DISPONIVEIS: %d"
+        % (distribuicao.get("Moto", 0), META_NICHO.get("Moto", 0), len(candidatos_por_nicho.get("Moto", [])))
+    )
+    return selecionados[:max_ofertas]
 
 # =========================================================
 # RECUPERACAO PARA COMPLETAR 10
@@ -1011,7 +1055,7 @@ def recuperar_ofertas(pools, selecionados, estado):
                     pid = chave_produto(produto, nicho)
                     if pid in {chave_produto(x, x["_nicho"]) for x in selecionados}:
                         continue
-                    if historico_bloqueia(pid) and not oferta_e_estrela(produto, nicho, termo_busca):
+                    if historico_bloqueia(pid):
                         continue
                     novos.append(produto)
 
@@ -1324,6 +1368,4 @@ if __name__ == "__main__":
         except Exception as erro:
             logging.error(f"BOT REINICIANDO: {erro}", exc_info=True)
             time.sleep(15)
-
- 
 
