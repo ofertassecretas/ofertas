@@ -1,4 +1,13 @@
-import asyncio, hashlib, html, json, logging, math, os, random, re, time
+import asyncio
+import hashlib
+import html
+import json
+import logging
+import math
+import os
+import random
+import re
+import time
 from collections import Counter
 from datetime import datetime, time as dt_time, timedelta
 from difflib import SequenceMatcher
@@ -8,93 +17,128 @@ from zoneinfo import ZoneInfo
 import requests
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-print("VERSAO SHOPEE V24 - MOTOR RELEVANCIA + DIVERSIDADE + COMISSAO FLEXIVEL")
+
+print("VERSAO SHOPEE V25 - MOTOR DIVERSIDADE + HISTORICO FORTE + MOTO DETERMINISTICO")
+
 
 # =========================================================
 # CONFIG
 # =========================================================
 
-TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+TELEGRAM_TOKEN = (
+    os.getenv("TELEGRAM_TOKEN")
+    or os.getenv("TELEGRAM_BOT_TOKEN")
+    or ""
+).strip()
+
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
+
 CHAT_ID_DESTINO = -1003848415150
 FREE_CHAT_ID = -1003886228244
+
 SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
-LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
-SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
+
+LINK_GRUPO_OFERTAS = (
+    "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
+)
+
+SHOPEE_GRAPHQL_URL = (
+    "https://open-api.affiliate.shopee.com.br/graphql"
+)
 
 CHECK_INTERVAL = 5400
+
 MAX_OFERTAS = 10
 MIN_OFERTAS = 4
+
 HORARIO_INICIO = dt_time(5, 30)
 HORARIO_FIM = dt_time(21, 30)
 
+# Histórico principal.
 HISTORICO_DIAS = 7
+
+# Similaridade entre produtos.
 SIMILARIDADE_MAX = 0.90
+
+# Similaridade usada contra histórico persistente.
+# Mais alta para não bloquear produtos legítimos demais.
+SIMILARIDADE_HISTORICO = 0.93
+
 VENDAS_MIN = 2
 RATING_MIN = 4.0
+
 PRECO_MIN = 15.0
 PRECO_MAX = 10000.0
 
-# Comissão NÃO bloqueia.
+# Comissão não bloqueia.
 COMISSAO_MIN = 0.0
 
-# Penalidades de diversidade.
+# Diversidade dentro do ciclo.
 LIMITE_VENDEDOR_PENALIDADE = 1
 LIMITE_MARCA_PENALIDADE = 1
 LIMITE_FAMILIA_PENALIDADE = 1
 
 BUSCAS_POR_NICHO = {
-    "Moto": 5, "Casa": 4, "Maternidade": 4,
-    "Eletroeletronicos": 5, "Moda feminina": 3, "Moda masculina": 3,
+    "Moto": 5,
+    "Casa": 4,
+    "Maternidade": 4,
+    "Eletroeletronicos": 5,
+    "Moda feminina": 3,
+    "Moda masculina": 3,
 }
 
 META_NICHO = {
-    "Moto": 2, "Casa": 2, "Maternidade": 2,
-    "Eletroeletronicos": 2, "Moda feminina": 1, "Moda masculina": 1,
+    "Moto": 2,
+    "Casa": 2,
+    "Maternidade": 2,
+    "Eletroeletronicos": 2,
+    "Moda feminina": 1,
+    "Moda masculina": 1,
 }
 
-TERMOS_ESTRATEGICOS = {
-    "Eletroeletronicos": [
-        "smart tv", "televisao", "celular", "smartphone", "notebook", "tablet",
-        "iphone", "smartwatch", "fone bluetooth", "caixa de som bluetooth",
-        "video game", "impressora termica", "camera de seguranca", "ssd"
-    ],
-    "Casa": [
-        "air fryer", "fritadeira eletrica", "aspirador vertical", "aspirador robo",
-        "cafeteira", "liquidificador", "ventilador", "ar condicionado", "mop"
-    ],
-    "Maternidade": [
-        "carrinho bebe", "berco bebe", "fralda descartavel", "baba eletronica",
-        "kit bolsa maternidade", "kit enxoval bebe", "canguru bebe"
-    ],
-    "Moda feminina": [
-        "vestido feminino", "conjunto feminino", "tenis feminino", "bolsa feminina",
-        "calca jeans", "roupa academia", "blazer feminino"
-    ],
-    "Moda masculina": [
-        "camiseta masculina", "bermuda masculina", "camisa polo", "tenis masculino",
-        "calca jeans masculina", "moletom masculino", "camisa social masculina"
-    ],
-    "Moto": [
-        "kit relacao", "kit embreagem", "bateria", "estator", "pastilha freio",
-        "vela iridium", "amortecedor", "kit pisca seta", "capacete", "pneu"
-    ],
-}
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# =========================================================
+# PERSISTENCIA
+# =========================================================
 
-FUSO_BR = ZoneInfo("America/Sao_Paulo")
-ESTADO_FILE = "estado_buscas.json"
-HISTORICO_FILE = "historico_envios.json"
+# Se existir Volume da Railway, usamos automaticamente.
+# Exemplo:
+# Volume montado em /app/data
+#
+# A Railway disponibiliza RAILWAY_VOLUME_MOUNT_PATH
+# automaticamente quando um Volume está conectado.
+
+VOLUME_PATH = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "").strip()
+
+if VOLUME_PATH:
+    DATA_DIR = VOLUME_PATH
+else:
+    # Permite configurar manualmente.
+    DATA_DIR = os.getenv("BOT_DATA_DIR", ".").strip() or "."
+
+os.makedirs(DATA_DIR, exist_ok=True)
+
+ESTADO_FILE = os.path.join(DATA_DIR, "estado_buscas.json")
+HISTORICO_FILE = os.path.join(DATA_DIR, "historico_envios.json")
+
+
+# =========================================================
+# MEMORIA DO CICLO
+# =========================================================
 
 usados_no_ciclo = set()
+
 BASES_VISTAS = set()
+
 ULTIMAS_BUSCAS_SHOPEE = []
+
 ULTIMOS_TITULOS = []
+
 VENDEDORES_NO_CICLO = Counter()
 MARCAS_NO_CICLO = Counter()
 FAMILIAS_NO_CICLO = Counter()
+
 
 # =========================================================
 # CATALOGOS
@@ -103,129 +147,499 @@ FAMILIAS_NO_CICLO = Counter()
 def lista(texto):
     return [x.strip() for x in texto.split("|") if x.strip()]
 
+
 MOTOS = lista(
-    "titan 150|cb 300|factor 150|titan 160|tornado|fazer 150|titan 125|"
-    "bros 160|twister 250|biz 125|pop 110|xre 300|crosser 150|xre 190|"
-    "fazer 250|lander 250|bros 150|tenere 250|biz 100|twister 300"
+    "titan 150|cb 300|factor 150|titan 160|tornado 250|"
+    "fazer 150|titan 125|bros 160|twister 250|biz 125|"
+    "pop 110|pop 100|xre 300|crosser 150|xre 190|"
+    "fazer 250|lander 250|bros 150|tenere 250|biz 100|"
+    "twister 300"
 )
 
+
 PECAS_MOTO = lista(
-    "kit relacao|kit embreagem|bateria|refil bomba combustivel|chicote fiacao principal|"
-    "bucha balanca|burrinho de freio|estribo|pedal de marcha|pedal de freio|"
-    "rolamento virabrequim|estator|chave ignicao|punho chave luz|kit pisca seta|"
-    "par pneu|bloco optico|retentor de bengala|bucha amortecedor|carburador corpo de injecao|"
-    "kit cilindro|jogo de juntas|biela|valvulas escape admissao|disco de freio|"
-    "tubo interno|vela iridium|pastilha freio|guidao|manopla|amortecedor|retrovisor|"
-    "farol|lona de freio|cabo embreagem|cabo acelerador|coroa moto|pinhao moto|"
-    "corrente moto|pedaleira|carenagem|lanterna traseira|capacete|pneu"
+    "kit relacao|cabos|kit embreagem|bateria|"
+    "refil bomba combustivel|chicote fiacao principal|"
+    "bucha balanca|burrinho de freio|estribo|pedal de marcha|"
+    "pedal de freio|rolamento virabrequim|estator|chave ignicao|"
+    "punho chave luz|kit pisca seta|par pneu|bloco optico|"
+    "retentor de bengala|bucha amortecedor|"
+    "carburador corpo de injecao|kit cilindro|jogo de juntas|"
+    "biela|valvulas escape admissao|disco de freio|"
+    "tubo interno|vela iridium|pastilha freio|guidao|manopla|"
+    "amortecedor|retrovisor|farol|lona de freio|"
+    "cabo embreagem|cabo acelerador|coroa moto|pinhao moto|"
+    "corrente moto|pedaleira|carenagem|lanterna traseira|"
+    "capacete|pneu"
 )
+
 
 PRODUTOS_NICHO = {
     "Casa": lista(
-        "air fryer|fritadeira eletrica|aspirador vertical|aspirador robo|liquidificador|"
-        "cafeteira|cafeteira eletrica|cafeteira dolce gusto|cafeteira nespresso|panela eletrica|"
-        "panela de pressao|jogo de panelas|mop|ventilador|batedeira|umidificador|ar condicionado|"
-        "filtro de barro|tapete sala|tapete antiderrapante|torneira cozinha|caixa organizadora|"
-        "sapateira|guarda roupas|cama casal|lencol|cobre leito|cortina|luminaria|pipoqueira|"
+        "air fryer|fritadeira eletrica|aspirador vertical|"
+        "aspirador robo|liquidificador|cafeteira|cafeteira eletrica|"
+        "cafeteira dolce gusto|cafeteira nespresso|panela eletrica|"
+        "panela de pressao|jogo de panelas|mop|ventilador|"
+        "batedeira|umidificador|ar condicionado|filtro de barro|"
+        "tapete sala|tapete antiderrapante|torneira cozinha|"
+        "caixa organizadora|sapateira|guarda roupas|cama casal|"
+        "lencol|cobre leito|cortina|luminaria|pipoqueira|"
         "escorredor de louca|mangueira jardim|rede de dormir"
     ),
+
     "Maternidade": lista(
-        "carrinho bebe|berco bebe|fralda descartavel|naninha|kit bolsa maternidade|kit mamadeira|"
-        "baba eletronica|ninho bebe|kit enxoval bebe|babador bebe|mordedor bebe|tapete infantil|"
-        "cadeirinha bebe|almofada amamentacao|termometro infantil|banheira bebe|mosqueteiro|"
-        "canguru bebe|toalha infantil|fralda de pano|coberdrom bebe|bebe reborn|kit bicos"
+        "carrinho bebe|berco bebe|fralda descartavel|naninha|"
+        "kit bolsa maternidade|kit mamadeira|baba eletronica|"
+        "ninho bebe|kit enxoval bebe|babador bebe|mordedor bebe|"
+        "tapete infantil|cadeirinha bebe|almofada amamentacao|"
+        "termometro infantil|banheira bebe|mosqueteiro|"
+        "canguru bebe|toalha infantil|fralda de pano|"
+        "coberdrom bebe|bebe reborn|kit bicos"
     ),
+
     "Eletroeletronicos": lista(
-        "smartwatch|relogio inteligente|fone bluetooth|headset gamer|caixa de som bluetooth|"
-        "soundbar|celular|smartphone|smart tv|televisao|video game|fone sem fio|webcam|pen drive|"
-        "impressora termica|notebook|tablet|ssd|mouse gamer|teclado mecanico|power bank|"
-        "carregador turbo|suporte celular carro|camera de seguranca|gopro|drone|"
-        "aparelho medidor de pressao|balanca digital|massageador|massageador portatil"
+        "smartwatch|relogio inteligente|fone bluetooth|"
+        "headset gamer|caixa de som bluetooth|soundbar|celular|"
+        "smartphone|smart tv|televisao|video game|fone sem fio|"
+        "webcam|pen drive|impressora termica|notebook|tablet|"
+        "ssd|mouse gamer|teclado mecanico|power bank|"
+        "carregador turbo|suporte celular carro|"
+        "camera de seguranca|gopro|drone|"
+        "aparelho medidor de pressao|balanca digital|"
+        "massageador|massageador portatil"
     ),
+
     "Moda feminina": lista(
-        "vestido feminino|conjunto feminino|biquini|saida de praia|roupa academia|calca jeans|"
-        "calca legging|saia longa|vestido midi|jaqueta feminina|casaco feminino|conjunto alfaiataria|"
-        "short feminino|macacao feminino|tenis feminino|bolsa feminina|blazer feminino|saia jeans|"
-        "top feminino|body feminino|pijama feminino|blusa regata|oculos de sol|kit sutia"
+        "vestido feminino|conjunto feminino|biquini|saida de praia|"
+        "roupa academia|calca jeans|calca legging|saia longa|"
+        "vestido midi|jaqueta feminina|casaco feminino|"
+        "conjunto alfaiataria|short feminino|macacao feminino|"
+        "tenis feminino|bolsa feminina|blazer feminino|saia jeans|"
+        "top feminino|body feminino|pijama feminino|blusa regata|"
+        "oculos de sol|kit sutia"
     ),
+
     "Moda masculina": lista(
-        "camiseta masculina|bermuda masculina|camisa polo|camisa de linho|camisa social masculina|"
-        "moletom masculino|jaqueta masculina|tenis masculino|carteira masculina|kit cueca|"
-        "calca jeans masculina|camisa termica|sapatenis masculino|camisa tshirt|kit meias|"
-        "barbeador|chuteiras|calcao de futebol|oculos de sol"
+        "camiseta masculina|bermuda masculina|camisa polo|"
+        "camisa de linho|camisa social masculina|moletom masculino|"
+        "jaqueta masculina|tenis masculino|carteira masculina|"
+        "kit cueca|calca jeans masculina|camisa termica|"
+        "sapatenis masculino|camisa tshirt|kit meias|barbeador|"
+        "chuteiras|calcao de futebol|oculos de sol"
     ),
 }
+
 
 FAMILIAS_EXTRA = {
-    "air_fryer": lista("air fryer|airfryer|fritadeira|fritadeira eletrica"),
-    "eletro_cozinha": lista("cafeteira|liquidificador|batedeira|panela eletrica|pipoqueira|mop"),
-    "aspiradores": lista("aspirador|aspirador vertical|aspirador robo"),
-    "fone_bluetooth": lista("fone bluetooth|fone sem fio|fones de ouvido|headset|earbud"),
-    "smartwatch": lista("smartwatch|relogio inteligente|watch"),
-    "caixa_som": lista("caixa de som|speaker|soundbar"),
-    "smart_tv": lista("smart tv|televisao|tv"),
-    "notebook": lista("notebook|notbook|laptop"),
-    "tablet": lista("tablet|ipad|galaxy tab|xiaomi pad"),
-    "celular": lista("celular|smartphone|telefone|iphone|android"),
-    "maternidade_bebe": lista("bebe|fralda|carrinho|berco|mamadeira|ninho|baba"),
-    "moda_fem": lista("vestido|conjunto|saia|bolsa|sandalia|tenis feminino|body|pijama"),
-    "moda_masc": lista("camisa|camiseta|calca|tenis masculino|jaqueta|bermuda|sapatenis"),
-    "casa_lar": lista("tapete|lencol|cortina|organizador|caixa organizadora|luminaria|pipoqueira|air fryer"),
-    "moto_geral": lista("capacete|vela|pastilha|lona|kit relacao|corrente|coroa|pinhao|guidao|retrovisor|farol|lanterna"),
+    "air_fryer": lista(
+        "air fryer|airfryer|fritadeira|fritadeira eletrica"
+    ),
+
+    "eletro_cozinha": lista(
+        "cafeteira|liquidificador|batedeira|panela eletrica|"
+        "pipoqueira|mop"
+    ),
+
+    "aspiradores": lista(
+        "aspirador|aspirador vertical|aspirador robo"
+    ),
+
+    "fone_bluetooth": lista(
+        "fone bluetooth|fone sem fio|fones de ouvido|"
+        "headset|earbud"
+    ),
+
+    "smartwatch": lista(
+        "smartwatch|relogio inteligente|watch"
+    ),
+
+    "caixa_som": lista(
+        "caixa de som|speaker|soundbar"
+    ),
+
+    "smart_tv": lista(
+        "smart tv|televisao|tv"
+    ),
+
+    "notebook": lista(
+        "notebook|notbook|laptop"
+    ),
+
+    "tablet": lista(
+        "tablet|ipad|galaxy tab|xiaomi pad"
+    ),
+
+    "celular": lista(
+        "celular|smartphone|telefone|iphone|android"
+    ),
+
+    "maternidade_bebe": lista(
+        "bebe|fralda|carrinho|berco|mamadeira|ninho|baba"
+    ),
+
+    "moda_fem": lista(
+        "vestido|conjunto|saia|bolsa|sandalia|"
+        "tenis feminino|body|pijama"
+    ),
+
+    "moda_masc": lista(
+        "camisa|camiseta|calca|tenis masculino|"
+        "jaqueta|bermuda|sapatenis"
+    ),
+
+    "casa_lar": lista(
+        "tapete|lencol|cortina|organizador|"
+        "caixa organizadora|luminaria|pipoqueira|air fryer"
+    ),
+
+    "moto_geral": lista(
+        "capacete|vela|pastilha|lona|kit relacao|corrente|"
+        "coroa|pinhao|guidao|retrovisor|farol|lanterna|"
+        "cabo|cabos|embreagem|bateria|amortecedor"
+    ),
 }
 
+
 NICHOS = list(PRODUTOS_NICHO.keys()) + ["Moto"]
-NICHOS_FREE_ROTA = ["Moto", "Casa", "Moda feminina", "Moda masculina", "Maternidade", "Eletroeletronicos"]
+
+NICHOS_FREE_ROTA = [
+    "Moto",
+    "Casa",
+    "Moda feminina",
+    "Moda masculina",
+    "Maternidade",
+    "Eletroeletronicos",
+]
+
 
 # =========================================================
 # ALIASES DE MOTO
 # =========================================================
 
 MOTO_ALIASES = {
-    "titan 150": ["titan 150", "cg 150", "cg titan 150", "titan"],
-    "titan 160": ["titan 160", "cg 160", "cg titan 160"],
-    "titan 125": ["titan 125", "cg 125", "cg titan 125"],
-    "bros 160": ["bros 160", "n bros 160", "nxr bros 160", "bros"],
-    "bros 150": ["bros 150", "nxr bros 150"],
-    "fazer 150": ["fazer 150", "ys fazer 150"],
-    "fazer 250": ["fazer 250", "ys 250 fazer"],
-    "factor 150": ["factor 150", "factor 150i", "yamaha factor"],
-    "cb 300": ["cb 300", "cb300", "cb 300f"],
-    "xre 300": ["xre 300", "xre300"],
-    "xre 190": ["xre 190", "xre190"],
-    "crosser 150": ["crosser 150", "crosser"],
-    "lander 250": ["lander 250", "xtz 250 lander"],
-    "tenere 250": ["tenere 250", "tenere 250"],
-    "twister 250": ["twister 250", "cbx 250", "cbx twister"],
-    "twister 300": ["twister 300", "cb 300 twister"],
-    "biz 125": ["biz 125", "honda biz 125"],
-    "biz 100": ["biz 100", "honda biz 100"],
-    "pop 110": ["pop 110", "pop 110i"],
-    "tornado": ["tornado", "xr 250 tornado"],
+    "titan 150": [
+        "titan 150",
+        "cg 150",
+        "cg titan 150",
+        "titan",
+    ],
+
+    "titan 160": [
+        "titan 160",
+        "cg 160",
+        "cg titan 160",
+    ],
+
+    "titan 125": [
+        "titan 125",
+        "cg 125",
+        "cg titan 125",
+    ],
+
+    "bros 160": [
+        "bros 160",
+        "n bros 160",
+        "nxr bros 160",
+        "bros",
+    ],
+
+    "bros 150": [
+        "bros 150",
+        "nxr bros 150",
+    ],
+
+    "fazer 150": [
+        "fazer 150",
+        "ys fazer 150",
+    ],
+
+    "fazer 250": [
+        "fazer 250",
+        "ys 250 fazer",
+    ],
+
+    "factor 150": [
+        "factor 150",
+        "factor 150i",
+        "yamaha factor",
+    ],
+
+    "cb 300": [
+        "cb 300",
+        "cb300",
+        "cb 300f",
+    ],
+
+    "xre 300": [
+        "xre 300",
+        "xre300",
+    ],
+
+    "xre 190": [
+        "xre 190",
+        "xre190",
+    ],
+
+    "crosser 150": [
+        "crosser 150",
+        "crosser",
+    ],
+
+    "lander 250": [
+        "lander 250",
+        "xtz 250 lander",
+    ],
+
+    "tenere 250": [
+        "tenere 250",
+        "tenere 250",
+    ],
+
+    "twister 250": [
+        "twister 250",
+        "cbx 250",
+        "cbx twister",
+    ],
+
+    "twister 300": [
+        "twister 300",
+        "cb 300 twister",
+    ],
+
+    "biz 125": [
+        "biz 125",
+        "honda biz 125",
+    ],
+
+    "biz 100": [
+        "biz 100",
+        "honda biz 100",
+    ],
+
+    "pop 110": [
+        "pop 110",
+        "pop 110i",
+    ],
+
+    "pop 100": [
+        "pop 100",
+        "honda pop 100",
+    ],
+
+    "tornado 250": [
+        "tornado 250",
+        "xr 250 tornado",
+        "tornado",
+    ],
 }
+
 
 PECA_ALIASES = {
-    "kit relacao": ["kit relacao", "kit relação", "relacao", "relação", "transmissao", "transmissão"],
-    "kit embreagem": ["kit embreagem", "embreagem", "disco embreagem"],
-    "bateria": ["bateria", "bateria moto"],
-    "estator": ["estator", "bobina estator"],
-    "pastilha freio": ["pastilha freio", "pastilha de freio", "pastilhas freio"],
-    "vela iridium": ["vela iridium", "vela de iridium", "vela ignicao"],
-    "amortecedor": ["amortecedor", "amortecedor traseiro", "amortecedor dianteiro"],
-    "kit pisca seta": ["kit pisca", "pisca seta", "seta moto"],
-    "capacete": ["capacete", "capacete moto"],
-    "pneu": ["pneu", "pneu moto"],
-    "corrente moto": ["corrente moto", "corrente de moto"],
-    "coroa moto": ["coroa moto", "coroa"],
-    "pinhao moto": ["pinhao moto", "pinhão", "pinhao"],
-    "farol": ["farol", "farol moto"],
-    "retrovisor": ["retrovisor", "retrovisor moto"],
-    "manopla": ["manopla", "manopla moto"],
-    "guidao": ["guidao", "guidão", "guidão moto"],
+    "kit relacao": [
+        "kit relacao",
+        "kit relação",
+        "relacao",
+        "relação",
+        "transmissao",
+        "transmissão",
+    ],
+
+    "cabos": [
+        "cabos",
+        "cabo moto",
+        "cabo embreagem",
+        "cabo acelerador",
+        "cabo freio",
+    ],
+
+    "kit embreagem": [
+        "kit embreagem",
+        "embreagem",
+        "disco embreagem",
+    ],
+
+    "bateria": [
+        "bateria",
+        "bateria moto",
+    ],
+
+    "estator": [
+        "estator",
+        "bobina estator",
+    ],
+
+    "pastilha freio": [
+        "pastilha freio",
+        "pastilha de freio",
+        "pastilhas freio",
+    ],
+
+    "vela iridium": [
+        "vela iridium",
+        "vela de iridium",
+        "vela ignicao",
+    ],
+
+    "amortecedor": [
+        "amortecedor",
+        "amortecedor traseiro",
+        "amortecedor dianteiro",
+    ],
+
+    "kit pisca seta": [
+        "kit pisca",
+        "pisca seta",
+        "seta moto",
+    ],
+
+    "capacete": [
+        "capacete",
+        "capacete moto",
+    ],
+
+    "pneu": [
+        "pneu",
+        "pneu moto",
+    ],
+
+    "corrente moto": [
+        "corrente moto",
+        "corrente de moto",
+    ],
+
+    "coroa moto": [
+        "coroa moto",
+        "coroa",
+    ],
+
+    "pinhao moto": [
+        "pinhao moto",
+        "pinhão",
+        "pinhao",
+    ],
+
+    "farol": [
+        "farol",
+        "farol moto",
+    ],
+
+    "retrovisor": [
+        "retrovisor",
+        "retrovisor moto",
+    ],
+
+    "manopla": [
+        "manopla",
+        "manopla moto",
+    ],
+
+    "guidao": [
+        "guidao",
+        "guidão",
+        "guidão moto",
+    ],
 }
 
+
 # =========================================================
-# ESTADO / HISTORICO
+# ROTA DETERMINISTICA DE MOTO
+# =========================================================
+#
+# IMPORTANTE:
+# Não usamos random.shuffle aqui.
+#
+# Os primeiros ciclos seguem exatamente uma sequência
+# definida para criar o comportamento desejado.
+#
+# Depois dessa primeira sequência, o algoritmo continua
+# de forma determinística, avançando peça e par de motos.
+#
+# Isso evita o problema do embaralhamento repetir cedo demais.
+# =========================================================
+
+MOTO_CICLOS_INICIAIS = [
+    ("kit relacao", "titan 150", "fazer 250"),
+    ("cabos", "biz 125", "tornado 250"),
+    ("pastilha freio", "cb 300", "bros 160"),
+    ("kit relacao", "factor 150", "biz 100"),
+
+    ("bateria", "titan 160", "xre 300"),
+    ("amortecedor", "fazer 150", "lander 250"),
+    ("kit embreagem", "bros 150", "titan 125"),
+    ("vela iridium", "crosser 150", "xre 190"),
+    ("corrente moto", "twister 250", "fazer 250"),
+    ("disco de freio", "tornado 250", "cb 300"),
+
+    ("kit pisca seta", "pop 110", "biz 125"),
+    ("lona de freio", "biz 100", "titan 150"),
+    ("cabo embreagem", "titan 160", "bros 160"),
+    ("cabo acelerador", "factor 150", "fazer 150"),
+    ("pneu", "lander 250", "tenere 250"),
+    ("retrovisor", "xre 300", "crosser 150"),
+    ("farol", "xre 190", "twister 250"),
+    ("manopla", "fazer 250", "titan 125"),
+    ("estator", "bros 150", "titan 160"),
+    ("bateria", "biz 125", "pop 100"),
+]
+
+
+# Rotas posteriores.
+# Não são embaralhadas.
+MOTO_PECAS_ROTA = [
+    "kit relacao",
+    "cabos",
+    "pastilha freio",
+    "kit embreagem",
+    "bateria",
+    "amortecedor",
+    "vela iridium",
+    "kit pisca seta",
+    "corrente moto",
+    "coroa moto",
+    "pinhao moto",
+    "disco de freio",
+    "lona de freio",
+    "cabo embreagem",
+    "cabo acelerador",
+    "estator",
+    "retentor de bengala",
+    "bucha amortecedor",
+    "guidao",
+    "manopla",
+    "retrovisor",
+    "farol",
+    "pneu",
+    "capacete",
+]
+
+
+# Pares fixos, também em ordem.
+MOTO_PARES_ROTA = [
+    ("titan 150", "fazer 250"),
+    ("biz 125", "tornado 250"),
+    ("cb 300", "bros 160"),
+    ("factor 150", "biz 100"),
+    ("titan 160", "xre 300"),
+    ("fazer 150", "lander 250"),
+    ("bros 150", "titan 125"),
+    ("crosser 150", "xre 190"),
+    ("twister 250", "fazer 250"),
+    ("tornado 250", "cb 300"),
+    ("pop 110", "biz 125"),
+    ("biz 100", "titan 150"),
+    ("titan 160", "bros 160"),
+    ("factor 150", "fazer 150"),
+    ("lander 250", "tenere 250"),
+    ("xre 300", "crosser 150"),
+    ("xre 190", "twister 250"),
+    ("fazer 250", "titan 125"),
+    ("bros 150", "titan 160"),
+    ("biz 125", "pop 100"),
+]
+
+
+# =========================================================
+# ESTADO
 # =========================================================
 
 def carregar_estado():
@@ -235,70 +649,303 @@ def carregar_estado():
                 estado = json.load(f)
         else:
             estado = {}
+
     except Exception as e:
         logging.warning(f"Erro lendo estado: {e}")
         estado = {}
 
     estado.setdefault("Moto", {})
+
+    # Novo estado determinístico da Moto.
+    estado["Moto"].setdefault("ciclo_idx", 0)
+
+    # Mantemos os antigos por compatibilidade.
     estado["Moto"].setdefault("peca_idx", 0)
     estado["Moto"].setdefault("moto_idx", 0)
 
     for nicho, produtos in PRODUTOS_NICHO.items():
         estado.setdefault(nicho, {})
+
         estado[nicho].setdefault("produto_idx", 0)
-        estado[nicho].setdefault("produtos_ordem", [])
-        if len(estado[nicho]["produtos_ordem"]) != len(produtos):
-            estado[nicho]["produtos_ordem"] = list(range(len(produtos)))
-            random.shuffle(estado[nicho]["produtos_ordem"])
+
+        # V25 não embaralha.
+        estado[nicho].setdefault(
+            "produtos_ordem",
+            list(range(len(produtos))),
+        )
+
+        ordem = estado[nicho]["produtos_ordem"]
+
+        if (
+            not isinstance(ordem, list)
+            or len(ordem) != len(produtos)
+            or sorted(ordem) != list(range(len(produtos)))
+        ):
+            estado[nicho]["produtos_ordem"] = list(
+                range(len(produtos))
+            )
 
     estado.setdefault("estrategicos_idx", {})
     estado.setdefault("free_nicho_idx", 0)
     estado.setdefault("ciclos", 0)
+
     return estado
+
 
 def salvar_estado(estado):
     try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+
         tmp = ESTADO_FILE + ".tmp"
+
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(estado, f, ensure_ascii=False, indent=2)
+            json.dump(
+                estado,
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
+
         os.replace(tmp, ESTADO_FILE)
+
     except Exception as e:
-        logging.error(f"Erro salvando estado: {e}")
+        logging.error(
+            f"Erro salvando estado: {e}"
+        )
+
+
+# =========================================================
+# HISTORICO
+# =========================================================
 
 def carregar_historico():
     try:
-        if os.path.exists(HISTORICO_FILE):
-            with open(HISTORICO_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+        if not os.path.exists(HISTORICO_FILE):
+            return {
+                "ids": {},
+                "registros": [],
+            }
+
+        with open(
+            HISTORICO_FILE,
+            "r",
+            encoding="utf-8",
+        ) as f:
+            dados = json.load(f)
+
+        # Compatibilidade com V24.
+        if "ids" not in dados:
+            return {
+                "ids": dados if isinstance(dados, dict) else {},
+                "registros": [],
+            }
+
+        dados.setdefault("ids", {})
+        dados.setdefault("registros", [])
+
+        return dados
+
     except Exception as e:
-        logging.warning(f"Erro lendo historico: {e}")
-    return {}
+        logging.warning(
+            f"Erro lendo historico: {e}"
+        )
+
+        return {
+            "ids": {},
+            "registros": [],
+        }
+
 
 def salvar_historico(historico):
     try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+
         tmp = HISTORICO_FILE + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(historico, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, HISTORICO_FILE)
+
+        with open(
+            tmp,
+            "w",
+            encoding="utf-8",
+        ) as f:
+            json.dump(
+                historico,
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
+
+        os.replace(
+            tmp,
+            HISTORICO_FILE,
+        )
+
     except Exception as e:
-        logging.error(f"Erro salvando historico: {e}")
+        logging.error(
+            f"Erro salvando historico: {e}"
+        )
+
+
+def limpar_historico_antigo(historico):
+    agora = datetime.now(FUSO_BR)
+
+    limite = agora - timedelta(
+        days=HISTORICO_DIAS
+    )
+
+    ids_novos = {}
+
+    for chave, valor in historico.get(
+        "ids",
+        {},
+    ).items():
+
+        try:
+            data = datetime.fromisoformat(
+                str(valor)
+            )
+
+            if data.tzinfo is None:
+                data = data.replace(
+                    tzinfo=FUSO_BR
+                )
+
+            if data >= limite:
+                ids_novos[chave] = valor
+
+        except Exception:
+            # Mantém somente valores que não conseguimos
+            # interpretar? Não. Remove para não perpetuar lixo.
+            continue
+
+    historico["ids"] = ids_novos
+
+    registros_novos = []
+
+    for registro in historico.get(
+        "registros",
+        [],
+    ):
+
+        try:
+            data = datetime.fromisoformat(
+                str(registro.get("data"))
+            )
+
+            if data.tzinfo is None:
+                data = data.replace(
+                    tzinfo=FUSO_BR
+                )
+
+            if data >= limite:
+                registros_novos.append(
+                    registro
+                )
+
+        except Exception:
+            continue
+
+    # Limite de segurança.
+    historico["registros"] = registros_novos[-500:]
+
+    return historico
+
 
 def historico_bloqueia(chave):
-    valor = carregar_historico().get(chave)
+    historico = limpar_historico_antigo(
+        carregar_historico()
+    )
+
+    valor = historico.get(
+        "ids",
+        {},
+    ).get(chave)
+
     if not valor:
         return False
+
     try:
-        data = datetime.fromisoformat(valor)
+        data = datetime.fromisoformat(
+            str(valor)
+        )
+
         if data.tzinfo is None:
-            data = data.replace(tzinfo=FUSO_BR)
-        return datetime.now(FUSO_BR) - data < timedelta(days=HISTORICO_DIAS)
+            data = data.replace(
+                tzinfo=FUSO_BR
+            )
+
+        return (
+            datetime.now(FUSO_BR) - data
+            < timedelta(days=HISTORICO_DIAS)
+        )
+
     except Exception:
         return False
 
-def registrar_historico(chave):
-    historico = carregar_historico()
-    historico[chave] = datetime.now(FUSO_BR).isoformat()
+
+def registrar_historico(
+    chave,
+    produto=None,
+):
+    historico = limpar_historico_antigo(
+        carregar_historico()
+    )
+
+    agora = datetime.now(FUSO_BR)
+    agora_iso = agora.isoformat()
+
+    historico.setdefault("ids", {})
+    historico.setdefault("registros", [])
+
+    historico["ids"][chave] = agora_iso
+
+    if produto:
+        titulo = str(
+            produto.get(
+                "productName",
+                "",
+            )
+        ).strip()
+
+        nicho = produto.get(
+            "_nicho",
+            "",
+        )
+
+        modelo = produto.get(
+            "_modelo_moto"
+        )
+
+        peca = produto.get(
+            "_peca_moto"
+        )
+
+        registro = {
+            "data": agora_iso,
+            "id": chave,
+            "nicho": nicho,
+            "titulo": titulo,
+            "assinatura": assinatura_diversidade(
+                titulo
+            ),
+            "base_moto": (
+                chave_base_titulo(titulo)
+                if nicho == "Moto"
+                else ""
+            ),
+            "modelo": modelo,
+            "peca": peca,
+        }
+
+        historico["registros"].append(
+            registro
+        )
+
+    historico = limpar_historico_antigo(
+        historico
+    )
+
     salvar_historico(historico)
+
 
 # =========================================================
 # TEXTO / IDENTIDADE
@@ -306,313 +953,1025 @@ def registrar_historico(chave):
 
 def normalizar_texto(texto):
     texto = str(texto or "").lower().strip()
-    texto = re.sub(r"[^a-z0-9à-ÿ\s]", " ", texto)
-    return re.sub(r"\s+", " ", texto)
+
+    texto = re.sub(
+        r"[^a-z0-9à-ÿ\s]",
+        " ",
+        texto,
+    )
+
+    return re.sub(
+        r"\s+",
+        " ",
+        texto,
+    )
+
 
 def sem_acento(texto):
-    mapa = str.maketrans("áàãâäéèêëíìîïóòõôöúùûüç", "aaaaaeeeeiiiiooooouuuuc")
-    return normalizar_texto(texto).translate(mapa)
+    mapa = str.maketrans(
+        "áàãâäéèêëíìîïóòõôöúùûüç",
+        "aaaaaeeeeiiiiooooouuuuc",
+    )
+
+    return normalizar_texto(
+        texto
+    ).translate(mapa)
+
 
 def dentro_do_horario():
-    agora = datetime.now(FUSO_BR).time()
-    return HORARIO_INICIO <= agora <= HORARIO_FIM
+    agora = datetime.now(
+        FUSO_BR
+    ).time()
+
+    return (
+        HORARIO_INICIO
+        <= agora
+        <= HORARIO_FIM
+    )
+
 
 def chave_base_titulo(titulo):
-    remover = set(lista(
-        "premium|novo|nova|promocao|super|original|profissional|casual|masculino|feminino|infantil|adulto|"
-        "unissex|kit|com|de|para|o|a|promo|oferta|modelo|versao|linha|envio|usado|branco|preto|azul|"
-        "vermelho|rosa|verde|amarelo|tamanho|tamanhos|unico|gamer|led|usb|mini|max|pro|bivolt|completo"
-    ))
-    tokens = [x for x in sem_acento(titulo).split() if x not in remover and len(x) > 2]
-    return " ".join(sorted(tokens)[:10])
+    remover = set(
+        lista(
+            "premium|novo|nova|promocao|super|original|"
+            "profissional|casual|masculino|feminino|"
+            "infantil|adulto|unissex|kit|com|de|para|"
+            "o|a|promo|oferta|modelo|versao|linha|"
+            "envio|usado|branco|preto|azul|vermelho|"
+            "rosa|verde|amarelo|tamanho|tamanhos|"
+            "unico|gamer|led|usb|mini|max|pro|bivolt|"
+            "completo|completa"
+        )
+    )
+
+    tokens = [
+        x
+        for x in sem_acento(titulo).split()
+        if x not in remover
+        and len(x) > 2
+    ]
+
+    return " ".join(
+        sorted(tokens)[:12]
+    )
+
 
 def assinatura_diversidade(titulo):
-    remover = set(lista(
-        "novo|nova|original|premium|profissional|promocao|promo|oferta|modelo|versao|kit|com|para|de|da|do|"
-        "e|branco|preto|azul|vermelho|rosa|verde|amarelo|cinza|roxo|marrom|tamanho|tamanhos|unico|unica|"
-        "bivolt|110v|127v|220v|usb|led|mini|max|pro|completo|completa|unissex"
-    ))
+    remover = set(
+        lista(
+            "novo|nova|original|premium|profissional|"
+            "promocao|promo|oferta|modelo|versao|kit|"
+            "com|para|de|da|do|e|branco|preto|azul|"
+            "vermelho|rosa|verde|amarelo|cinza|roxo|"
+            "marrom|tamanho|tamanhos|unico|unica|"
+            "bivolt|110v|127v|220v|usb|led|mini|max|"
+            "pro|completo|completa|unissex"
+        )
+    )
+
     tokens = []
-    for token in sem_acento(titulo).split():
-        token = re.sub(r"[^a-z0-9]", "", token)
-        if not token or token in remover or len(token) <= 2:
+
+    for token in sem_acento(
+        titulo
+    ).split():
+
+        token = re.sub(
+            r"[^a-z0-9]",
+            "",
+            token,
+        )
+
+        if (
+            not token
+            or token in remover
+            or len(token) <= 2
+        ):
             continue
-        if re.fullmatch(r"\d+(gb|tb|mb|cm|mm|kg|g|w|v|a)?", token):
+
+        if re.fullmatch(
+            r"\d+(gb|tb|mb|cm|mm|kg|g|w|v|a)?",
+            token,
+        ):
             continue
+
         tokens.append(token)
-    return " ".join(sorted(set(tokens))[:12]) or sem_acento(titulo)
+
+    return (
+        " ".join(
+            sorted(set(tokens))[:14]
+        )
+        or sem_acento(titulo)
+    )
+
+
+def chave_catalogo(produto, nicho):
+    titulo = str(
+        produto.get(
+            "productName",
+            "",
+        )
+    )
+
+    if nicho == "Moto":
+        modelo = sem_acento(
+            produto.get(
+                "_modelo_moto",
+                "",
+            )
+        )
+
+        peca = sem_acento(
+            produto.get(
+                "_peca_moto",
+                "",
+            )
+        )
+
+        base = chave_base_titulo(
+            titulo
+        )
+
+        return hashlib.md5(
+            f"{nicho}|{modelo}|{peca}|{base}".encode()
+        ).hexdigest()
+
+    base = assinatura_diversidade(
+        titulo
+    )
+
+    return hashlib.md5(
+        f"{nicho}|{base}".encode()
+    ).hexdigest()
+
 
 def chave_produto(produto, nicho):
-    titulo = str(produto.get("productName", ""))
-    link = str(produto.get("offerLink") or produto.get("productLink") or "")
-    if nicho == "Moto":
-        base = chave_base_titulo(titulo)
-        return hashlib.md5(f"{base}|{link}".encode()).hexdigest()
-    return hashlib.md5(assinatura_diversidade(titulo).encode()).hexdigest()
+    titulo = str(
+        produto.get(
+            "productName",
+            "",
+        )
+    )
 
-def chave_identidade_forte(produto, nicho):
-    titulo = sem_acento(produto.get("productName", ""))
-    link = str(produto.get("offerLink") or produto.get("productLink") or "")
-    shop = str(produto.get("shopId") or produto.get("shopName") or "")
-    base = chave_base_titulo(titulo) if nicho == "Moto" else assinatura_diversidade(titulo)
-    return hashlib.md5(f"{base}|{shop}|{link}".encode()).hexdigest()
+    link = str(
+        produto.get("offerLink")
+        or produto.get("productLink")
+        or ""
+    )
+
+    shop = str(
+        produto.get("shopId")
+        or produto.get("shopName")
+        or ""
+    )
+
+    if nicho == "Moto":
+        base = chave_base_titulo(
+            titulo
+        )
+    else:
+        base = assinatura_diversidade(
+            titulo
+        )
+
+    return hashlib.md5(
+        f"{nicho}|{base}|{shop}|{link}".encode()
+    ).hexdigest()
+
+
+def chave_identidade_forte(
+    produto,
+    nicho,
+):
+    return chave_produto(
+        produto,
+        nicho,
+    )
+
+
+def similaridade_titulos(
+    titulo_a,
+    titulo_b,
+):
+    return SequenceMatcher(
+        None,
+        sem_acento(titulo_a),
+        sem_acento(titulo_b),
+        autojunk=False,
+    ).ratio()
+
 
 def tem_bloqueio(titulo):
     texto = sem_acento(titulo)
+
     bloqueios = [
-        "teste", "amostra", "nao compre", "produto teste", "exemplo", "dummy",
-        "vela led", "vela decorativa", "decorativa", "decoracao", "casamento",
-        "festa", "replica", "generico", "display", "mostruario", "brinde"
+        "teste",
+        "amostra",
+        "nao compre",
+        "produto teste",
+        "exemplo",
+        "dummy",
+        "vela led",
+        "vela decorativa",
+        "decorativa",
+        "decoracao",
+        "casamento",
+        "festa",
+        "replica",
+        "generico",
+        "display",
+        "mostruario",
+        "brinde",
     ]
-    return any(x in texto for x in bloqueios)
+
+    return any(
+        x in texto
+        for x in bloqueios
+    )
+
 
 def identificar_marca(titulo):
     marcas = lista(
-        "samsung|motorola|xiaomi|poco|redmi|iphone|apple|philco|mondial|britania|electrolux|"
-        "oster|philips|walita|lenovo|asus|dell|acer|haylou|amazfit|mibro|huawei|colcci|lovito|"
-        "farm|lancome|lupo|adidas|nike|jbl|lg|consul|brastemp|arno|cadence|tcl|aoc|realme|"
-        "infinix|multilaser|midea|suggar|wap|cofap|scud|ngk|heliar|yuasa|cobreq|riffel"
+        "samsung|motorola|xiaomi|poco|redmi|iphone|apple|"
+        "philco|mondial|britania|electrolux|oster|philips|"
+        "walita|lenovo|asus|dell|acer|haylou|amazfit|"
+        "mibro|huawei|colcci|lovito|farm|lancome|lupo|"
+        "adidas|nike|jbl|lg|consul|brastemp|arno|cadence|"
+        "tcl|aoc|realme|infinix|multilaser|midea|suggar|"
+        "wap|cofap|scud|ngk|heliar|yuasa|cobreq|riffel"
     )
-    texto = sem_acento(titulo)
-    return next((marca for marca in marcas if sem_acento(marca) in texto), "sem_marca")
+
+    texto = sem_acento(
+        titulo
+    )
+
+    return next(
+        (
+            marca
+            for marca in marcas
+            if sem_acento(marca)
+            in texto
+        ),
+        "sem_marca",
+    )
+
 
 def identificar_vendedor(produto):
     if produto.get("shopId"):
         return f"id:{produto['shopId']}"
+
     if produto.get("shopName"):
-        return f"nome:{sem_acento(produto['shopName'])}"
+        return (
+            "nome:"
+            + sem_acento(
+                produto["shopName"]
+            )
+        )
+
     try:
-        dominio = urlparse(str(produto.get("offerLink") or produto.get("productLink") or "")).netloc.lower()
+        dominio = urlparse(
+            str(
+                produto.get("offerLink")
+                or produto.get("productLink")
+                or ""
+            )
+        ).netloc.lower()
+
         if dominio:
             return f"dominio:{dominio}"
+
     except Exception:
         pass
+
     return "vendedor_desconhecido"
+
 
 def shop_type_score(shop_type):
     try:
         if not shop_type:
             return 0
+
         if 1 in shop_type:
             return 3
+
         if 4 in shop_type:
             return 2
+
         if 2 in shop_type:
             return 1
+
     except Exception:
         pass
+
     return 0
+
 
 def penalidade_termo_fraco(nome):
     termos = lista(
-        "generico|universal|mini|infantil|brinquedo|adesivo|capa|case|pelicula|display|mostruario|"
-        "decorativo|replica|dummy|refil|kit reposicao|reposicao|peca de reposicao|manual"
+        "generico|universal|mini|infantil|brinquedo|adesivo|"
+        "capa|case|pelicula|display|mostruario|decorativo|"
+        "replica|dummy|refil|kit reposicao|reposicao|"
+        "peca de reposicao|manual"
     )
-    return -5 if any(x in sem_acento(nome) for x in termos) else 0
+
+    return (
+        -5
+        if any(
+            x in sem_acento(nome)
+            for x in termos
+        )
+        else 0
+    )
+
+
+# =========================================================
+# HISTORICO FORTE
+# =========================================================
+
+def produto_bloqueado_por_historico(
+    produto,
+    nicho,
+    historico=None,
+):
+    if historico is None:
+        historico = limpar_historico_antigo(
+            carregar_historico()
+        )
+
+    pid = chave_produto(
+        produto,
+        nicho,
+    )
+
+    if pid in historico.get(
+        "ids",
+        {},
+    ):
+        return True
+
+    titulo = str(
+        produto.get(
+            "productName",
+            "",
+        )
+    )
+
+    base = (
+        chave_base_titulo(titulo)
+        if nicho == "Moto"
+        else assinatura_diversidade(titulo)
+    )
+
+    registros = historico.get(
+        "registros",
+        [],
+    )
+
+    agora = datetime.now(
+        FUSO_BR
+    )
+
+    for registro in registros:
+        if registro.get(
+            "nicho"
+        ) != nicho:
+            continue
+
+        try:
+            data = datetime.fromisoformat(
+                str(
+                    registro.get(
+                        "data"
+                    )
+                )
+            )
+
+            if data.tzinfo is None:
+                data = data.replace(
+                    tzinfo=FUSO_BR
+                )
+
+        except Exception:
+            continue
+
+        if (
+            agora - data
+            > timedelta(
+                days=HISTORICO_DIAS
+            )
+        ):
+            continue
+
+        base_historico = (
+            registro.get(
+                "base_moto",
+                "",
+            )
+            if nicho == "Moto"
+            else registro.get(
+                "assinatura",
+                "",
+            )
+        )
+
+        if base and base_historico:
+            if base == base_historico:
+                return True
+
+        titulo_historico = str(
+            registro.get(
+                "titulo",
+                "",
+            )
+        )
+
+        if not titulo_historico:
+            continue
+
+        ratio = similaridade_titulos(
+            titulo,
+            titulo_historico,
+        )
+
+        if ratio >= SIMILARIDADE_HISTORICO:
+            return True
+
+    return False
+
 
 # =========================================================
 # MOTO - RELEVANCIA
 # =========================================================
 
-def contem_algum(texto, termos):
-    texto = sem_acento(texto)
-    return any(sem_acento(t) in texto for t in termos)
+def contem_algum(
+    texto,
+    termos,
+):
+    texto = sem_acento(
+        texto
+    )
 
-def modelo_moto_encontrado(titulo, modelo):
-    modelo_n = sem_acento(modelo)
-    texto = sem_acento(titulo)
-    aliases = MOTO_ALIASES.get(modelo_n, [modelo_n])
-    return contem_algum(texto, aliases)
+    return any(
+        sem_acento(t) in texto
+        for t in termos
+    )
 
-def peca_moto_encontrada(titulo, peca):
-    peca_n = sem_acento(peca)
-    aliases = PECA_ALIASES.get(peca_n, [peca_n])
-    return contem_algum(titulo, aliases)
 
-def validar_moto(titulo, modelo, peca):
-    texto = sem_acento(titulo)
-    if any(x in texto for x in ["capacete infantil", "capacete brinquedo", "brinquedo moto"]):
+def modelo_moto_encontrado(
+    titulo,
+    modelo,
+):
+    modelo_n = sem_acento(
+        modelo
+    )
+
+    texto = sem_acento(
+        titulo
+    )
+
+    aliases = MOTO_ALIASES.get(
+        modelo_n,
+        [modelo_n],
+    )
+
+    return contem_algum(
+        texto,
+        aliases,
+    )
+
+
+def peca_moto_encontrada(
+    titulo,
+    peca,
+):
+    peca_n = sem_acento(
+        peca
+    )
+
+    aliases = PECA_ALIASES.get(
+        peca_n,
+        [peca_n],
+    )
+
+    return contem_algum(
+        titulo,
+        aliases,
+    )
+
+
+def validar_moto(
+    titulo,
+    modelo,
+    peca,
+):
+    texto = sem_acento(
+        titulo
+    )
+
+    proibidos = [
+        "capacete infantil",
+        "capacete brinquedo",
+        "brinquedo moto",
+        "miniatura moto",
+        "adesivo moto",
+        "capa de banco universal",
+    ]
+
+    if any(
+        x in texto
+        for x in proibidos
+    ):
         return False
 
-    modelo_ok = modelo_moto_encontrado(titulo, modelo)
-    peca_ok = peca_moto_encontrada(titulo, peca)
+    modelo_ok = modelo_moto_encontrado(
+        titulo,
+        modelo,
+    )
 
-    # Regra principal: produto deve ser claramente peça para aquele modelo.
+    peca_ok = peca_moto_encontrada(
+        titulo,
+        peca,
+    )
+
+    # Regra principal.
     if modelo_ok and peca_ok:
         return True
 
-    # Alguns anúncios omitem o modelo exato, mas deixam Honda/Yamaha + peça.
+    # Fabricante + família de moto.
     fabricantes = {
-        "honda": ["titan", "bros", "biz", "xre", "cb", "twister", "pop", "tornado"],
-        "yamaha": ["fazer", "factor", "lander", "crosser", "tenere"],
+        "honda": [
+            "titan",
+            "bros",
+            "biz",
+            "xre",
+            "cb",
+            "twister",
+            "pop",
+            "tornado",
+        ],
+        "yamaha": [
+            "fazer",
+            "factor",
+            "lander",
+            "crosser",
+            "tenere",
+        ],
     }
 
     fabricante_ok = any(
-        fabricante in texto and any(modelo_base in texto for modelo_base in modelos)
-        for fabricante, modelos in fabricantes.items()
+        fabricante in texto
+        and any(
+            modelo_base in texto
+            for modelo_base in modelos
+        )
+        for fabricante, modelos
+        in fabricantes.items()
     )
 
-    # Permite alguns casos em que a busca encontrou a peça, mas o modelo
-    # está abreviado no título.
     if peca_ok and fabricante_ok:
         return True
 
     return False
 
+
 # =========================================================
 # RELEVANCIA GERAL
 # =========================================================
 
-def validar_relevancia_nicho(nicho, titulo, termo=None, modelo=None, peca=None):
-    texto = sem_acento(titulo)
+def validar_relevancia_nicho(
+    nicho,
+    titulo,
+    termo=None,
+    modelo=None,
+    peca=None,
+):
+    texto = sem_acento(
+        titulo
+    )
 
     if nicho == "Moto":
-        return validar_moto(titulo, modelo or "", peca or "")
+        return validar_moto(
+            titulo,
+            modelo or "",
+            peca or "",
+        )
 
     if nicho == "Eletroeletronicos":
-        if any(x in texto for x in ["capa", "pelicula", "case"]):
-            if not any(x in texto for x in ["celular", "tablet", "smartphone", "iphone"]):
-                return False
-        if "smart tv" in texto or "televisao" in texto:
-            if any(x in texto for x in ["mouse", "teclado", "ssd", "notebook"]):
+        if any(
+            x in texto
+            for x in [
+                "capa",
+                "pelicula",
+                "case",
+            ]
+        ):
+            if not any(
+                x in texto
+                for x in [
+                    "celular",
+                    "tablet",
+                    "smartphone",
+                    "iphone",
+                ]
+            ):
                 return False
 
-    if nicho == "Casa" and any(x in texto for x in ["tinta", "tintas"]):
-        if not any(x in texto for x in ["parede", "spray", "esmalte"]):
+        if (
+            "smart tv" in texto
+            or "televisao" in texto
+        ):
+            if any(
+                x in texto
+                for x in [
+                    "mouse",
+                    "teclado",
+                    "ssd",
+                    "notebook",
+                ]
+            ):
+                return False
+
+    if nicho == "Casa":
+        if any(
+            x in texto
+            for x in [
+                "tinta",
+                "tintas",
+            ]
+        ):
+            if not any(
+                x in texto
+                for x in [
+                    "parede",
+                    "spray",
+                    "esmalte",
+                ]
+            ):
+                return False
+
+    if nicho == "Moda feminina":
+        if any(
+            x in texto
+            for x in [
+                "masculino",
+                "homem",
+                "masc",
+            ]
+        ):
             return False
 
-    if nicho == "Moda feminina" and any(x in texto for x in ["masculino", "homem", "masc"]):
-        return False
-
-    if nicho == "Moda masculina" and any(x in texto for x in ["feminino", "mulher", "menina"]):
-        return False
+    if nicho == "Moda masculina":
+        if any(
+            x in texto
+            for x in [
+                "feminino",
+                "mulher",
+                "menina",
+            ]
+        ):
+            return False
 
     if nicho == "Maternidade":
-        proibidos = ["organizador", "cozinha", "banheiro", "carro"]
-        permitidos = ["bebe", "infantil", "maternidade", "fralda", "carrinho", "mamadeira", "ninho"]
-        if any(x in texto for x in proibidos) and not any(x in texto for x in permitidos):
+        proibidos = [
+            "organizador",
+            "cozinha",
+            "banheiro",
+            "carro",
+        ]
+
+        permitidos = [
+            "bebe",
+            "infantil",
+            "maternidade",
+            "fralda",
+            "carrinho",
+            "mamadeira",
+            "ninho",
+        ]
+
+        if (
+            any(
+                x in texto
+                for x in proibidos
+            )
+            and not any(
+                x in texto
+                for x in permitidos
+            )
+        ):
             return False
 
     return True
+
 
 # =========================================================
 # FAMILIA
 # =========================================================
 
-def parse_familia_from_title(titulo):
-    texto = sem_acento(titulo)
+def parse_familia_from_title(
+    titulo
+):
+    texto = sem_acento(
+        titulo
+    )
+
     for familia, termos in FAMILIAS_EXTRA.items():
-        if any(sem_acento(x) in texto for x in termos):
+        if any(
+            sem_acento(x) in texto
+            for x in termos
+        ):
             return familia
+
     return "outros"
+
 
 # =========================================================
 # SCORE
 # =========================================================
 
 PONTOS_MARCAS = {
-    "apple": 12, "iphone": 12, "samsung": 10, "motorola": 9, "xiaomi": 8,
-    "poco": 8, "philips": 8, "electrolux": 8, "mondial": 6, "philco": 6,
-    "britania": 6, "oster": 6, "jbl": 7, "nike": 7, "adidas": 7, "tcl": 8,
-    "aoc": 7, "lg": 9, "lenovo": 8, "asus": 8, "dell": 9, "acer": 7,
-    "midea": 7, "wap": 6,
+    "apple": 12,
+    "iphone": 12,
+    "samsung": 10,
+    "motorola": 9,
+    "xiaomi": 8,
+    "poco": 8,
+    "philips": 8,
+    "electrolux": 8,
+    "mondial": 6,
+    "philco": 6,
+    "britania": 6,
+    "oster": 6,
+    "jbl": 7,
+    "nike": 7,
+    "adidas": 7,
+    "tcl": 8,
+    "aoc": 7,
+    "lg": 9,
+    "lenovo": 8,
+    "asus": 8,
+    "dell": 9,
+    "acer": 7,
+    "midea": 7,
+    "wap": 6,
 }
+
 
 TERMOS_ESTRELA = {
-    "smart tv", "televisao", "celular", "smartphone", "notebook", "iphone",
-    "tablet", "air fryer", "fritadeira eletrica", "aspirador vertical",
-    "cafeteira", "smartwatch", "fone bluetooth", "kit relacao",
-    "kit embreagem", "bateria", "carrinho bebe", "fralda descartavel",
-    "vestido feminino", "tenis feminino", "tenis masculino",
+    "smart tv",
+    "televisao",
+    "celular",
+    "smartphone",
+    "notebook",
+    "iphone",
+    "tablet",
+    "air fryer",
+    "fritadeira eletrica",
+    "aspirador vertical",
+    "cafeteira",
+    "smartwatch",
+    "fone bluetooth",
+    "kit relacao",
+    "kit embreagem",
+    "bateria",
+    "carrinho bebe",
+    "fralda descartavel",
+    "vestido feminino",
+    "tenis feminino",
+    "tenis masculino",
 }
 
-def valor_comissao(preco, comissao):
-    return max(0.0, preco * comissao)
 
-def oferta_score(produto, termo="", nicho=None):
+def valor_comissao(
+    preco,
+    comissao,
+):
+    return max(
+        0.0,
+        preco * comissao,
+    )
+
+
+def oferta_score(
+    produto,
+    termo="",
+    nicho=None,
+):
     try:
-        vendas = int(produto.get("sales", 0) or 0)
-        avaliacao = float(produto.get("ratingStar", 0) or 0)
-        comissao = float(produto.get("commissionRate", 0) or 0)
-        preco = float(produto.get("priceMin", 0) or 0)
-        preco_max = float(produto.get("priceMax", 0) or 0)
-        nome = sem_acento(produto.get("productName", ""))
-        termo_n = sem_acento(termo)
+        vendas = int(
+            produto.get(
+                "sales",
+                0,
+            )
+            or 0
+        )
 
-        score = math.log10(vendas + 1) * 8
-        score += avaliacao * 3.2
-        score += shop_type_score(produto.get("shopType", []))
-        score += PONTOS_MARCAS.get(identificar_marca(nome), 0)
-        score += penalidade_termo_fraco(nome)
+        avaliacao = float(
+            produto.get(
+                "ratingStar",
+                0,
+            )
+            or 0
+        )
 
-        # Comissão agora é propositalmente fraca.
-        score += min(comissao * 20, 3)
+        comissao = float(
+            produto.get(
+                "commissionRate",
+                0,
+            )
+            or 0
+        )
 
-        # Comissão em reais ajuda, mas não domina.
-        comissao_r = valor_comissao(preco, comissao)
+        preco = float(
+            produto.get(
+                "priceMin",
+                0,
+            )
+            or 0
+        )
+
+        preco_max = float(
+            produto.get(
+                "priceMax",
+                0,
+            )
+            or 0
+        )
+
+        nome = sem_acento(
+            produto.get(
+                "productName",
+                "",
+            )
+        )
+
+        termo_n = sem_acento(
+            termo
+        )
+
+        score = (
+            math.log10(
+                vendas + 1
+            ) * 8
+        )
+
+        score += (
+            avaliacao * 3.2
+        )
+
+        score += shop_type_score(
+            produto.get(
+                "shopType",
+                [],
+            )
+        )
+
+        score += PONTOS_MARCAS.get(
+            identificar_marca(
+                nome
+            ),
+            0,
+        )
+
+        score += penalidade_termo_fraco(
+            nome
+        )
+
+        # Comissão propositalmente fraca.
+        score += min(
+            comissao * 20,
+            3,
+        )
+
+        comissao_r = valor_comissao(
+            preco,
+            comissao,
+        )
+
         if comissao_r >= 150:
             score += 3
+
         elif comissao_r >= 80:
             score += 2
+
         elif comissao_r >= 30:
             score += 1
 
         if 40 <= preco <= 3000:
             score += 5
+
         elif 3000 < preco <= 7000:
             score += 2
+
         elif preco < 25:
             score -= 2
 
         if preco_max > preco > 0:
-            desconto = (preco_max - preco) / preco_max
+            desconto = (
+                preco_max - preco
+            ) / preco_max
+
             if desconto >= 0.60:
                 score += 10
+
             elif desconto >= 0.40:
                 score += 7
+
             elif desconto >= 0.25:
                 score += 4
+
             elif desconto < 0.05:
                 score -= 2
 
-        if termo_n and termo_n in nome:
+        if (
+            termo_n
+            and termo_n in nome
+        ):
             score += 8
-        elif termo_n and any(x in nome for x in termo_n.split() if len(x) > 2):
+
+        elif (
+            termo_n
+            and any(
+                x in nome
+                for x in termo_n.split()
+                if len(x) > 2
+            )
+        ):
             score += 3
 
-        if any(t in nome for t in TERMOS_ESTRELA):
+        if any(
+            t in nome
+            for t in TERMOS_ESTRELA
+        ):
             score += 5
 
         if avaliacao >= 4.7:
             score += 3
+
         if vendas >= 1000:
             score += 2
+
         if vendas >= 10000:
             score += 2
 
-        palavras = len(nome.split())
+        palavras = len(
+            nome.split()
+        )
+
         if 3 <= palavras <= 14:
             score += 2
+
         elif palavras > 22:
             score -= 4
 
-        if any(x in nome for x in ["pelicula", "manual", "adesivo", "display", "refil"]):
+        if any(
+            x in nome
+            for x in [
+                "pelicula",
+                "manual",
+                "adesivo",
+                "display",
+                "refil",
+            ]
+        ):
             score -= 6
 
-        return round(score, 3)
+        return round(
+            score,
+            3,
+        )
 
     except Exception:
         return 0.0
+
 
 # =========================================================
 # API SHOPEE
 # =========================================================
 
-def buscar_produtos_da_categoria_kw(palavra_chave, categoria):
-    logging.info(f"BUSCA [{categoria}] -> {palavra_chave}")
+def buscar_produtos_da_categoria_kw(
+    palavra_chave,
+    categoria,
+):
+    logging.info(
+        f"BUSCA [{categoria}] -> {palavra_chave}"
+    )
 
-    timestamp = int(time.time())
-    palavra_chave = str(palavra_chave).replace('"', " ").strip()
+    timestamp = int(
+        time.time()
+    )
+
+    palavra_chave = (
+        str(palavra_chave)
+        .replace(
+            "\\",
+            " ",
+        )
+        .replace(
+            '"',
+            " ",
+        )
+        .strip()
+    )
 
     query_body = f"""
     query {{
@@ -640,188 +1999,570 @@ def buscar_produtos_da_categoria_kw(palavra_chave, categoria):
     }}
     """
 
-    payload = json.dumps({"query": query_body}, ensure_ascii=False)
-    assinatura = SHOPEE_APP_ID + str(timestamp) + payload + SHOPEE_PASSWORD
-    signature = hashlib.sha256(assinatura.encode()).hexdigest()
+    payload = json.dumps(
+        {
+            "query": query_body
+        },
+        ensure_ascii=False,
+    )
+
+    assinatura = (
+        SHOPEE_APP_ID
+        + str(timestamp)
+        + payload
+        + SHOPEE_PASSWORD
+    )
+
+    signature = hashlib.sha256(
+        assinatura.encode()
+    ).hexdigest()
 
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}",
+        "Authorization": (
+            "SHA256 "
+            f"Credential={SHOPEE_APP_ID}, "
+            f"Timestamp={timestamp}, "
+            f"Signature={signature}"
+        ),
     }
 
     resposta = requests.post(
         SHOPEE_GRAPHQL_URL,
-        data=payload.encode("utf-8"),
+        data=payload.encode(
+            "utf-8"
+        ),
         headers=headers,
         timeout=20,
     )
 
     resposta.raise_for_status()
+
     dados = resposta.json()
 
     if dados.get("errors"):
-        logging.error(f"Erro GraphQL: {dados['errors']}")
+        logging.error(
+            f"Erro GraphQL: {dados['errors']}"
+        )
 
-    return dados.get("data", {}).get("productOfferV2", {}).get("nodes", []) or []
+    return (
+        dados.get(
+            "data",
+            {},
+        )
+        .get(
+            "productOfferV2",
+            {},
+        )
+        .get(
+            "nodes",
+            [],
+        )
+        or []
+    )
+
 
 # =========================================================
 # VALIDACAO BASICA
 # =========================================================
 
-def motivo_rejeicao(produto):
+def motivo_rejeicao(
+    produto
+):
     try:
-        titulo = str(produto.get("productName", "")).strip()
-        link = str(produto.get("offerLink") or produto.get("productLink") or "").strip()
-        preco = float(produto.get("priceMin", 0) or 0)
-        vendas = int(produto.get("sales", 0) or 0)
-        avaliacao = float(produto.get("ratingStar", 0) or 0)
+        titulo = str(
+            produto.get(
+                "productName",
+                "",
+            )
+        ).strip()
+
+        link = str(
+            produto.get("offerLink")
+            or produto.get("productLink")
+            or ""
+        ).strip()
+
+        preco = float(
+            produto.get(
+                "priceMin",
+                0,
+            )
+            or 0
+        )
+
+        vendas = int(
+            produto.get(
+                "sales",
+                0,
+            )
+            or 0
+        )
+
+        avaliacao = float(
+            produto.get(
+                "ratingStar",
+                0,
+            )
+            or 0
+        )
 
         if not titulo:
             return "sem_titulo"
+
         if not link:
             return "sem_link"
-        if tem_bloqueio(titulo):
+
+        if tem_bloqueio(
+            titulo
+        ):
             return "bloqueio_texto"
+
         if preco < PRECO_MIN:
             return "preco_baixo"
+
         if preco > PRECO_MAX:
             return "preco_alto"
+
         if vendas < VENDAS_MIN:
             return "vendas_baixas"
-        if avaliacao and avaliacao < RATING_MIN:
+
+        if (
+            avaliacao
+            and avaliacao < RATING_MIN
+        ):
             return "rating_baixo"
+
         if link in usados_no_ciclo:
             return "link_repetido"
 
         return None
 
     except Exception as e:
-        return f"erro_validacao:{type(e).__name__}"
+        return (
+            "erro_validacao:"
+            + type(e).__name__
+        )
+
 
 # =========================================================
 # PREPARAR CANDIDATO
 # =========================================================
 
-def preparar_produto(produto, nicho, termo_busca, modelo=None, peca=None):
-    titulo = str(produto.get("productName", "")).strip()
+def preparar_produto(
+    produto,
+    nicho,
+    termo_busca,
+    modelo=None,
+    peca=None,
+):
+    titulo = str(
+        produto.get(
+            "productName",
+            "",
+        )
+    ).strip()
 
-    produto = dict(produto)
-    produto["_termo_busca"] = termo_busca
-    produto["_modelo_moto"] = modelo
-    produto["_peca_moto"] = peca
-    produto["_score_base"] = oferta_score(produto, termo_busca, nicho)
-    produto["_familia"] = parse_familia_from_title(titulo)
-    produto["_marca"] = identificar_marca(titulo)
-    produto["_vendedor"] = identificar_vendedor(produto)
+    produto = dict(
+        produto
+    )
+
+    produto["_termo_busca"] = (
+        termo_busca
+    )
+
+    produto["_modelo_moto"] = (
+        modelo
+    )
+
+    produto["_peca_moto"] = (
+        peca
+    )
+
+    produto["_score_base"] = (
+        oferta_score(
+            produto,
+            termo_busca,
+            nicho,
+        )
+    )
+
+    produto["_familia"] = (
+        parse_familia_from_title(
+            titulo
+        )
+    )
+
+    produto["_marca"] = (
+        identificar_marca(
+            titulo
+        )
+    )
+
+    produto["_vendedor"] = (
+        identificar_vendedor(
+            produto
+        )
+    )
+
     produto["_nicho"] = nicho
+
     return produto
 
+
 # =========================================================
-# TERMOS
+# TERMOS GERAIS
 # =========================================================
 
-def get_proximo_termo(nicho, estado):
-    produtos = PRODUTOS_NICHO[nicho]
-    ordem = estado[nicho]["produtos_ordem"]
-    indice = estado[nicho]["produto_idx"]
-    posicao = ordem[indice % len(ordem)]
-    estado[nicho]["produto_idx"] = (indice + 1) % len(ordem)
+def get_proximo_termo(
+    nicho,
+    estado,
+):
+    produtos = PRODUTOS_NICHO[
+        nicho
+    ]
 
-    if estado[nicho]["produto_idx"] == 0:
-        random.shuffle(ordem)
+    ordem = estado[
+        nicho
+    ]["produtos_ordem"]
 
-    return produtos[posicao], estado
+    indice = estado[
+        nicho
+    ]["produto_idx"]
 
-def escolher_termos_nicho(nicho, estado, quantidade):
+    posicao = ordem[
+        indice % len(ordem)
+    ]
+
+    estado[
+        nicho
+    ]["produto_idx"] = (
+        indice + 1
+    ) % len(ordem)
+
+    return (
+        produtos[posicao],
+        estado,
+    )
+
+
+def escolher_termos_nicho(
+    nicho,
+    estado,
+    quantidade,
+):
     escolhidos = []
-    estrategicos = list(dict.fromkeys(TERMOS_ESTRATEGICOS.get(nicho, [])))
-    historico_idx = estado["estrategicos_idx"].get(nicho, 0)
 
-    # Metade estratégico, metade catálogo rotativo.
-    qtd_estrategica = min(len(estrategicos), max(1, math.ceil(quantidade / 2)))
+    estrategicos = list(
+        dict.fromkeys(
+            TERMOS_ESTRATEGICOS.get(
+                nicho,
+                [],
+            )
+        )
+    )
 
-    for i in range(qtd_estrategica):
-        termo = estrategicos[(historico_idx + i) % len(estrategicos)]
-        if termo not in escolhidos:
-            escolhidos.append(termo)
+    historico_idx = int(
+        estado[
+            "estrategicos_idx"
+        ].get(
+            nicho,
+            0,
+        )
+    )
 
-    estado["estrategicos_idx"][nicho] = (
-        historico_idx + qtd_estrategica
-    ) % max(1, len(estrategicos))
+    if estrategicos:
+        qtd_estrategica = min(
+            len(estrategicos),
+            max(
+                1,
+                math.ceil(
+                    quantidade / 2
+                ),
+            ),
+        )
+
+        for i in range(
+            qtd_estrategica
+        ):
+            termo = estrategicos[
+                (
+                    historico_idx + i
+                )
+                % len(estrategicos)
+            ]
+
+            if termo not in escolhidos:
+                escolhidos.append(
+                    termo
+                )
+
+        estado[
+            "estrategicos_idx"
+        ][nicho] = (
+            historico_idx
+            + qtd_estrategica
+        ) % len(estrategicos)
 
     while len(escolhidos) < quantidade:
-        termo, estado = get_proximo_termo(nicho, estado)
+        termo, estado = (
+            get_proximo_termo(
+                nicho,
+                estado,
+            )
+        )
+
         if termo not in escolhidos:
-            escolhidos.append(termo)
+            escolhidos.append(
+                termo
+            )
 
-    return escolhidos[:quantidade], estado
+    return (
+        escolhidos[:quantidade],
+        estado,
+    )
+
 
 # =========================================================
-# BUSCAS MOTO
+# BUSCAS MOTO - NOVO MOTOR
 # =========================================================
 
-def get_proximas_combinacoes_moto(estado, quantidade=5):
-    dados = estado["Moto"]
-    peca_idx = dados["peca_idx"]
-    moto_idx = dados["moto_idx"]
+def get_proximas_combinacoes_moto(
+    estado,
+    quantidade=5,
+):
+    dados = estado[
+        "Moto"
+    ]
+
+    ciclo_idx = int(
+        dados.get(
+            "ciclo_idx",
+            0,
+        )
+    )
+
     resultado = []
 
-    for i in range(quantidade):
-        modelo = MOTOS[moto_idx]
-        peca = PECAS_MOTO[peca_idx]
+    # =====================================================
+    # PRIMEIRA ROTA
+    # =====================================================
 
-        # Primeiras buscas são combinadas.
-        if i < 3:
-            termo = f"{peca} {modelo}"
-        elif i == 3:
-            termo = peca
-        else:
-            termo = modelo
+    if ciclo_idx < len(
+        MOTO_CICLOS_INICIAIS
+    ):
+        inicio = ciclo_idx
 
-        resultado.append((termo, modelo, peca))
+        fim = min(
+            inicio + quantidade,
+            len(
+                MOTO_CICLOS_INICIAIS
+            ),
+        )
 
-        moto_idx = (moto_idx + 1) % len(MOTOS)
-        if moto_idx == 0:
-            peca_idx = (peca_idx + 1) % len(PECAS_MOTO)
+        for idx in range(
+            inicio,
+            fim,
+        ):
+            peca, moto_a, moto_b = (
+                MOTO_CICLOS_INICIAIS[
+                    idx
+                ]
+            )
 
-    dados["peca_idx"] = peca_idx
-    dados["moto_idx"] = moto_idx
-    return resultado, estado
+            resultado.append(
+                (
+                    f"{peca} {moto_a}",
+                    moto_a,
+                    peca,
+                )
+            )
+
+            if len(resultado) < quantidade:
+                resultado.append(
+                    (
+                        f"{peca} {moto_b}",
+                        moto_b,
+                        peca,
+                    )
+                )
+
+    # =====================================================
+    # ROTA DETERMINISTICA APOS A PRIMEIRA
+    # =====================================================
+
+    if len(resultado) < quantidade:
+        base_idx = (
+            ciclo_idx
+            - len(
+                MOTO_CICLOS_INICIAIS
+            )
+        )
+
+        while len(resultado) < quantidade:
+            peca = MOTO_PECAS_ROTA[
+                base_idx
+                % len(MOTO_PECAS_ROTA)
+            ]
+
+            par_idx = (
+                base_idx
+                % len(MOTO_PARES_ROTA)
+            )
+
+            moto_a, moto_b = (
+                MOTO_PARES_ROTA[
+                    par_idx
+                ]
+            )
+
+            # A cada volta completa nos pares,
+            # avançamos a combinação de forma
+            # determinística.
+            resultado.append(
+                (
+                    f"{peca} {moto_a}",
+                    moto_a,
+                    peca,
+                )
+            )
+
+            if len(resultado) < quantidade:
+                resultado.append(
+                    (
+                        f"{peca} {moto_b}",
+                        moto_b,
+                        peca,
+                    )
+                )
+
+            base_idx += 1
+
+    # Avança UM ciclo por chamada.
+    #
+    # Isso é importante:
+    # não avançamos baseado no número de buscas.
+    # O ciclo representa a etapa lógica da rota.
+    dados["ciclo_idx"] = (
+        ciclo_idx + 1
+    )
+
+    # Compatibilidade.
+    dados["peca_idx"] = (
+        dados.get(
+            "peca_idx",
+            0,
+        )
+        + 1
+    ) % len(PECAS_MOTO)
+
+    dados["moto_idx"] = (
+        dados.get(
+            "moto_idx",
+            0,
+        )
+        + 2
+    ) % len(MOTOS)
+
+    logging.info(
+        "MOTO ROTA DETERMINISTICA | "
+        f"ciclo={ciclo_idx} | "
+        f"proximo={dados['ciclo_idx']}"
+    )
+
+    for idx, item in enumerate(
+        resultado,
+        1,
+    ):
+        logging.info(
+            f"MOTO BUSCA {idx}: "
+            f"{item[0]}"
+        )
+
+    return (
+        resultado[:quantidade],
+        estado,
+    )
+
 
 # =========================================================
 # COLETA DE POOL
 # =========================================================
 
-def coletar_pool_nicho(nicho, estado):
+def coletar_pool_nicho(
+    nicho,
+    estado,
+):
     resultados = []
     motivos = Counter()
 
     if nicho == "Moto":
-        buscas, estado = get_proximas_combinacoes_moto(
-            estado, BUSCAS_POR_NICHO["Moto"]
+        buscas, estado = (
+            get_proximas_combinacoes_moto(
+                estado,
+                BUSCAS_POR_NICHO[
+                    "Moto"
+                ],
+            )
         )
-    else:
-        termos, estado = escolher_termos_nicho(
-            nicho, estado, BUSCAS_POR_NICHO[nicho]
-        )
-        buscas = [(termo, None, None) for termo in termos]
 
-    for termo_busca, modelo, peca in buscas:
+    else:
+        termos, estado = (
+            escolher_termos_nicho(
+                nicho,
+                estado,
+                BUSCAS_POR_NICHO[
+                    nicho
+                ],
+            )
+        )
+
+        buscas = [
+            (
+                termo,
+                None,
+                None,
+            )
+            for termo in termos
+        ]
+
+    for (
+        termo_busca,
+        modelo,
+        peca,
+    ) in buscas:
+
         try:
-            brutos = buscar_produtos_da_categoria_kw(termo_busca, nicho)
+            brutos = (
+                buscar_produtos_da_categoria_kw(
+                    termo_busca,
+                    nicho,
+                )
+            )
 
             logging.info(
-                f"{nicho}: {termo_busca} -> {len(brutos)} brutos"
+                f"{nicho}: "
+                f"{termo_busca} -> "
+                f"{len(brutos)} brutos"
             )
 
             for bruto in brutos:
-                motivo = motivo_rejeicao(bruto)
+                motivo = motivo_rejeicao(
+                    bruto
+                )
 
                 if motivo:
-                    motivos[motivo] += 1
+                    motivos[
+                        motivo
+                    ] += 1
                     continue
 
-                titulo = str(bruto.get("productName", "")).strip()
+                titulo = str(
+                    bruto.get(
+                        "productName",
+                        "",
+                    )
+                ).strip()
 
                 if not validar_relevancia_nicho(
                     nicho,
@@ -830,7 +2571,9 @@ def coletar_pool_nicho(nicho, estado):
                     modelo=modelo,
                     peca=peca,
                 ):
-                    motivos["relevancia"] += 1
+                    motivos[
+                        "relevancia"
+                    ] += 1
                     continue
 
                 produto = preparar_produto(
@@ -841,63 +2584,137 @@ def coletar_pool_nicho(nicho, estado):
                     peca,
                 )
 
-                resultados.append(produto)
+                resultados.append(
+                    produto
+                )
 
         except Exception as e:
             logging.error(
-                f"Erro buscando {nicho}/{termo_busca}: {e}",
+                f"Erro buscando "
+                f"{nicho}/{termo_busca}: "
+                f"{e}",
                 exc_info=True,
             )
-            motivos["erro_busca"] += 1
+
+            motivos[
+                "erro_busca"
+            ] += 1
+
+    # =====================================================
+    # DEDUPLICACAO DO POOL
+    # =====================================================
+    #
+    # V24 usava link no hash de Moto.
+    #
+    # Isso permitia:
+    #
+    # Produto A -> vendedor 1
+    # Produto A -> vendedor 2
+    #
+    # serem tratados como produtos diferentes.
+    #
+    # Agora o pool usa assinatura de catálogo.
+    # =====================================================
 
     unicos = {}
 
     for produto in resultados:
-        chave = chave_produto(produto, nicho)
-        anterior = unicos.get(chave)
+        chave = chave_catalogo(
+            produto,
+            nicho,
+        )
 
-        if anterior is None or produto["_score_base"] > anterior["_score_base"]:
+        anterior = unicos.get(
+            chave
+        )
+
+        if (
+            anterior is None
+            or produto[
+                "_score_base"
+            ]
+            > anterior[
+                "_score_base"
+            ]
+        ):
             unicos[chave] = produto
 
-    resultados = list(unicos.values())
+    resultados = list(
+        unicos.values()
+    )
 
     logging.info(
-        f"{nicho}: pool={len(resultados)} | buscas={len(buscas)} | "
+        f"{nicho}: "
+        f"pool={len(resultados)} | "
+        f"buscas={len(buscas)} | "
         f"rejeicoes={dict(motivos)}"
     )
 
     if nicho == "Moto":
         logging.info(
-            f"MOTO AUDITORIA | pool={len(resultados)} | "
+            f"MOTO AUDITORIA | "
+            f"pool={len(resultados)} | "
             f"rejeicoes={dict(motivos)}"
         )
 
-    return resultados, estado, motivos
+    return (
+        resultados,
+        estado,
+        motivos,
+    )
+
 
 # =========================================================
 # DIVERSIDADE
 # =========================================================
 
-def penalidade_diversidade(produto, nicho, familia, vendedor, marca, titulo):
+def penalidade_diversidade(
+    produto,
+    nicho,
+    familia,
+    vendedor,
+    marca,
+    titulo,
+):
     penal = 0.0
 
     if marca != "sem_marca":
-        penal += max(0, MARCAS_NO_CICLO[marca] - LIMITE_MARCA_PENALIDADE) * 4
+        penal += max(
+            0,
+            MARCAS_NO_CICLO[
+                marca
+            ]
+            - LIMITE_MARCA_PENALIDADE,
+        ) * 4
 
     penal += max(
         0,
-        VENDEDORES_NO_CICLO[vendedor] - LIMITE_VENDEDOR_PENALIDADE
+        VENDEDORES_NO_CICLO[
+            vendedor
+        ]
+        - LIMITE_VENDEDOR_PENALIDADE,
     ) * 3
 
     penal += max(
         0,
-        FAMILIAS_NO_CICLO[familia] - LIMITE_FAMILIA_PENALIDADE
+        FAMILIAS_NO_CICLO[
+            familia
+        ]
+        - LIMITE_FAMILIA_PENALIDADE,
     ) * 5
 
-    titulo_n = sem_acento(titulo)
+    titulo_n = sem_acento(
+        titulo
+    )
 
-    for anterior in list(ULTIMOS_TITULOS)[-30:]:
-        ratio = SequenceMatcher(None, titulo_n, anterior).ratio()
+    for anterior in list(
+        ULTIMOS_TITULOS
+    )[-30:]:
+
+        ratio = similaridade_titulos(
+            titulo_n,
+            anterior,
+        )
 
         if ratio >= SIMILARIDADE_MAX:
             penal += 14
@@ -907,9 +2724,13 @@ def penalidade_diversidade(produto, nicho, familia, vendedor, marca, titulo):
             penal += 4
 
     base = (
-        chave_base_titulo(titulo)
+        chave_base_titulo(
+            titulo
+        )
         if nicho == "Moto"
-        else assinatura_diversidade(titulo)
+        else assinatura_diversidade(
+            titulo
+        )
     )
 
     if base in BASES_VISTAS:
@@ -926,41 +2747,101 @@ def penalidade_diversidade(produto, nicho, familia, vendedor, marca, titulo):
 
     return penal
 
-def oferta_e_estrela(produto, nicho, termo):
-    vendas = int(produto.get("sales", 0) or 0)
-    rating = float(produto.get("ratingStar", 0) or 0)
-    nome = sem_acento(produto.get("productName", ""))
-    score = oferta_score(produto, termo, nicho)
+
+def oferta_e_estrela(
+    produto,
+    nicho,
+    termo,
+):
+    vendas = int(
+        produto.get(
+            "sales",
+            0,
+        )
+        or 0
+    )
+
+    rating = float(
+        produto.get(
+            "ratingStar",
+            0,
+        )
+        or 0
+    )
+
+    nome = sem_acento(
+        produto.get(
+            "productName",
+            "",
+        )
+    )
+
+    score = oferta_score(
+        produto,
+        termo,
+        nicho,
+    )
 
     return (
-        score >= 78
-        and rating >= 4.6
-        and vendas >= 500
-    ) or (
-        any(t in nome for t in TERMOS_ESTRELA)
-        and score >= 75
-        and vendas >= 1000
+        (
+            score >= 78
+            and rating >= 4.6
+            and vendas >= 500
+        )
+        or
+        (
+            any(
+                t in nome
+                for t in TERMOS_ESTRELA
+            )
+            and score >= 75
+            and vendas >= 1000
+        )
     )
+
 
 # =========================================================
 # SELECAO LOCAL
 # =========================================================
 
-def selecionar_do_pool(pool, nicho, quantidade):
+def selecionar_do_pool(
+    pool,
+    nicho,
+    quantidade,
+):
     if not pool or quantidade <= 0:
         return []
 
     selecionados = []
-    restantes = list(pool)
 
-    while restantes and len(selecionados) < quantidade:
+    restantes = list(
+        pool
+    )
+
+    while (
+        restantes
+        and len(selecionados)
+        < quantidade
+    ):
         ranking = []
 
         for produto in restantes:
-            titulo = produto.get("productName", "")
-            familia = produto["_familia"]
-            marca = produto["_marca"]
-            vendedor = produto["_vendedor"]
+            titulo = produto.get(
+                "productName",
+                "",
+            )
+
+            familia = produto[
+                "_familia"
+            ]
+
+            marca = produto[
+                "_marca"
+            ]
+
+            vendedor = produto[
+                "_vendedor"
+            ]
 
             penal = penalidade_diversidade(
                 produto,
@@ -972,111 +2853,234 @@ def selecionar_do_pool(pool, nicho, quantidade):
             )
 
             for item in selecionados:
-                ratio = SequenceMatcher(
-                    None,
-                    sem_acento(titulo),
-                    sem_acento(item.get("productName", "")),
-                ).ratio()
+                ratio = similaridade_titulos(
+                    titulo,
+                    item.get(
+                        "productName",
+                        "",
+                    ),
+                )
 
                 if ratio >= SIMILARIDADE_MAX:
                     penal += 20
+
                 elif ratio >= 0.82:
                     penal += 7
 
-            score = produto["_score_base"] - penal
+            score = (
+                produto[
+                    "_score_base"
+                ]
+                - penal
+            )
 
             if oferta_e_estrela(
                 produto,
                 nicho,
-                produto.get("_termo_busca", ""),
+                produto.get(
+                    "_termo_busca",
+                    "",
+                ),
             ):
                 score += 4
 
-            ranking.append((score, produto))
+            ranking.append(
+                (
+                    score,
+                    produto,
+                )
+            )
 
-        ranking.sort(key=lambda x: x[0], reverse=True)
+        ranking.sort(
+            key=lambda x: x[0],
+            reverse=True,
+        )
+
         _, escolhido = ranking[0]
 
-        selecionados.append(escolhido)
-        restantes.remove(escolhido)
+        selecionados.append(
+            escolhido
+        )
+
+        restantes.remove(
+            escolhido
+        )
 
         link = str(
-            escolhido.get("offerLink")
-            or escolhido.get("productLink")
+            escolhido.get(
+                "offerLink"
+            )
+            or escolhido.get(
+                "productLink"
+            )
             or ""
         )
 
-        usados_no_ciclo.add(link)
-
-        titulo = escolhido.get("productName", "")
-        base = (
-            chave_base_titulo(titulo)
-            if nicho == "Moto"
-            else assinatura_diversidade(titulo)
+        usados_no_ciclo.add(
+            link
         )
 
-        BASES_VISTAS.add(base)
-        ULTIMOS_TITULOS.append(sem_acento(titulo))
-        ULTIMAS_BUSCAS_SHOPEE.append(link)
+        titulo = escolhido.get(
+            "productName",
+            "",
+        )
 
-        MARCAS_NO_CICLO[escolhido["_marca"]] += 1
-        VENDEDORES_NO_CICLO[escolhido["_vendedor"]] += 1
-        FAMILIAS_NO_CICLO[escolhido["_familia"]] += 1
+        base = (
+            chave_base_titulo(
+                titulo
+            )
+            if nicho == "Moto"
+            else assinatura_diversidade(
+                titulo
+            )
+        )
+
+        BASES_VISTAS.add(
+            base
+        )
+
+        ULTIMOS_TITULOS.append(
+            sem_acento(
+                titulo
+            )
+        )
+
+        ULTIMAS_BUSCAS_SHOPEE.append(
+            link
+        )
+
+        MARCAS_NO_CICLO[
+            escolhido["_marca"]
+        ] += 1
+
+        VENDEDORES_NO_CICLO[
+            escolhido["_vendedor"]
+        ] += 1
+
+        FAMILIAS_NO_CICLO[
+            escolhido["_familia"]
+        ] += 1
 
     return selecionados
+
 
 # =========================================================
 # SCORE FINAL
 # =========================================================
 
-def score_selecao(produto, selecionados, usados_familia, usados_marca, usados_vendedor, bases):
-    nicho = produto["_nicho"]
-    familia = produto["_familia"]
-    marca = produto["_marca"]
-    vendedor = produto["_vendedor"]
-    titulo = produto.get("productName", "")
+def score_selecao(
+    produto,
+    selecionados,
+    usados_familia,
+    usados_marca,
+    usados_vendedor,
+    bases,
+):
+    nicho = produto[
+        "_nicho"
+    ]
 
-    base = (
-        chave_base_titulo(titulo)
-        if nicho == "Moto"
-        else assinatura_diversidade(titulo)
+    familia = produto[
+        "_familia"
+    ]
+
+    marca = produto[
+        "_marca"
+    ]
+
+    vendedor = produto[
+        "_vendedor"
+    ]
+
+    titulo = produto.get(
+        "productName",
+        "",
     )
 
-    score = float(produto.get("_score_base", 0))
+    base = (
+        chave_base_titulo(
+            titulo
+        )
+        if nicho == "Moto"
+        else assinatura_diversidade(
+            titulo
+        )
+    )
 
-    if usados_marca[marca] >= 1 and marca != "sem_marca":
-        score -= 3 * usados_marca[marca]
+    score = float(
+        produto.get(
+            "_score_base",
+            0,
+        )
+    )
 
-    if usados_familia[familia] >= 1 and familia != "outros":
-        score -= 6 * usados_familia[familia]
+    if (
+        usados_marca[marca] >= 1
+        and marca != "sem_marca"
+    ):
+        score -= (
+            3
+            * usados_marca[
+                marca
+            ]
+        )
 
-    if usados_vendedor[vendedor] >= 1:
-        score -= 3 * usados_vendedor[vendedor]
+    if (
+        usados_familia[
+            familia
+        ] >= 1
+        and familia != "outros"
+    ):
+        score -= (
+            6
+            * usados_familia[
+                familia
+            ]
+        )
+
+    if usados_vendedor[
+        vendedor
+    ] >= 1:
+        score -= (
+            3
+            * usados_vendedor[
+                vendedor
+            ]
+        )
 
     if base in bases:
         score -= 15
 
     for item in selecionados:
-        ratio = SequenceMatcher(
-            None,
-            sem_acento(titulo),
-            sem_acento(item.get("productName", "")),
-        ).ratio()
+        ratio = similaridade_titulos(
+            titulo,
+            item.get(
+                "productName",
+                "",
+            ),
+        )
 
         if ratio >= SIMILARIDADE_MAX:
             score -= 22
+
         elif ratio >= 0.82:
             score -= 7
 
     if oferta_e_estrela(
         produto,
         nicho,
-        produto.get("_termo_busca", ""),
+        produto.get(
+            "_termo_busca",
+            "",
+        ),
     ):
         score += 5
 
     if nicho == "Eletroeletronicos":
-        nome = sem_acento(titulo)
+        nome = sem_acento(
+            titulo
+        )
+
         if any(
             t in nome
             for t in [
@@ -1092,18 +3096,29 @@ def score_selecao(produto, selecionados, usados_familia, usados_marca, usados_ve
             score += 6
 
     if nicho == "Moto":
-        nome = sem_acento(titulo)
-        vendas = int(produto.get("sales", 0) or 0)
+        vendas = int(
+            produto.get(
+                "sales",
+                0,
+            )
+            or 0
+        )
 
         if modelo_moto_encontrado(
             titulo,
-            produto.get("_modelo_moto", ""),
+            produto.get(
+                "_modelo_moto",
+                "",
+            ),
         ):
             score += 5
 
         if peca_moto_encontrada(
             titulo,
-            produto.get("_peca_moto", ""),
+            produto.get(
+                "_peca_moto",
+                "",
+            ),
         ):
             score += 6
 
@@ -1113,82 +3128,178 @@ def score_selecao(produto, selecionados, usados_familia, usados_marca, usados_ve
         if vendas >= 1000:
             score += 3
 
-    return score, base
+    return (
+        score,
+        base,
+    )
+
 
 # =========================================================
 # SELECAO GLOBAL
 # =========================================================
 
-def selecionar_final_global(pools, max_ofertas=10):
+def selecionar_final_global(
+    pools,
+    max_ofertas=10,
+):
+    historico = limpar_historico_antigo(
+        carregar_historico()
+    )
+
     candidatos_por_nicho = {}
+
+    rejeitados_historico = Counter()
 
     for nicho, pool in pools.items():
         validos = []
 
         for produto in pool:
-            produto = dict(produto)
+            produto = dict(
+                produto
+            )
+
             produto["_nicho"] = nicho
 
-            pid = chave_produto(produto, nicho)
-
-            if historico_bloqueia(pid):
+            if produto_bloqueado_por_historico(
+                produto,
+                nicho,
+                historico,
+            ):
+                rejeitados_historico[
+                    nicho
+                ] += 1
                 continue
 
-            validos.append(produto)
+            validos.append(
+                produto
+            )
 
-        candidatos_por_nicho[nicho] = validos
+        candidatos_por_nicho[
+            nicho
+        ] = validos
+
+    logging.info(
+        "HISTORICO BLOQUEOU: "
+        f"{dict(rejeitados_historico)}"
+    )
 
     selecionados = []
+
     usados_nicho = Counter()
     usados_familia = Counter()
     usados_marca = Counter()
     usados_vendedor = Counter()
+
     bases = set()
 
-    def melhor(nicho, candidatos):
+    def melhor(
+        nicho,
+        candidatos,
+    ):
         ranking = []
 
         for produto in candidatos:
-            score, base = score_selecao(
-                produto,
-                selecionados,
-                usados_familia,
-                usados_marca,
-                usados_vendedor,
-                bases,
+            score, base = (
+                score_selecao(
+                    produto,
+                    selecionados,
+                    usados_familia,
+                    usados_marca,
+                    usados_vendedor,
+                    bases,
+                )
             )
-            ranking.append((score, produto, base))
 
-        ranking.sort(key=lambda x: x[0], reverse=True)
-        return ranking[0] if ranking else None
+            ranking.append(
+                (
+                    score,
+                    produto,
+                    base,
+                )
+            )
+
+        ranking.sort(
+            key=lambda x: x[0],
+            reverse=True,
+        )
+
+        return (
+            ranking[0]
+            if ranking
+            else None
+        )
 
     # =====================================================
-    # FASE 1 - VAGAS PROTEGIDAS
+    # FASE 1 - METAS
+    # =====================================================
+
+    # Aqui usamos a ordem normal dos nichos.
+    # Não randomizamos a lógica.
+    #
+    # Isso torna o comportamento previsível e facilita
+    # auditoria.
     # =====================================================
 
     for nicho in NICHOS:
-        meta = META_NICHO.get(nicho, 0)
-        candidatos = candidatos_por_nicho.get(nicho, [])
+        meta = META_NICHO.get(
+            nicho,
+            0,
+        )
+
+        candidatos = (
+            candidatos_por_nicho.get(
+                nicho,
+                [],
+            )
+        )
 
         for _ in range(meta):
-            if not candidatos or len(selecionados) >= max_ofertas:
+            if (
+                not candidatos
+                or len(selecionados)
+                >= max_ofertas
+            ):
                 break
 
-            escolha = melhor(nicho, candidatos)
+            escolha = melhor(
+                nicho,
+                candidatos,
+            )
 
             if not escolha:
                 break
 
-            _, produto, base = escolha
+            _, produto, base = (
+                escolha
+            )
 
-            selecionados.append(produto)
-            candidatos.remove(produto)
+            selecionados.append(
+                produto
+            )
 
-            usados_nicho[nicho] += 1
-            usados_marca[produto["_marca"]] += 1
-            usados_familia[produto["_familia"]] += 1
-            usados_vendedor[produto["_vendedor"]] += 1
-            bases.add(base)
+            candidatos.remove(
+                produto
+            )
+
+            usados_nicho[
+                nicho
+            ] += 1
+
+            usados_marca[
+                produto["_marca"]
+            ] += 1
+
+            usados_familia[
+                produto["_familia"]
+            ] += 1
+
+            usados_vendedor[
+                produto["_vendedor"]
+            ] += 1
+
+            bases.add(
+                base
+            )
 
     # =====================================================
     # FASE 2 - COMPLETAR
@@ -1196,95 +3307,198 @@ def selecionar_final_global(pools, max_ofertas=10):
 
     restantes = [
         produto
-        for candidatos in candidatos_por_nicho.values()
+        for candidatos
+        in candidatos_por_nicho.values()
         for produto in candidatos
     ]
 
-    while restantes and len(selecionados) < max_ofertas:
+    while (
+        restantes
+        and len(selecionados)
+        < max_ofertas
+    ):
         ranking = []
 
         for produto in restantes:
-            score, base = score_selecao(
-                produto,
-                selecionados,
-                usados_familia,
-                usados_marca,
-                usados_vendedor,
-                bases,
+            score, base = (
+                score_selecao(
+                    produto,
+                    selecionados,
+                    usados_familia,
+                    usados_marca,
+                    usados_vendedor,
+                    bases,
+                )
             )
-            ranking.append((score, produto, base))
 
-        ranking.sort(key=lambda x: x[0], reverse=True)
-        _, escolhido, base = ranking[0]
+            ranking.append(
+                (
+                    score,
+                    produto,
+                    base,
+                )
+            )
 
-        restantes.remove(escolhido)
-        selecionados.append(escolhido)
+        ranking.sort(
+            key=lambda x: x[0],
+            reverse=True,
+        )
 
-        usados_nicho[escolhido["_nicho"]] += 1
-        usados_marca[escolhido["_marca"]] += 1
-        usados_familia[escolhido["_familia"]] += 1
-        usados_vendedor[escolhido["_vendedor"]] += 1
-        bases.add(base)
+        _, escolhido, base = (
+            ranking[0]
+        )
+
+        restantes.remove(
+            escolhido
+        )
+
+        selecionados.append(
+            escolhido
+        )
+
+        usados_nicho[
+            escolhido["_nicho"]
+        ] += 1
+
+        usados_marca[
+            escolhido["_marca"]
+        ] += 1
+
+        usados_familia[
+            escolhido["_familia"]
+        ] += 1
+
+        usados_vendedor[
+            escolhido["_vendedor"]
+        ] += 1
+
+        bases.add(
+            base
+        )
 
     distribuicao = Counter(
-        item["_nicho"] for item in selecionados
+        item["_nicho"]
+        for item in selecionados
     )
-
-    logging.info(f"DISTRIBUICAO FINAL: {dict(distribuicao)}")
 
     logging.info(
-        f"MOTO FINAL: {distribuicao.get('Moto', 0)}/"
-        f"{META_NICHO.get('Moto', 0)} | "
-        f"CANDIDATOS: {len(candidatos_por_nicho.get('Moto', []))}"
+        f"DISTRIBUICAO FINAL: "
+        f"{dict(distribuicao)}"
     )
 
-    return selecionados[:max_ofertas]
+    logging.info(
+        "MOTO FINAL: "
+        f"{distribuicao.get('Moto', 0)}/"
+        f"{META_NICHO.get('Moto', 0)} | "
+        f"CANDIDATOS: "
+        f"{len(candidatos_por_nicho.get('Moto', []))}"
+    )
+
+    return selecionados[
+        :max_ofertas
+    ]
+
 
 # =========================================================
 # RECUPERACAO
 # =========================================================
 
-def recuperar_ofertas(pools, selecionados, estado):
-    if len(selecionados) >= MAX_OFERTAS:
-        return selecionados, estado
+def recuperar_ofertas(
+    pools,
+    selecionados,
+    estado,
+):
+    if len(
+        selecionados
+    ) >= MAX_OFERTAS:
+        return (
+            selecionados,
+            estado,
+        )
 
     logging.info(
-        f"RECUPERACAO: faltam {MAX_OFERTAS - len(selecionados)}"
+        "RECUPERACAO: "
+        f"faltam "
+        f"{MAX_OFERTAS - len(selecionados)}"
+    )
+
+    historico = limpar_historico_antigo(
+        carregar_historico()
     )
 
     ids_selecionados = {
-        chave_produto(x, x["_nicho"])
+        chave_produto(
+            x,
+            x["_nicho"],
+        )
         for x in selecionados
     }
 
-    for nicho in random.sample(NICHOS, len(NICHOS)):
-        if len(selecionados) >= MAX_OFERTAS:
+    # Não randomizamos a ordem da recuperação.
+    for nicho in NICHOS:
+        if len(
+            selecionados
+        ) >= MAX_OFERTAS:
             break
 
         if nicho == "Moto":
-            buscas, estado = get_proximas_combinacoes_moto(estado, 2)
-        else:
-            termos, estado = escolher_termos_nicho(nicho, estado, 2)
-            buscas = [(x, None, None) for x in termos]
+            buscas, estado = (
+                get_proximas_combinacoes_moto(
+                    estado,
+                    2,
+                )
+            )
 
-        for termo_busca, modelo, peca in buscas:
-            if len(selecionados) >= MAX_OFERTAS:
+        else:
+            termos, estado = (
+                escolher_termos_nicho(
+                    nicho,
+                    estado,
+                    2,
+                )
+            )
+
+            buscas = [
+                (
+                    x,
+                    None,
+                    None,
+                )
+                for x in termos
+            ]
+
+        for (
+            termo_busca,
+            modelo,
+            peca,
+        ) in buscas:
+
+            if len(
+                selecionados
+            ) >= MAX_OFERTAS:
                 break
 
             try:
-                brutos = buscar_produtos_da_categoria_kw(
-                    termo_busca,
-                    nicho,
+                brutos = (
+                    buscar_produtos_da_categoria_kw(
+                        termo_busca,
+                        nicho,
+                    )
                 )
 
                 novos = []
 
                 for bruto in brutos:
-                    if motivo_rejeicao(bruto):
+                    if motivo_rejeicao(
+                        bruto
+                    ):
                         continue
 
                     titulo = str(
-                        bruto.get("productName", "")
+                        bruto.get(
+                            "productName",
+                            "",
+                        )
                     ).strip()
 
                     if not validar_relevancia_nicho(
@@ -1312,126 +3526,263 @@ def recuperar_ofertas(pools, selecionados, estado):
                     if pid in ids_selecionados:
                         continue
 
-                    if historico_bloqueia(pid):
+                    if produto_bloqueado_por_historico(
+                        produto,
+                        nicho,
+                        historico,
+                    ):
                         continue
 
-                    novos.append(produto)
+                    novos.append(
+                        produto
+                    )
 
                 if not novos:
                     continue
 
-                # Reavalia pela qualidade e diversidade.
-                escolhidos = selecionar_do_pool(
-                    novos,
-                    nicho,
-                    1,
+                escolhidos = (
+                    selecionar_do_pool(
+                        novos,
+                        nicho,
+                        1,
+                    )
                 )
 
                 if escolhidos:
-                    escolhido = escolhidos[0]
-                    selecionados.append(escolhido)
+                    escolhido = (
+                        escolhidos[0]
+                    )
+
+                    selecionados.append(
+                        escolhido
+                    )
+
                     ids_selecionados.add(
-                        chave_produto(escolhido, nicho)
+                        chave_produto(
+                            escolhido,
+                            nicho,
+                        )
                     )
 
             except Exception as e:
                 logging.error(
-                    f"Erro recuperacao {nicho}/{termo_busca}: {e}",
+                    f"Erro recuperacao "
+                    f"{nicho}/{termo_busca}: "
+                    f"{e}",
                     exc_info=True,
                 )
 
-    return selecionados[:MAX_OFERTAS], estado
+    return (
+        selecionados[:MAX_OFERTAS],
+        estado,
+    )
+
 
 # =========================================================
 # MOTOR PRINCIPAL
 # =========================================================
 
 def get_shopee_offers():
-    global usados_no_ciclo, BASES_VISTAS
-    global ULTIMAS_BUSCAS_SHOPEE, ULTIMOS_TITULOS
-    global VENDEDORES_NO_CICLO, MARCAS_NO_CICLO, FAMILIAS_NO_CICLO
+    global usados_no_ciclo
+    global BASES_VISTAS
+    global ULTIMAS_BUSCAS_SHOPEE
+    global ULTIMOS_TITULOS
+    global VENDEDORES_NO_CICLO
+    global MARCAS_NO_CICLO
+    global FAMILIAS_NO_CICLO
 
     usados_no_ciclo = set()
+
     BASES_VISTAS = set()
+
     VENDEDORES_NO_CICLO = Counter()
+
     MARCAS_NO_CICLO = Counter()
+
     FAMILIAS_NO_CICLO = Counter()
 
-    ULTIMAS_BUSCAS_SHOPEE = ULTIMAS_BUSCAS_SHOPEE[-300:]
-    ULTIMOS_TITULOS = ULTIMOS_TITULOS[-150:]
+    ULTIMAS_BUSCAS_SHOPEE = (
+        ULTIMAS_BUSCAS_SHOPEE[-300:]
+    )
+
+    ULTIMOS_TITULOS = (
+        ULTIMOS_TITULOS[-150:]
+    )
 
     estado = carregar_estado()
-    estado["ciclos"] = int(estado.get("ciclos", 0)) + 1
+
+    estado["ciclos"] = (
+        int(
+            estado.get(
+                "ciclos",
+                0,
+            )
+        )
+        + 1
+    )
+
+    logging.info(
+        "=" * 60
+    )
+
+    logging.info(
+        f"INICIO CICLO V25 "
+        f"#{estado['ciclos']}"
+    )
+
+    logging.info(
+        f"ARQUIVO ESTADO: "
+        f"{ESTADO_FILE}"
+    )
+
+    logging.info(
+        f"ARQUIVO HISTORICO: "
+        f"{HISTORICO_FILE}"
+    )
+
+    if VOLUME_PATH:
+        logging.info(
+            f"RAILWAY VOLUME ATIVO: "
+            f"{VOLUME_PATH}"
+        )
+    else:
+        logging.warning(
+            "RAILWAY VOLUME NAO DETECTADO. "
+            "O estado pode nao sobreviver a "
+            "um novo deployment."
+        )
+
+    logging.info(
+        "=" * 60
+    )
+
+    # =====================================================
+    # IMPORTANTE:
+    # A ordem dos nichos pode continuar variando para que
+    # o conjunto geral não fique tão previsível.
+    #
+    # MAS A ROTA INTERNA DE MOTO NÃO MUDA.
+    #
+    # Mesmo que Moto seja processado em outra posição,
+    # seu ciclo continua 0 -> 1 -> 2 -> 3...
+    # =====================================================
+
+    ordem_nichos = NICHOS[:]
+
+    random.shuffle(
+        ordem_nichos
+    )
 
     pools = {}
-    ordem_nichos = NICHOS[:]
-    random.shuffle(ordem_nichos)
-
-    logging.info("=" * 60)
-    logging.info(f"INICIO CICLO V24 #{estado['ciclos']}")
-    logging.info("=" * 60)
 
     for nicho in ordem_nichos:
         try:
-            pool, estado, _ = coletar_pool_nicho(
-                nicho,
-                estado,
+            pool, estado, _ = (
+                coletar_pool_nicho(
+                    nicho,
+                    estado,
+                )
             )
+
             pools[nicho] = pool
 
         except Exception as e:
             logging.error(
-                f"Erro pool {nicho}: {e}",
+                f"Erro pool "
+                f"{nicho}: {e}",
                 exc_info=True,
             )
+
             pools[nicho] = []
 
     candidatos_total = sum(
-        len(x) for x in pools.values()
+        len(x)
+        for x in pools.values()
     )
 
     logging.info(
-        f"POOL TOTAL: {candidatos_total}"
+        f"POOL TOTAL: "
+        f"{candidatos_total}"
     )
 
-    selecionados = selecionar_final_global(
-        pools,
-        MAX_OFERTAS,
-    )
-
-    if len(selecionados) < MAX_OFERTAS:
-        selecionados, estado = recuperar_ofertas(
+    selecionados = (
+        selecionar_final_global(
             pools,
-            selecionados,
-            estado,
+            MAX_OFERTAS,
+        )
+    )
+
+    if len(
+        selecionados
+    ) < MAX_OFERTAS:
+        selecionados, estado = (
+            recuperar_ofertas(
+                pools,
+                selecionados,
+                estado,
+            )
         )
 
-    selecionados = selecionados[:MAX_OFERTAS]
-
-    logging.info("=" * 60)
-    logging.info(
-        f"RESULTADO CICLO: "
-        f"{len(selecionados)}/{MAX_OFERTAS}"
+    selecionados = (
+        selecionados[:MAX_OFERTAS]
     )
 
-    for i, item in enumerate(selecionados, 1):
+    logging.info(
+        "=" * 60
+    )
+
+    logging.info(
+        "RESULTADO CICLO: "
+        f"{len(selecionados)}/"
+        f"{MAX_OFERTAS}"
+    )
+
+    for i, item in enumerate(
+        selecionados,
+        1,
+    ):
         logging.info(
-            f"{i:02d}. [{item.get('_nicho')}] "
+            f"{i:02d}. "
+            f"[{item.get('_nicho')}] "
             f"{item.get('productName')} | "
-            f"score={item.get('_score_base', 0):.1f} | "
-            f"vendas={item.get('sales', 0)} | "
+            f"score="
+            f"{item.get('_score_base', 0):.1f} | "
+            f"vendas="
+            f"{item.get('sales', 0)} | "
             f"comissao="
             f"{float(item.get('commissionRate', 0) or 0) * 100:.1f}%"
         )
 
-    logging.info("=" * 60)
+        if item.get(
+            "_nicho"
+        ) == "Moto":
+            logging.info(
+                "    MOTO -> "
+                f"peca="
+                f"{item.get('_peca_moto')} | "
+                f"modelo="
+                f"{item.get('_modelo_moto')}"
+            )
 
-    salvar_estado(estado)
+    logging.info(
+        "=" * 60
+    )
+
+    salvar_estado(
+        estado
+    )
 
     return [
-        (item.get("_nicho", ""), item)
+        (
+            item.get(
+                "_nicho",
+                "",
+            ),
+            item,
+        )
         for item in selecionados
     ]
+
 
 # =========================================================
 # COPY
@@ -1450,19 +3801,46 @@ CHAMADAS_ACAO = [
     "🛒 NÃO DEIXA ESCAPAR!",
 ]
 
-def aplicar_id_afiliado(link):
-    parsed = urlparse(link)
-    query = parse_qs(parsed.query)
-    query["af_siteid"] = AFILIADO_ID
+
+def aplicar_id_afiliado(
+    link
+):
+    parsed = urlparse(
+        link
+    )
+
+    query = parse_qs(
+        parsed.query
+    )
+
+    query["af_siteid"] = [
+        AFILIADO_ID
+    ]
+
     return urlunparse(
         parsed._replace(
-            query=urlencode(query, doseq=True)
+            query=urlencode(
+                query,
+                doseq=True,
+            )
         )
     )
 
-def gerar_link_whatsapp(mensagem):
-    texto = re.sub(r"<[^>]+>", "", mensagem)
-    return f"https://wa.me/?text={quote(texto)}"
+
+def gerar_link_whatsapp(
+    mensagem
+):
+    texto = re.sub(
+        r"<[^>]+>",
+        "",
+        mensagem,
+    )
+
+    return (
+        "https://wa.me/?text="
+        + quote(texto)
+    )
+
 
 def gerar_copy(
     nome,
@@ -1473,23 +3851,29 @@ def gerar_copy(
     link,
     whatsapp=False,
 ):
-    abertura = random.choice([
-        "🚨 Isso aqui não é comum aparecer assim",
-        "👀 Achei isso aqui e fui conferir…",
-        "🔥 Isso aqui tá com cara de oportunidade",
-        "💥 Esse aqui tá chamando atenção de quem compra",
-        "⚠️ Isso aqui pode desaparecer rápido",
-    ])
+    abertura = random.choice(
+        [
+            "🚨 Isso aqui não é comum aparecer assim",
+            "👀 Achei isso aqui e fui conferir…",
+            "🔥 Isso aqui tá com cara de oportunidade",
+            "💥 Esse aqui tá chamando atenção de quem compra",
+            "⚠️ Isso aqui pode desaparecer rápido",
+        ]
+    )
 
-    gatilho = random.choice([
-        "Preço muito abaixo do que costuma aparecer",
-        "Avaliações acima da média",
-        "Volume de vendas alto",
-        "Custo-benefício forte",
-        "Tá vendendo bem",
-    ])
+    gatilho = random.choice(
+        [
+            "Preço muito abaixo do que costuma aparecer",
+            "Avaliações acima da média",
+            "Volume de vendas alto",
+            "Custo-benefício forte",
+            "Tá vendendo bem",
+        ]
+    )
 
-    acao = random.choice(CHAMADAS_ACAO)
+    acao = random.choice(
+        CHAMADAS_ACAO
+    )
 
     if whatsapp:
         return f"""
@@ -1510,7 +3894,7 @@ def gerar_copy(
 
 📢 Grupo:
 {LINK_GRUPO_OFERTAS}
-"""
+""".strip()
 
     return f"""
 {abertura}
@@ -1530,62 +3914,141 @@ def gerar_copy(
 🛒 COMPRAR AGORA
 
 📲 Entrar no grupo de ofertas
-"""
+""".strip()
+
 
 # =========================================================
 # ENVIO
 # =========================================================
 
-async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
+def limitar_caption(
+    texto,
+    limite=1024,
+):
+    texto = str(
+        texto or ""
+    )
+
+    if len(texto) <= limite:
+        return texto
+
+    return (
+        texto[:limite - 3]
+        + "..."
+    )
+
+
+async def send_ofertas(
+    context: ContextTypes.DEFAULT_TYPE
+):
     try:
         if not dentro_do_horario():
-            logging.info("Fora do horario permitido")
+            logging.info(
+                "Fora do horario permitido"
+            )
             return
 
-        ofertas = get_shopee_offers()
+        ofertas = (
+            get_shopee_offers()
+        )
 
         if len(ofertas) < MIN_OFERTAS:
             logging.warning(
-                f"Apenas {len(ofertas)} ofertas validas. "
-                f"Ciclo nao enviado."
+                f"Apenas "
+                f"{len(ofertas)} "
+                "ofertas validas. "
+                "Ciclo nao enviado."
             )
             return
 
         selecionadas = []
 
+        # =================================================
+        # SEGURANCA FINAL CONTRA REPETICAO
+        # =================================================
+
+        ids_envio = set()
+
         for nicho, item in ofertas:
             try:
                 link_base = (
-                    item.get("offerLink")
-                    or item.get("productLink")
+                    item.get(
+                        "offerLink"
+                    )
+                    or item.get(
+                        "productLink"
+                    )
                 )
 
                 if not link_base:
                     continue
 
-                link = aplicar_id_afiliado(link_base)
+                produto_id = (
+                    chave_produto(
+                        item,
+                        nicho,
+                    )
+                )
+
+                # Nunca duas ocorrências do mesmo ID
+                # dentro do mesmo envio.
+                if produto_id in ids_envio:
+                    logging.warning(
+                        "DUPLICATA FINAL "
+                        "REMOVIDA: "
+                        f"{item.get('productName')}"
+                    )
+                    continue
+
+                ids_envio.add(
+                    produto_id
+                )
+
+                link = aplicar_id_afiliado(
+                    link_base
+                )
+
                 link_html = html.escape(
                     link,
                     quote=True,
                 )
 
                 nome = html.escape(
-                    str(item.get("productName", "")),
+                    str(
+                        item.get(
+                            "productName",
+                            "",
+                        )
+                    ),
                     quote=False,
                 )
 
                 preco = float(
-                    item.get("priceMin", 0) or 0
+                    item.get(
+                        "priceMin",
+                        0,
+                    )
+                    or 0
                 )
 
-                imagem = item.get("imageUrl")
+                imagem = item.get(
+                    "imageUrl"
+                )
 
                 avaliacao = float(
-                    item.get("ratingStar", 4.5) or 4.5
+                    item.get(
+                        "ratingStar",
+                        4.5,
+                    )
+                    or 4.5
                 )
 
                 vendas = int(
-                    item.get("sales", 100) or 100
+                    item.get(
+                        "sales",
+                        100,
+                    )
+                    or 100
                 )
 
                 comissao = round(
@@ -1593,17 +4056,33 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                         item.get(
                             "commissionRate",
                             0,
-                        ) or 0
-                    ) * 100,
+                        )
+                        or 0
+                    )
+                    * 100,
                     2,
                 )
 
-                vendas_texto = f"{vendas:,}".replace(",", ".")
-                preco_texto = f"{preco:.2f}".replace(".", ",")
+                vendas_texto = (
+                    f"{vendas:,}"
+                    .replace(
+                        ",",
+                        ".",
+                    )
+                )
+
+                preco_texto = (
+                    f"{preco:.2f}"
+                    .replace(
+                        ".",
+                        ",",
+                    )
+                )
 
                 if not imagem:
                     logging.warning(
-                        f"Produto sem imagem: {nome}"
+                        f"Produto sem "
+                        f"imagem: {nome}"
                     )
                     continue
 
@@ -1627,7 +4106,9 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                 )
 
                 link_zap = html.escape(
-                    gerar_link_whatsapp(mensagem_zap),
+                    gerar_link_whatsapp(
+                        mensagem_zap
+                    ),
                     quote=True,
                 )
 
@@ -1638,42 +4119,56 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     "\n📢 <b>Ofertas Secretas</b>"
                 )
 
-                produto_id = chave_produto(
-                    item,
-                    nicho,
+                mensagem = limitar_caption(
+                    mensagem
                 )
 
-                selecionadas.append({
-                    "msg": mensagem,
-                    "img": imagem,
-                    "produto_id": produto_id,
-                    "nicho": nicho,
-                })
+                selecionadas.append(
+                    {
+                        "msg": mensagem,
+                        "img": imagem,
+                        "produto_id": produto_id,
+                        "nicho": nicho,
+                        "produto": item,
+                    }
+                )
 
             except Exception as e:
                 logging.error(
-                    f"Erro preparando produto: {e}",
+                    f"Erro preparando "
+                    f"produto: {e}",
                     exc_info=True,
                 )
 
-        if len(selecionadas) < MIN_OFERTAS:
+        if len(
+            selecionadas
+        ) < MIN_OFERTAS:
             logging.warning(
-                f"Somente {len(selecionadas)} ofertas "
-                f"possuem imagem/dados para envio"
+                f"Somente "
+                f"{len(selecionadas)} "
+                "ofertas possuem "
+                "imagem/dados para envio"
             )
             return
 
         logging.info(
-            f"ENVIANDO {len(selecionadas)} OFERTAS PARA VIP"
+            f"ENVIANDO "
+            f"{len(selecionadas)} "
+            "OFERTAS PARA VIP"
         )
 
         await context.bot.send_message(
             chat_id=CHAT_ID_DESTINO,
-            text="🚨 <b>OFERTAS NOVAS CHEGANDO...</b>",
+            text=(
+                "🚨 <b>OFERTAS NOVAS "
+                "CHEGANDO...</b>"
+            ),
             parse_mode="HTML",
         )
 
-        await asyncio.sleep(5)
+        await asyncio.sleep(
+            5
+        )
 
         enviadas = []
 
@@ -1686,17 +4181,27 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     parse_mode="HTML",
                 )
 
+                # =================================================
+                # REGISTRA NO HISTORICO SOMENTE APOS ENVIO REAL.
+                # =================================================
+
                 registrar_historico(
-                    item["produto_id"]
+                    item["produto_id"],
+                    item["produto"],
                 )
 
-                enviadas.append(item)
+                enviadas.append(
+                    item
+                )
 
-                await asyncio.sleep(40)
+                await asyncio.sleep(
+                    40
+                )
 
             except Exception as e:
                 logging.error(
-                    f"Erro enviando VIP: {e}",
+                    f"Erro enviando VIP: "
+                    f"{e}",
                     exc_info=True,
                 )
 
@@ -1707,22 +4212,35 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
         estado = carregar_estado()
 
         indice = int(
-            estado.get("free_nicho_idx", 0)
+            estado.get(
+                "free_nicho_idx",
+                0,
+            )
         )
 
-        nicho_free = NICHOS_FREE_ROTA[
-            indice % len(NICHOS_FREE_ROTA)
-        ]
+        nicho_free = (
+            NICHOS_FREE_ROTA[
+                indice
+                % len(
+                    NICHOS_FREE_ROTA
+                )
+            ]
+        )
 
         oferta_free = next(
             (
-                x for x in enviadas
-                if x["nicho"] == nicho_free
+                x
+                for x in enviadas
+                if x["nicho"]
+                == nicho_free
             ),
             None,
         )
 
-        if not oferta_free and enviadas:
+        if (
+            not oferta_free
+            and enviadas
+        ):
             oferta_free = enviadas[0]
 
         if oferta_free:
@@ -1734,33 +4252,50 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
                     parse_mode="HTML",
                 )
 
+                # Não cria outro produto no histórico.
+                # Apenas garante que o ID continua bloqueado.
                 registrar_historico(
-                    oferta_free["produto_id"]
+                    oferta_free[
+                        "produto_id"
+                    ],
+                    oferta_free[
+                        "produto"
+                    ],
                 )
 
             except Exception as e:
                 logging.error(
-                    f"Erro enviando FREE: {e}",
+                    f"Erro enviando FREE: "
+                    f"{e}",
                     exc_info=True,
                 )
 
-        estado["free_nicho_idx"] = (
+        estado[
+            "free_nicho_idx"
+        ] = (
             indice + 1
-        ) % len(NICHOS_FREE_ROTA)
+        ) % len(
+            NICHOS_FREE_ROTA
+        )
 
-        salvar_estado(estado)
+        salvar_estado(
+            estado
+        )
 
         logging.info(
-            f"CICLO FINALIZADO: "
+            "CICLO FINALIZADO: "
             f"VIP={len(enviadas)} | "
-            f"FREE={'1' if oferta_free else '0'}"
+            f"FREE="
+            f"{'1' if oferta_free else '0'}"
         )
 
     except Exception as e:
         logging.error(
-            f"ERRO CRITICO: {e}",
+            f"ERRO CRITICO: "
+            f"{e}",
             exc_info=True,
         )
+
 
 # =========================================================
 # RUNTIME
@@ -1768,10 +4303,18 @@ async def send_ofertas(context: ContextTypes.DEFAULT_TYPE):
 
 async def keep_alive():
     while True:
-        logging.info("BOT VIVO")
-        await asyncio.sleep(300)
+        logging.info(
+            "BOT VIVO"
+        )
 
-async def post_init(application):
+        await asyncio.sleep(
+            300
+        )
+
+
+async def post_init(
+    application
+):
     application.job_queue.run_repeating(
         send_ofertas,
         interval=CHECK_INTERVAL,
@@ -1783,25 +4326,50 @@ async def post_init(application):
     )
 
     logging.info(
-        "🤖 BOT RODANDO ESTAVEL - V24"
+        "🤖 BOT RODANDO ESTAVEL - V25"
     )
 
     logging.info(
-        f"Intervalo: {CHECK_INTERVAL}s | "
-        f"Janela: {HORARIO_INICIO} - {HORARIO_FIM}"
+        f"Intervalo: "
+        f"{CHECK_INTERVAL}s | "
+        f"Janela: "
+        f"{HORARIO_INICIO} - "
+        f"{HORARIO_FIM}"
     )
 
-async def error_handler(update, context):
+    logging.info(
+        f"Data dir: {DATA_DIR}"
+    )
+
+    if VOLUME_PATH:
+        logging.info(
+            f"Volume Railway: "
+            f"{VOLUME_PATH}"
+        )
+    else:
+        logging.warning(
+            "Nenhum Volume Railway "
+            "detectado."
+        )
+
+
+async def error_handler(
+    update,
+    context,
+):
     logging.error(
-        f"ERRO TELEGRAM: {context.error}",
+        f"ERRO TELEGRAM: "
+        f"{context.error}",
         exc_info=True,
     )
+
 
 # =========================================================
 # MAIN
 # =========================================================
 
 if __name__ == "__main__":
+
     if not TELEGRAM_TOKEN:
         raise RuntimeError(
             "TELEGRAM_TOKEN ausente"
@@ -1816,8 +4384,12 @@ if __name__ == "__main__":
         try:
             app = (
                 ApplicationBuilder()
-                .token(TELEGRAM_TOKEN)
-                .post_init(post_init)
+                .token(
+                    TELEGRAM_TOKEN
+                )
+                .post_init(
+                    post_init
+                )
                 .build()
             )
 
@@ -1831,8 +4403,11 @@ if __name__ == "__main__":
 
         except Exception as erro:
             logging.error(
-                f"BOT REINICIANDO: {erro}",
+                f"BOT REINICIANDO: "
+                f"{erro}",
                 exc_info=True,
             )
-            time.sleep(15)
 
+            time.sleep(
+                15
+            )
