@@ -10,10 +10,6 @@ from telegram.ext import ApplicationBuilder, ContextTypes
 
 print("VERSAO SHOPEE V24 - MOTOR RELEVANCIA + DIVERSIDADE + COMISSAO FLEXIVEL")
 
-=========================================================
-CONFIG
-=========================================================
-
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "")
 CHAT_ID_DESTINO = -1003848415150
@@ -22,7 +18,6 @@ SHOPEE_APP_ID = "18349740277"
 AFILIADO_ID = "18349740277"
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
-
 CHECK_INTERVAL = 5400
 MAX_OFERTAS = 10
 MIN_OFERTAS = 4
