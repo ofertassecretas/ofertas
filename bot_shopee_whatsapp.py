@@ -31,7 +31,7 @@ RATING_MIN = 4.0
 PRECO_MIN = 15.0
 PRECO_MAX = 10000.0
 
-Comissão NÃO bloqueia.
+Comissão NÃO bloqueio.
 
 COMISSAO_MIN = 0.0
 
