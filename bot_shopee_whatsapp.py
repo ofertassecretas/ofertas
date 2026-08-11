@@ -1,3 +1,4 @@
+
 import asyncio
 import hashlib
 import html
@@ -18,7 +19,17 @@ import requests
 from telegram.ext import ApplicationBuilder, ContextTypes
 
 
-print("VERSAO SHOPEE V25 - MOTOR DIVERSIDADE + HISTORICO FORTE + MOTO DETERMINISTICO")
+# =========================================================
+# FUSO HORÁRIO
+# =========================================================
+
+FUSO_BR = ZoneInfo("America/Sao_Paulo")
+
+
+print(
+    "VERSAO SHOPEE V25 - "
+    "MOTOR DIVERSIDADE + HISTORICO FORTE + MOTO DETERMINISTICO"
+)
 
 
 # =========================================================
@@ -52,18 +63,34 @@ CHECK_INTERVAL = 5400
 MAX_OFERTAS = 10
 MIN_OFERTAS = 4
 
+# Horário de funcionamento do bot.
 HORARIO_INICIO = dt_time(5, 30)
 HORARIO_FIM = dt_time(21, 30)
+
+
+# =========================================================
+# HISTÓRICO
+# =========================================================
 
 # Histórico principal.
 HISTORICO_DIAS = 7
 
-# Similaridade entre produtos.
+
+# =========================================================
+# SIMILARIDADE
+# =========================================================
+
+# Similaridade usada dentro do ciclo atual.
 SIMILARIDADE_MAX = 0.90
 
-# Similaridade usada contra histórico persistente.
+# Similaridade usada contra o histórico persistente.
 # Mais alta para não bloquear produtos legítimos demais.
 SIMILARIDADE_HISTORICO = 0.93
+
+
+# =========================================================
+# FILTROS BÁSICOS
+# =========================================================
 
 VENDAS_MIN = 2
 RATING_MIN = 4.0
@@ -74,10 +101,19 @@ PRECO_MAX = 10000.0
 # Comissão não bloqueia.
 COMISSAO_MIN = 0.0
 
-# Diversidade dentro do ciclo.
+
+# =========================================================
+# DIVERSIDADE DENTRO DO CICLO
+# =========================================================
+
 LIMITE_VENDEDOR_PENALIDADE = 1
 LIMITE_MARCA_PENALIDADE = 1
 LIMITE_FAMILIA_PENALIDADE = 1
+
+
+# =========================================================
+# QUANTIDADE DE BUSCAS POR NICHO
+# =========================================================
 
 BUSCAS_POR_NICHO = {
     "Moto": 5,
@@ -87,6 +123,11 @@ BUSCAS_POR_NICHO = {
     "Moda feminina": 3,
     "Moda masculina": 3,
 }
+
+
+# =========================================================
+# META DE OFERTAS POR NICHO
+# =========================================================
 
 META_NICHO = {
     "Moto": 2,
