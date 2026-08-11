@@ -31,7 +31,7 @@ RATING_MIN = 4.0
 PRECO_MIN = 15.0
 PRECO_MAX = 10000.0
 
-ComissÃ£o NÃƒO bloqueio.
+# Comissao NAO bloqueio.
 
 COMISSAO_MIN = 0.0
 
