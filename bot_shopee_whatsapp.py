@@ -31,7 +31,7 @@ RATING_MIN = 4.0
 PRECO_MIN = 15.0
 PRECO_MAX = 10000.0
 
-Comissão NÃO bloqueio.
+ComissÃ£o NÃƒO bloqueio.
 
 COMISSAO_MIN = 0.0
 
@@ -202,7 +202,7 @@ MOTO_ALIASES = {
 }
 
 PECA_ALIASES = {
-"kit relacao": ["kit relacao", "kit relação", "relacao", "relação", "transmissao", "transmissão"],
+"kit relacao": ["kit relacao", "kit relaÃ§Ã£o", "relacao", "relaÃ§Ã£o", "transmissao", "transmissÃ£o"],
 "kit embreagem": ["kit embreagem", "embreagem", "disco embreagem"],
 "bateria": ["bateria", "bateria moto"],
 "estator": ["estator", "bobina estator"],
@@ -214,11 +214,11 @@ PECA_ALIASES = {
 "pneu": ["pneu", "pneu moto"],
 "corrente moto": ["corrente moto", "corrente de moto"],
 "coroa moto": ["coroa moto", "coroa"],
-"pinhao moto": ["pinhao moto", "pinhão", "pinhao"],
+"pinhao moto": ["pinhao moto", "pinhÃ£o", "pinhao"],
 "farol": ["farol", "farol moto"],
 "retrovisor": ["retrovisor", "retrovisor moto"],
 "manopla": ["manopla", "manopla moto"],
-"guidao": ["guidao", "guidão", "guidão moto"],
+"guidao": ["guidao", "guidÃ£o", "guidÃ£o moto"],
 }
 
 =========================================================
@@ -304,11 +304,11 @@ TEXTO / IDENTIDADE
 
 def normalizar_texto(texto):
 texto = str(texto or "").lower().strip()
-texto = re.sub(r"[^a-z0-9à-ÿ\s]", " ", texto)
+texto = re.sub(r"[^a-z0-9Ã -Ã¿\s]", " ", texto)
 return re.sub(r"\s+", " ", texto)
 
 def sem_acento(texto):
-mapa = str.maketrans("áàãâäéèêëíìîïóòõôöúùûüç", "aaaaaeeeeiiiiooooouuuuc")
+mapa = str.maketrans("Ã¡Ã Ã£Ã¢Ã¤Ã©Ã¨ÃªÃ«Ã­Ã¬Ã®Ã¯Ã³Ã²ÃµÃ´Ã¶ÃºÃ¹Ã»Ã¼Ã§", "aaaaaeeeeiiiiooooouuuuc")
 return normalizar_texto(texto).translate(mapa)
 
 def dentro_do_horario():
@@ -435,11 +435,11 @@ return False
 modelo_ok = modelo_moto_encontrado(titulo, modelo)
 peca_ok = peca_moto_encontrada(titulo, peca)
 
-# Regra principal: produto deve ser claramente peça para aquele modelo.
+# Regra principal: produto deve ser claramente peÃ§a para aquele modelo.
 if modelo_ok and peca_ok:
     return True
 
-# Alguns anúncios omitem o modelo exato, mas deixam Honda/Yamaha + peça.
+# Alguns anÃºncios omitem o modelo exato, mas deixam Honda/Yamaha + peÃ§a.
 fabricantes = {
     "honda": ["titan", "bros", "biz", "xre", "cb", "twister", "pop", "tornado"],
     "yamaha": ["fazer", "factor", "lander", "crosser", "tenere"],
@@ -450,8 +450,8 @@ fabricante_ok = any(
     for fabricante, modelos in fabricantes.items()
 )
 
-# Permite alguns casos em que a busca encontrou a peça, mas o modelo
-# está abreviado no título.
+# Permite alguns casos em que a busca encontrou a peÃ§a, mas o modelo
+# estÃ¡ abreviado no tÃ­tulo.
 if peca_ok and fabricante_ok:
     return True
 
@@ -543,10 +543,10 @@ termo_n = sem_acento(termo)
     score += PONTOS_MARCAS.get(identificar_marca(nome), 0)
     score += penalidade_termo_fraco(nome)
 
-    # Comissão agora é propositalmente fraca.
+    # ComissÃ£o agora Ã© propositalmente fraca.
     score += min(comissao * 20, 3)
 
-    # Comissão em reais ajuda, mas não domina.
+    # ComissÃ£o em reais ajuda, mas nÃ£o domina.
     comissao_r = valor_comissao(preco, comissao)
     if comissao_r >= 150:
         score += 3
@@ -736,7 +736,7 @@ escolhidos = []
 estrategicos = list(dict.fromkeys(TERMOS_ESTRATEGICOS.get(nicho, [])))
 historico_idx = estado["estrategicos_idx"].get(nicho, 0)
 
-# Metade estratégico, metade catálogo rotativo.
+# Metade estratÃ©gico, metade catÃ¡logo rotativo.
 qtd_estrategica = min(len(estrategicos), max(1, math.ceil(quantidade / 2)))
 
 for i in range(qtd_estrategica):
@@ -769,7 +769,7 @@ for i in range(quantidade):
     modelo = MOTOS[moto_idx]
     peca = PECAS_MOTO[peca_idx]
 
-    # Primeiras buscas são combinadas.
+    # Primeiras buscas sÃ£o combinadas.
     if i < 3:
         termo = f"{peca} {modelo}"
     elif i == 3:
@@ -1438,16 +1438,16 @@ COPY
 =========================================================
 
 CHAMADAS_ACAO = [
-"👇 CORRE QUE TÁ ACABANDO!",
-"⚡ CLIQUE ANTES QUE AUMENTE!",
-"🚀 ESTOQUE LIMITADO - AGORA!",
-"💥 MELHOR PREÇO DO ANO!",
-"🎯 COMPRE ANTES DOS OUTROS!",
-"🔥 VOOU DAS PRATELEIRAS!",
-"⏰ PROMOÇÃO ACABA HOJE!",
-"💰 ECONOMIA REAL - CORRE!",
-"⭐ OFERTA QUENTE AGORA!",
-"🛒 NÃO DEIXA ESCAPAR!",
+"ðŸ‘‡ CORRE QUE TÃ ACABANDO!",
+"âš¡ CLIQUE ANTES QUE AUMENTE!",
+"ðŸš€ ESTOQUE LIMITADO - AGORA!",
+"ðŸ’¥ MELHOR PREÃ‡O DO ANO!",
+"ðŸŽ¯ COMPRE ANTES DOS OUTROS!",
+"ðŸ”¥ VOOU DAS PRATELEIRAS!",
+"â° PROMOÃ‡ÃƒO ACABA HOJE!",
+"ðŸ’° ECONOMIA REAL - CORRE!",
+"â­ OFERTA QUENTE AGORA!",
+"ðŸ›’ NÃƒO DEIXA ESCAPAR!",
 ]
 
 def aplicar_id_afiliado(link):
@@ -1474,19 +1474,19 @@ link,
 whatsapp=False,
 ):
 abertura = random.choice([
-"🚨 Isso aqui não é comum aparecer assim",
-"👀 Achei isso aqui e fui conferir…",
-"🔥 Isso aqui tá com cara de oportunidade",
-"💥 Esse aqui tá chamando atenção de quem compra",
-"⚠️ Isso aqui pode desaparecer rápido",
+"ðŸš¨ Isso aqui nÃ£o Ã© comum aparecer assim",
+"ðŸ‘€ Achei isso aqui e fui conferirâ€¦",
+"ðŸ”¥ Isso aqui tÃ¡ com cara de oportunidade",
+"ðŸ’¥ Esse aqui tÃ¡ chamando atenÃ§Ã£o de quem compra",
+"âš ï¸ Isso aqui pode desaparecer rÃ¡pido",
 ])
 
 gatilho = random.choice([
-    "Preço muito abaixo do que costuma aparecer",
-    "Avaliações acima da média",
+    "PreÃ§o muito abaixo do que costuma aparecer",
+    "AvaliaÃ§Ãµes acima da mÃ©dia",
     "Volume de vendas alto",
-    "Custo-benefício forte",
-    "Tá vendendo bem",
+    "Custo-benefÃ­cio forte",
+    "TÃ¡ vendendo bem",
 ])
 
 acao = random.choice(CHAMADAS_ACAO)
@@ -1497,20 +1497,20 @@ if whatsapp:
 
 {abertura}
 
-🔥 {nome}
+ðŸ”¥ {nome}
 
 {gatilho}
 
 {acao}
 
-💰 R$ {preco}
-⭐ {avaliacao} | 🛒 {vendas} vendas
+ðŸ’° R$ {preco}
+â­ {avaliacao} | ðŸ›’ {vendas} vendas
 
-⚠️ Pode subir de preço
+âš ï¸ Pode subir de preÃ§o
 
-🛒 COMPRAR AGORA: {link}
+ðŸ›’ COMPRAR AGORA: {link}
 
-📢 Grupo:
+ðŸ“¢ Grupo:
 {LINK_GRUPO_OFERTAS}
 """
 
@@ -1519,21 +1519,21 @@ return f"""
 
 {abertura}
 
-🔥 {nome}
+ðŸ”¥ {nome}
 
 {gatilho}
 
 {acao}
 
-💰 R$ {preco}
-⭐ {avaliacao} | {vendas} vendas
-💸 Comissão: {comissao}%
+ðŸ’° R$ {preco}
+â­ {avaliacao} | {vendas} vendas
+ðŸ’¸ ComissÃ£o: {comissao}%
 
-⚠️ Pode subir de preço
+âš ï¸ Pode subir de preÃ§o
 
-🛒 COMPRAR AGORA
+ðŸ›’ COMPRAR AGORA
 
-📲 Entrar no grupo de ofertas
+ðŸ“² Entrar no grupo de ofertas
 """
 
 =========================================================
@@ -1636,10 +1636,10 @@ return
             )
 
             mensagem += (
-                f'\n📲 <a href="{link_zap}">'
+                f'\nðŸ“² <a href="{link_zap}">'
                 "Compartilhar no WhatsApp</a>"
-                "\n━━━━━━━━━━━━━━━"
-                "\n📢 <b>Ofertas Secretas</b>"
+                "\nâ”â”â”â”â”â”â”â”â”â”â”â”â”â”â”"
+                "\nðŸ“¢ <b>Ofertas Secretas</b>"
             )
 
             produto_id = chave_produto(
@@ -1673,7 +1673,7 @@ return
 
     await context.bot.send_message(
         chat_id=CHAT_ID_DESTINO,
-        text="🚨 <b>OFERTAS NOVAS CHEGANDO...</b>",
+        text="ðŸš¨ <b>OFERTAS NOVAS CHEGANDO...</b>",
         parse_mode="HTML",
     )
 
@@ -1787,7 +1787,7 @@ asyncio.create_task(
 )
 
 logging.info(
-    "🤖 BOT RODANDO ESTAVEL - V24"
+    "ðŸ¤– BOT RODANDO ESTAVEL - V24"
 )
 
 logging.info(
