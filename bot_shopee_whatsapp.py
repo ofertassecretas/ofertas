@@ -1,4 +1,4 @@
-```python
+
 import asyncio,requests,logging,random,hashlib,time,json,os,html,re
 from collections import Counter
 from difflib import SequenceMatcher
