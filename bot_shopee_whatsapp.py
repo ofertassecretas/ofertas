@@ -331,6 +331,6 @@ if __name__=="__main__":
         try:
             app=ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build();app.add_error_handler(error_handler);app.run_polling(allowed_updates=None)
         except Exception as e:logging.error(f"BOT REINICIANDO: {e}",exc_info=True);time.sleep(15)
-```
+
 
 
