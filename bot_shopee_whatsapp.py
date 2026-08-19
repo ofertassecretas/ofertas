@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse,parse_qs,urlencode,urlunparse,quote
 from telegram.ext import ApplicationBuilder,ContextTypes
 
-print("VERSAO SHOPEE V21 - RODIZIO DETERMINISTICO COMPACTO")
+print("VERSAO SHOPEE V22 - RODIZIO COMPACTO")
 
 TELEGRAM_TOKEN=(os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD=os.getenv("SHOPEE_PASSWORD","")
@@ -27,7 +27,7 @@ RATING_MIN=4.0
 PRECO_MIN=15.0
 PRECO_MAX=10000.0
 COMISSAO_MIN=0.03
-RODIZIO_BUSCAS_VERSAO=2
+RODIZIO_BUSCAS_VERSAO=3
 logging.basicConfig(level=logging.INFO,format="%(asctime)s - %(levelname)s - %(message)s")
 FUSO_BR=ZoneInfo("America/Sao_Paulo")
 ESTADO_FILE="estado_buscas.json"
@@ -35,9 +35,19 @@ HISTORICO_FILE="historico_envios.json"
 ULTIMAS_BUSCAS_SHOPEE=[];ULTIMOS_TITULOS=[];usadas_abertura=set();usadas_gatilho=set();usados_no_ciclo=set();BASES_VISTAS=set();REJEICOES=Counter()
 
 MOTOS=["titan 150","cb 300","factor 150","titan 160","tornado 250","fazer 150","titan 125","bros 160","twister 250","biz 125","pop 110","xre 300","crosser 150","xre 190","fazer 250","lander 250","bros 150","tenere 250","biz 100","twister 300"]
+
 PECAS_MOTO=["kit relacao","kit embreagem","bateria","refil bomba combustivel","chicote fiação principal","bucha balança","burrinho de freio","estribo","pedal de marcha","pedal de freio","rolamento virabrequim","estator","chave ignição","punho chave luz","kit pisca seta","par pneu","bloco optico","retentor de bengala","bucha amortecedor","carburador corpo de injeção","kit cilindro","jogo de juntas","biela","valvulas escape admissão","kit freio a disco","disco de freio","tubo interno","vela iridium","pastilha freio","guidao","manopla","amortecedor","retrovisor","farol","lona de freio","cabo embreagem","cabo acelerador","coroa moto","pinhao moto","corrente moto","pedaleira","carenagem","lanterna traseira","capacete"]
 
-MOTO_CICLOS_PRIORITARIOS=[("titan 150","kit relacao"),("fazer 250","kit relacao"),("bros 160","jogo de juntas"),("biz 125","jogo de juntas"),("cb 300","kit freio a disco"),("tornado 250","kit freio a disco"),("cb 300","kit relacao"),("factor 150","kit relacao")]
+MOTO_CICLOS_PRIORITARIOS=[
+("titan 150","kit relacao"),
+("fazer 250","kit relacao"),
+("biz 100","jogo de juntas"),
+("tornado 250","jogo de juntas"),
+("bros 160","burrinho de freio"),
+("factor 150","burrinho de freio"),
+("twister 250","kit pneu"),
+("pop 100","kit pneu")
+]
 
 def construir_roteiro_moto():
     r=[];u=set()
@@ -60,7 +70,19 @@ PRODUTOS_NICHO={
 }
 
 FAMILIAS_EXTRA={
-"air_fryer":["air fryer","airfryer","fritadeira"],"fone_bluetooth":["fone bluetooth","fones de ouvido","headset","earbud"],"smartwatch":["smartwatch","relogio inteligente","relógio inteligente"],"caixa_som":["caixa de som","speaker","soundbar"],"smart_tv":["smart tv","televisão","tv"],"notebook":["notebook","notbook","laptop"],"tablet":["tablet","ipad","galaxy tab","xiaomi pad"],"celular":["celular","smartphone","telefone","iphone"],"maternidade_bebe":["bebe","bebê","fralda","carrinho","berco","mamadeira","ninho","babá","baba"],"moda_fem":["vestido","conjunto","saia","bolsa","sandalia","tenis feminino","body"],"moda_masc":["camisa","camiseta","calça","tenis masculino","jaqueta","bermuda","sapatenis"],"casa_lar":["tapete","lençol","cortina","organizador","caixa organizadora","luminaria","pipoqueira","air fryer"],"moto_geral":["capacete","vela","pastilha","lona","kit relação","corrente","coroa","pinhão","guidao","guidão","retrovisor","farol","lanterna"]}
+"air_fryer":["air fryer","airfryer","fritadeira"],
+"fone_bluetooth":["fone bluetooth","fones de ouvido","headset","earbud"],
+"smartwatch":["smartwatch","relogio inteligente","relógio inteligente"],
+"caixa_som":["caixa de som","speaker","soundbar"],
+"smart_tv":["smart tv","televisão","tv"],
+"notebook":["notebook","notbook","laptop"],
+"tablet":["tablet","ipad","galaxy tab","xiaomi pad"],
+"celular":["celular","smartphone","telefone","iphone"],
+"maternidade_bebe":["bebe","bebê","fralda","carrinho","berco","mamadeira","ninho","babá","baba"],
+"moda_fem":["vestido","conjunto","saia","bolsa","sandalia","tenis feminino","body"],
+"moda_masc":["camisa","camiseta","calça","tenis masculino","jaqueta","bermuda","sapatenis"],
+"casa_lar":["tapete","lençol","cortina","organizador","caixa organizadora","luminaria","pipoqueira","air fryer"],
+"moto_geral":["capacete","vela","pastilha","lona","kit relação","corrente","coroa","pinhão","guidao","guidão","retrovisor","farol","lanterna"]}
 
 NICHOS_FREE_ROTA=["Moto","Casa","Moda feminina","Moda masculina","Maternidade","Eletroeletrônicos"]
 
@@ -133,7 +155,7 @@ def oferta_score(p,termo=""):
         vendas=int(p.get("sales",0) or 0);rating=float(p.get("ratingStar",0) or 0);comissao=float(p.get("commissionRate",0) or 0);preco=float(p.get("priceMin",0) or 0);nome=normalizar_texto(str(p.get("productName","")));termo_n=normalizar_texto(termo);score=min(vendas/8,25)+rating*2+comissao*100+shop_type_score(p.get("shopType",[]))
         if 50<=preco<=5000:score+=6
         if termo_n and termo_n in nome:score+=8
-        elif termo_n and any(x in nome for x in termo_n.split()):score+=3
+        elif termo_n:score+=sum(2 for x in termo_n.split() if x in nome)
         if any(x in nome for x in ["moto","bebê","bebe","smartwatch","ssd","fone","tablet","air fryer","tapete","capacete"]):score+=2
         return score
     except:return 0
@@ -186,7 +208,17 @@ def get_proxima_combinacao_moto(estado):
 def validar_modelo_titulo(titulo,termo):
     t=normalizar_texto(titulo);m=normalizar_texto(termo);palavras=[x for x in m.split() if len(x)>2]
     if not palavras:return True
-    return sum(1 for x in palavras if x in t)>=max(1,min(2,len(palavras)))
+    return all(x in t for x in palavras)
+
+def validar_peca_moto(titulo,peca):
+    t=normalizar_texto(titulo);p=normalizar_texto(peca)
+    aliases={
+        "kit relacao":["kit relacao","kit relação","relacao completa","relação completa"],
+        "jogo de juntas":["jogo de juntas","juntas","junta"],
+        "burrinho de freio":["burrinho de freio","burrinho freio","cilindro mestre"],
+        "kit pneu":["kit pneu","kit pneus","par pneu","par de pneus","pneus"]
+    }
+    return any(x in t for x in aliases.get(p,[p]))
 
 def validar_relevancia_nicho(nicho,titulo,termo=None,modelo=None,peca=None):
     t=normalizar_texto(titulo)
@@ -199,9 +231,15 @@ def validar_relevancia_nicho(nicho,titulo,termo=None,modelo=None,peca=None):
     if nicho=="Maternidade" and any(x in t for x in ["organizador","cozinha","banheiro","carro"]) and not any(x in t for x in ["bebe","bebê","infantil","maternidade","fralda","carrinho","mamadeira","ninho"]):return False
     if nicho=="Moto":
         if modelo and not validar_modelo_titulo(titulo,modelo):return False
-        if peca and not validar_modelo_titulo(titulo,peca):return False
-        if termo and not validar_modelo_titulo(titulo,termo):return False
+        if peca and not validar_peca_moto(titulo,peca):return False
     return True
+
+def produto_muito_parecido(titulo,titulos):
+    t=normalizar_texto(titulo);base=chave_base_titulo(titulo)
+    for prev in titulos:
+        if SequenceMatcher(None,t,normalizar_texto(prev)).ratio()>=0.84:return True
+        if base and base==chave_base_titulo(prev):return True
+    return False
 
 def buscar_produtos_da_categoria_kw(palavra_chave,categoria_selecionada):
     logging.info(f"Buscando em {categoria_selecionada}: {palavra_chave}");timestamp=int(time.time());query_body=f'''query {{ productOfferV2(sortType: 2, limit: 50, keyword: "{palavra_chave}", isAMSOffer: true) {{ nodes {{ productName priceMin priceMax commissionRate sales ratingStar productLink offerLink imageUrl shopType }} }} }}''';payload=json.dumps({"query":query_body},ensure_ascii=False);base=SHOPEE_APP_ID+str(timestamp)+payload+SHOPEE_PASSWORD;signature=hashlib.sha256(base.encode()).hexdigest();headers={"Content-Type":"application/json","Authorization":f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={timestamp}, Signature={signature}"};r=requests.post(SHOPEE_GRAPHQL_URL,data=payload.encode("utf-8"),headers=headers,timeout=20);r.raise_for_status();data=r.json();return data.get("data",{}).get("productOfferV2",{}).get("nodes",[]) or []
@@ -216,6 +254,8 @@ def selecionar_ofertas_termo(nicho,termo,cota,estado,e_moto=False,peca=None):
     logging.info(f"{nicho}: {len(resultados)} produtos brutos");logging.info(f"{nicho}: {len(filtrados)} passaram no filtro")
     if rejeitados_local:logging.info(f"{nicho}: rejeições {dict(rejeitados_local)}")
     filtrados.sort(key=lambda x:oferta_score(x,termo),reverse=True);escolhidos=[];titulos_ciclo=[];familias_ciclo=Counter();motivos=Counter();chave_idx=chave_resultado(nicho,normalizar_texto(kw).replace(" ","_"));idx_resultado=carregar_indice_resultado(estado,nicho,chave_idx)
+    if filtrados:
+        idx_resultado=idx_resultado%len(filtrados);filtrados=filtrados[idx_resultado:]+filtrados[:idx_resultado]
     for p in filtrados:
         if len(escolhidos)>=cota:break
         titulo=str(p.get("productName","")).strip();link=p.get("offerLink") or p.get("productLink");base=chave_base_titulo(titulo);familia=parse_familia_from_title(titulo);assinatura=f"{base}|{link or ''}";produto_id=hashlib.md5(assinatura.encode()).hexdigest()
@@ -223,10 +263,10 @@ def selecionar_ofertas_termo(nicho,termo,cota,estado,e_moto=False,peca=None):
         if not link or link in usados_no_ciclo or link in ULTIMAS_BUSCAS_SHOPEE:motivos["link_repetido"]+=1;continue
         if historico_bloqueia(produto_id):motivos["historico"]+=1;continue
         if titulo_duplicado_forte(titulo):motivos["titulo"]+=1;continue
-        if any(SequenceMatcher(None,normalizar_texto(titulo),t).ratio()>=SIMILARIDADE_MAX for t in titulos_ciclo):motivos["similaridade"]+=1;continue
+        if produto_muito_parecido(titulo,titulos_ciclo):motivos["similaridade"]+=1;continue
         if not validar_relevancia_nicho(nicho,titulo,termo=termo,modelo=(termo if e_moto else None),peca=peca):motivos["relevancia"]+=1;continue
         if familia!="outros" and familias_ciclo[familia]>=2:motivos["familia_limite"]+=1;continue
-        escolhidos.append(p);titulos_ciclo.append(normalizar_texto(titulo));familias_ciclo[familia]+=1;BASES_VISTAS.add(base);usados_no_ciclo.add(link);ULTIMAS_BUSCAS_SHOPEE.append(link);ULTIMOS_TITULOS.append(normalizar_texto(titulo));salvar_indice_resultado(estado,nicho,chave_idx,(idx_resultado+1)%max(1,len(filtrados)));logging.info(f"{nicho}: escolhido {titulo} | chave={chave_idx}")
+        escolhidos.append(p);titulos_ciclo.append(normalizar_texto(titulo));familias_ciclo[familia]+=1;BASES_VISTAS.add(base);usados_no_ciclo.add(link);ULTIMAS_BUSCAS_SHOPEE.append(link);ULTIMOS_TITULOS.append(normalizar_texto(titulo));idx_resultado=(idx_resultado+filtrados.index(p)+1)%max(1,len(filtrados));salvar_indice_resultado(estado,nicho,chave_idx,idx_resultado);logging.info(f"{nicho}: escolhido {titulo} | chave={chave_idx}")
     if len(ULTIMAS_BUSCAS_SHOPEE)>300:ULTIMAS_BUSCAS_SHOPEE.pop(0)
     if len(ULTIMOS_TITULOS)>150:ULTIMOS_TITULOS.pop(0)
     if motivos:logging.info(f"{nicho}: rejeições seleção {dict(motivos)}")
@@ -273,7 +313,7 @@ def gerar_copy(nome,preco,vendas,avaliacao,comissao,link,for_whatsapp=False):
 
 🛒 COMPRAR AGORA: {link}
 {chamada_grupo}
-"""
+
     return f"""{abertura}
 
 🔥 <b>{nome}</b>
@@ -290,7 +330,7 @@ def gerar_copy(nome,preco,vendas,avaliacao,comissao,link,for_whatsapp=False):
 
 <a href="{link}">🛒 COMPRAR AGORA</a>
 <a href="{LINK_GRUPO_OFERTAS}">📲 Entrar no grupo de ofertas</a>
-"""
+
 
 async def send_ofertas(context:ContextTypes.DEFAULT_TYPE):
     try:
@@ -331,6 +371,7 @@ if __name__=="__main__":
         try:
             app=ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build();app.add_error_handler(error_handler);app.run_polling(allowed_updates=None)
         except Exception as e:logging.error(f"BOT REINICIANDO: {e}",exc_info=True);time.sleep(15)
+
 
 
 
