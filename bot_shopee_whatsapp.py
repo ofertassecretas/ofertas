@@ -201,7 +201,7 @@ def validar_relevancia_nicho(nicho,titulo,termo=None,modelo=None,peca=None):
         if peca and not validar_peca_moto(titulo,peca):return False
     return True
 # =========================
-# SHOPEE API
+# SHOPEE API — LINHA CORRIGIDA!
 # =========================
 def buscar_produtos_da_categoria_kw(palavra_chave,categoria):
     logging.info("Buscando em %s: %s",categoria,palavra_chave)
@@ -384,7 +384,6 @@ def iniciar():
             app.add_error_handler(error_handler);app.run_polling(drop_pending_updates=True)
         except Exception as e:logging.error("Reiniciando em 15s: %s",e);time.sleep(15)
 if __name__=="__main__":iniciar()
-
 
 
 
