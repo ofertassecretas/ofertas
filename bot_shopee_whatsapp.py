@@ -5,7 +5,7 @@ from datetime import datetime,time as dt_time,timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse,parse_qs,urlencode,urlunparse,quote
 from telegram.ext import ApplicationBuilder,ContextTypes
-print("VERSAO V27-FUNCAO-RESOLVIDA")
+print("VERSAO V28-ORDEM-CORRIGIDA")
 # =========================
 # CONFIGURAÇÃO
 # =========================
@@ -37,6 +37,17 @@ usadas_abertura,usadas_gatilho,usados_no_ciclo,BASES_VISTAS,TERMOS_USADOS_CICLO=
 REJEICOES=Counter()
 
 # =========================
+# ✅ FUNÇÕES BÁSICAS — PRIMEIRO DE TUDO!
+# =========================
+def normalizar_texto(txt):
+    if not txt:return ""
+    return re.sub(r"\s+"," ",re.sub(r"[^a-z0-9à-ÿ\s]"," ",str(txt).lower().strip()))
+
+def dentro_do_horario():
+    agora=datetime.now(FUSO_BR).time()
+    return dt_time(5,30)<=agora<=dt_time(21,30)
+
+# =========================
 # 🛑 BLOCO ANTI-REPETIÇÃO: SINÔNIMOS
 # =========================
 SINONIMOS_GRUPO={
@@ -53,10 +64,6 @@ MAPA_SINONIMO={}
 for grupo, termos in SINONIMOS_GRUPO.items():
     for t in termos:
         MAPA_SINONIMO[normalizar_texto(t)]=grupo
-
-def normalizar_texto(txt):
-    if not txt:return ""
-    return re.sub(r"\s+"," ",re.sub(r"[^a-z0-9à-ÿ\s]"," ",str(txt).lower().strip()))
 
 def termo_ja_foi_buscado(termo):
     t_norm=normalizar_texto(termo)
@@ -120,14 +127,7 @@ def carregar_historico():return carregar_json(HISTORICO_FILE,{})
 def salvar_historico(hist):salvar_json_seguro(HISTORICO_FILE,hist)
 
 # =========================
-# ⏰ FUNÇÃO DE HORÁRIO — ESTAVA FALTANDO!
-# =========================
-def dentro_do_horario():
-    agora=datetime.now(FUSO_BR).time()
-    return dt_time(5,30)<=agora<=dt_time(21,30)
-
-# =========================
-# 🏍️ ROTAÇÃO MOTO — EXATAMENTE COMO ESTAVA
+# 🏍️ ROTAÇÃO MOTO
 # =========================
 def gerar_pares_motos():
     pares=[MOTOS[i:i+2] for i in range(0,len(MOTOS),2)]
@@ -154,7 +154,7 @@ def get_combinacao_moto_dia(estado):
     return peca_atual,motos_atuais,estado
 
 # =========================
-# RODÍZIO DEMAIS NICHOS → COM PROTEÇÃO DE SINÔNIMOS
+# RODÍZIO DEMAIS NICHOS
 # =========================
 def get_proximo_termo(nicho,estado):
     st=estado[nicho]
@@ -265,7 +265,7 @@ def buscar_produtos_da_categoria_kw(palavra_chave,categoria):
     logging.info("🔍 Buscando em %s: %s",categoria,palavra_chave)
     timestamp=int(time.time())
     keyword=json.dumps(palavra_chave,ensure_ascii=False)
-    query=f'query {{productOfferV2(sortType:2,limit:50,keyword:{keyword},isAMSOffer:true){{nodes{{productName,priceMin,priceMax,commissionRate,sales,ratingStar,productLink,offerLink,imageUrl,shopType}}}}}}'
+    query=f'query {{productOfferV2(sortType:2,limit:50,keyword:{keyword},isAMSOffer:true){{nodes{{productName,priceMin,priceMax,commissionRate,sales,ratingStar,productLink,offerLink,imageUrl,shopType}}}}}}}'
     payload=json.dumps({"query":query},ensure_ascii=False)
     assinatura=SHOPEE_APP_ID+str(timestamp)+payload+SHOPEE_PASSWORD
     signature=hashlib.sha256(assinatura.encode()).hexdigest()
@@ -441,7 +441,7 @@ def validar_config():
     if faltam:raise RuntimeError("Variáveis ausentes: "+", ".join(faltam))
 def iniciar():
     validar_config()
-    logging.info("="*40);logging.info("SHOPEE BOT V27 - FUNÇÃO CORRIGIDA");logging.info("Moto = 2 modelos/peça | Sem sinônimos no ciclo | Horário corrigido");logging.info("="*40)
+    logging.info("="*40);logging.info("SHOPEE BOT V28 - ORDEM DAS FUNÇÕES CORRIGIDA");logging.info("Moto=2 modelos | Sem sinônimos no ciclo | Horário ok");logging.info("="*40)
     while True:
         try:
             app=ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).post_shutdown(post_shutdown).build()
