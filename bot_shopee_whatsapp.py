@@ -5,7 +5,7 @@ from datetime import datetime,time as dt_time,timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse,parse_qs,urlencode,urlunparse,quote
 from telegram.ext import ApplicationBuilder,ContextTypes
-print("VERSAO V26-SEM-SINONIMOS - MOTO_CERTA")
+print("VERSAO V27-FUNCAO-RESOLVIDA")
 # =========================
 # CONFIGURAÇÃO
 # =========================
@@ -39,25 +39,26 @@ REJEICOES=Counter()
 # =========================
 # 🛑 BLOCO ANTI-REPETIÇÃO: SINÔNIMOS
 # =========================
-# Se um termo for buscado, TODOS os sinônimos ficam BLOQUEADOS no mesmo ciclo
 SINONIMOS_GRUPO={
     "smartwatch": {"smartwatch", "relogio inteligente", "relógio inteligente"},
     "airfryer": {"air fryer", "airfryer", "fritadeira eletrica", "fritadeira elétrica", "fritadeira de ar"},
     "fone": {"fone bluetooth", "fones de ouvido", "headset"},
-    "casom_som": {"caixa de som", "caixa de som bluetooth", "speaker", "soundbar"},
+    "caixa_som": {"caixa de som", "caixa de som bluetooth", "speaker", "soundbar"},
     "tv": {"smart tv", "televisão", "tv"},
     "notebook": {"notebook", "laptop"},
     "tablet": {"tablet", "ipad"},
     "celular": {"celular", "smartphone", "iphone"},
 }
-# Inverte o mapa: termo → grupo
 MAPA_SINONIMO={}
 for grupo, termos in SINONIMOS_GRUPO.items():
     for t in termos:
-        MAPA_SINONIMO[t]=grupo
+        MAPA_SINONIMO[normalizar_texto(t)]=grupo
+
+def normalizar_texto(txt):
+    if not txt:return ""
+    return re.sub(r"\s+"," ",re.sub(r"[^a-z0-9à-ÿ\s]"," ",str(txt).lower().strip()))
 
 def termo_ja_foi_buscado(termo):
-    """Verifica se esse termo OU SEU SINÔNIMO já foi buscado NESSE ciclo"""
     t_norm=normalizar_texto(termo)
     grupo=MAPA_SINONIMO.get(t_norm)
     if not grupo:
@@ -65,7 +66,6 @@ def termo_ja_foi_buscado(termo):
     return any(MAPA_SINONIMO.get(normalizar_texto(t),None)==grupo for t in TERMOS_USADOS_CICLO)
 
 def marcar_termo_usado(termo):
-    """Marca termo E SEUS SINÔNIMOS como usados"""
     TERMOS_USADOS_CICLO.add(termo)
 
 # =========================
@@ -120,7 +120,14 @@ def carregar_historico():return carregar_json(HISTORICO_FILE,{})
 def salvar_historico(hist):salvar_json_seguro(HISTORICO_FILE,hist)
 
 # =========================
-# 🏍️ ROTAÇÃO MOTO — EXATAMENTE COMO ESTAVA (JÁ ESTAVA CERTA!)
+# ⏰ FUNÇÃO DE HORÁRIO — ESTAVA FALTANDO!
+# =========================
+def dentro_do_horario():
+    agora=datetime.now(FUSO_BR).time()
+    return dt_time(5,30)<=agora<=dt_time(21,30)
+
+# =========================
+# 🏍️ ROTAÇÃO MOTO — EXATAMENTE COMO ESTAVA
 # =========================
 def gerar_pares_motos():
     pares=[MOTOS[i:i+2] for i in range(0,len(MOTOS),2)]
@@ -147,11 +154,28 @@ def get_combinacao_moto_dia(estado):
     return peca_atual,motos_atuais,estado
 
 # =========================
+# RODÍZIO DEMAIS NICHOS → COM PROTEÇÃO DE SINÔNIMOS
+# =========================
+def get_proximo_termo(nicho,estado):
+    st=estado[nicho]
+    lista=PRODUTOS_NICHO[nicho]
+    tentativas=0
+    while tentativas<len(lista):
+        idx=st["pos"]%len(lista)
+        termo=lista[idx]
+        st["pos"]+=1
+        if termo_ja_foi_buscado(termo):
+            logging.info("🛑 PULADO (sinônimo já usado): %s",termo)
+            tentativas+=1
+            continue
+        marcar_termo_usado(termo)
+        return termo,estado
+    logging.warning("⚠️ Todos os termos de %s já foram usados neste ciclo",nicho)
+    return termo,estado
+
+# =========================
 # TEXTO / FILTROS
 # =========================
-def normalizar_texto(txt):
-    if not txt:return ""
-    return re.sub(r"\s+"," ",re.sub(r"[^a-z0-9à-ÿ\s]"," ",str(txt).lower().strip()))
 def chave_base_titulo(titulo):
     stop={"premium","novo","promocao","promoção","super","original","profissional","casual","masculino","feminino","infantil","adulto","unissex","estica","kit","com","de","para","o","a","promo","oferta","modelo","versao","versão","linha","envio","usado","branco","preto","azul","vermelho","rosa","verde","amarelo","tamanho","tamanhos","unico","único","gamer","led","usb"}
     palavras=[x for x in normalizar_texto(titulo).split() if x not in stop and len(x)>2]
@@ -211,27 +235,6 @@ def registrar_historico(chave):
 def parse_familia_from_title(titulo):
     t=normalizar_texto(titulo)
     return next((f for f,ts in FAMILIAS_EXTRA.items() if any(normalizar_texto(x)in t for x in ts)),"outros")
-
-# =========================
-# RODÍZIO DEMAIS NICHOS → COM PROTEÇÃO DE SINÔNIMOS
-# =========================
-def get_proximo_termo(nicho,estado):
-    st=estado[nicho]
-    lista=PRODUTOS_NICHO[nicho]
-    tentativas=0
-    while tentativas<len(lista):
-        idx=st["pos"]%len(lista)
-        termo=lista[idx]
-        st["pos"]+=1
-        # 🛑 PULA se esse termo OU SEU SINÔNIMO já foi buscado neste ciclo!
-        if termo_ja_foi_buscado(termo):
-            logging.info("🛑 PULADO (sinônimo já usado): %s",termo)
-            tentativas+=1
-            continue
-        marcar_termo_usado(termo)
-        return termo,estado
-    logging.warning("⚠️ Todos os termos de %s já foram usados neste ciclo",nicho)
-    return termo,estado
 
 # =========================
 # VALIDAÇÃO
@@ -438,13 +441,12 @@ def validar_config():
     if faltam:raise RuntimeError("Variáveis ausentes: "+", ".join(faltam))
 def iniciar():
     validar_config()
-    logging.info("="*40);logging.info("SHOPEE BOT V26-SEM-SINONIMOS");logging.info("Moto = 2 modelos por peça | Sem sinônimos no mesmo ciclo");logging.info("="*40)
+    logging.info("="*40);logging.info("SHOPEE BOT V27 - FUNÇÃO CORRIGIDA");logging.info("Moto = 2 modelos/peça | Sem sinônimos no ciclo | Horário corrigido");logging.info("="*40)
     while True:
         try:
             app=ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).post_shutdown(post_shutdown).build()
             app.add_error_handler(error_handler);app.run_polling(drop_pending_updates=True)
         except Exception as e:logging.error("🔄 Reiniciando em 15s: %s",e);time.sleep(15)
 if __name__=="__main__":iniciar()
-
 
 
