@@ -265,7 +265,7 @@ def buscar_produtos_da_categoria_kw(palavra_chave,categoria):
     logging.info("🔍 Buscando em %s: %s",categoria,palavra_chave)
     timestamp=int(time.time())
     keyword=json.dumps(palavra_chave,ensure_ascii=False)
-    query=f'query {{productOfferV2(sortType:2,limit:50,keyword:{keyword},isAMSOffer:true){{nodes{{productName,priceMin,priceMax,commissionRate,sales,ratingStar,productLink,offerLink,imageUrl,shopType}}}}}}}'
+    query=f'query {{productOfferV2(sortType:2,limit:50,keyword:{keyword},isAMSOffer:true){{nodes{{productName,priceMin,priceMax,commissionRate,sales,ratingStar,productLink,offerLink,imageUrl,shopType}}}}}}'
     payload=json.dumps({"query":query},ensure_ascii=False)
     assinatura=SHOPEE_APP_ID+str(timestamp)+payload+SHOPEE_PASSWORD
     signature=hashlib.sha256(assinatura.encode()).hexdigest()
