@@ -334,10 +334,23 @@ def mensagem_whatsai(nome, preco, vendas, nota, comissao, link):
         f"🛒 Aproveite pelo link:\n{link}"
     )
 def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False):
-    ab = random.choice([x for x in ABERTURAS if x not in ABERTURAS_USADAS])
-    gt = random.choice([x for x in GATILHOS if x not in GATILHOS_USADOS])
+    # Escolhe abertura: se todas usadas, reinicia
+    disponiveis_ab = [x for x in ABERTURAS if x not in ABERTURAS_USADAS]
+    if not disponiveis_ab:
+        ABERTURAS_USADAS.clear()
+        disponiveis_ab = ABERTURAS
+    ab = random.choice(disponiveis_ab)
+    ABERTURAS_USADAS.add(ab)
+
+    # Escolhe gatilho: se todos usados, reinicia
+    disponiveis_gt = [x for x in GATILHOS if x not in GATILHOS_USADOS]
+    if not disponiveis_gt:
+        GATILHOS_USADOS.clear()
+        disponiveis_gt = GATILHOS
+    gt = random.choice(disponiveis_gt)
+    GATILHOS_USADOS.add(gt)
+
     ch = random.choice(CHAMADAS)
-    ABERTURAS_USADAS.add(ab); GATILHOS_USADOS.add(gt)
     etiqueta = "🎁 OFERTA DESTAQUE" if free else ""
     return (
         f"{etiqueta}\n\n" if etiqueta else ""
