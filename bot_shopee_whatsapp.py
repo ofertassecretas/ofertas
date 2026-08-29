@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder
 
-print("VERSAO V32-FILTROS-RELAXADOS")
+print("VERSAO V33-CORRIGIDO")
 # =========================
 # CONFIG
 # =========================
@@ -20,15 +20,15 @@ SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 CHECK_INTERVAL = 5400
 MAX_OFERTAS = 10
-MIN_OFERTAS = 3  # ✅ Reduzido para enviar com menos
+MIN_OFERTAS = 3
 HISTORICO_DIAS = 30
 SIMILARIDADE_MAX = .88
-VENDAS_MIN = 0     # ✅ ACEITA ZERO VENDAS
-AVALIACAO_MIN = 0  # ✅ ACEITA SEM AVALIAÇÃO
+VENDAS_MIN = 0
+AVALIACAO_MIN = 0
 PRECO_MIN = 10
 PRECO_MAX = 10000
 COMISSAO_MIN = 3
-VERSAO_RODIZIO = 32
+VERSAO_RODIZIO = 33
 LIMITE_POR_FAMILIA = 1
 MAX_PAGINA_BUSCA = 4
 TIPOS_ORDEM = [1, 2, 3, 4, 5]
@@ -71,11 +71,11 @@ GRUPO_SINONIMOS = {
     "tablet": {"tablet"},
     "celular": {"celular", "smartphone"}
 }
-MAPA_SINonIMOS = {normalizar(t): g for g, ts in GRUPO_SINONIMOS.items() for t in ts}
+MAPA_SINONIMOS = {normalizar(t): g for g, ts in GRUPO_SINONIMOS.items() for t in ts}
 
 def termo_ja_usado(termo):
-    g = MAPA_SinonIMOS.get(normalizar(termo))
-    return bool(g and any(MAPA_SinonIMOS.get(normalizar(t)) == g for t in TERMOS_USADOS_CICLO))
+    g = MAPA_SINONIMOS.get(normalizar(termo))
+    return bool(g and any(MAPA_SINONIMOS.get(normalizar(t)) == g for t in TERMOS_USADOS_CICLO))
 
 # =========================
 # LISTAS DE PRODUTOS
@@ -208,7 +208,6 @@ def pontuar_produto(p, termo=""):
         return max(0,pont)
     except: return 0
 
-# ✅ FILTRO CORRIGIDO: só rejeita se valor EXISTIR e for menor que o mínimo
 def avaliar_rejeicao(p):
     titulo = str(p.get("productName","")).strip()
     link = str(p.get("offerLink") or p.get("productLink","")).strip()
@@ -226,9 +225,7 @@ def avaliar_rejeicao(p):
     if preco < PRECO_MIN: return "preco_baixo"
     if preco > PRECO_MAX: return "preco_alto"
     if comissao < COMISSAO_MIN: return "comissao_baixa"
-    # ✅ SÓ rejeita vendas se vier número MAIOR QUE 0 e abaixo do mínimo
     if vendas > 0 and vendas < VENDAS_MIN: return "poucas_vendas"
-    # ✅ SÓ rejeita nota se vier número MAIOR QUE 0 e abaixo do mínimo
     if nota > 0 and nota < AVALIACAO_MIN: return "nota_baixa"
     if link in LINKS_CICLO_ATUAL or link in ULTIMOS_LINKS: return "link_repetido"
     return None
@@ -331,7 +328,6 @@ def anexar_afiliado(link):
 
 def link_whatsai(texto): return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>','',texto))}"
 
-# ✅ Mensagem WhatsApp — Negrito, sem frase de afiliado
 def mensagem_whatsai(nome, preco, vendas, nota, comissao, link):
     return (
         f"🔥 *Produto:* {nome}\n\n"
