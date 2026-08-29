@@ -6,13 +6,13 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder
 
-print("VERSAO V30-SEM-REPETICAO")
+print("VERSAO V31-CORRIGIDO")
 # =========================
-# CONFIG — ID FIXO, NÃO PRECISA DE VARIÁVEL
+# CONFIG
 # =========================
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "").strip()
-SHOPEE_APP_ID = "18349740277"  # ✅ FIXO — não precisa configurar!
+SHOPEE_APP_ID = "18349740277"
 CHAT_ID_DESTINO = -1003848415150
 FREE_CHAT_ID = -1003886228244
 AFILIADO_ID = "18349740277"
@@ -26,7 +26,7 @@ HISTORICO_DIAS = 30
 SIMILARIDADE_MAX = .88
 VENDAS_MIN = 2
 AVALIACAO_MIN = 4.0
-PRECO_MIN = 10  # ✅ PREÇO MÍNIMO EM R$ 10
+PRECO_MIN = 10  # ✅ PREÇO MÍNIMO R$ 10
 PRECO_MAX = 10000
 COMISSAO_MIN = 3
 VERSAO_RODIZIO = 31
@@ -200,11 +200,12 @@ def identificar_familia(titulo):
 
 def pontuar_produto(p, termo=""):
     try:
-        vendas = int(p.get("salesCount") or p.get("sales") or 0)
-        nota = float(p.get("ratingAverage") or p.get("ratingStar") or 0)
-        comissao = float(p.get("commissionRate") or 0) * 100
-        preco = float(p.get("price") or p.get("priceMin") or 0) / 1000
-        pt = normalizar(termo); tp = normalizar(p.get("name") or p.get("productName",""))
+        vendas = int(p.get("sales", 0) or 0)
+        nota = float(p.get("ratingStar", 0) or 0)
+        comissao = float(p.get("commissionRate", 0) or 0) * 100
+        preco_str = p.get("priceMin", "0") or "0"
+        preco = float(preco_str) / 1000 if isinstance(preco_str, (int, float)) else float(preco_str or "0")
+        pt = normalizar(termo); tp = normalizar(p.get("productName",""))
         pont = min(vendas/8,25) + nota*2 + comissao*2
         if 50 <= preco <= 500: pont +=6
         if pt: pont += 8 if pt in tp else sum(2 for x in pt.split() if x in tp)
@@ -212,12 +213,16 @@ def pontuar_produto(p, termo=""):
     except: return 0
 
 def avaliar_rejeicao(p):
-    titulo = str(p.get("name") or p.get("productName","")).strip()
-    link = str(p.get("affiliateLink") or p.get("url","")).strip()
-    preco = float(p.get("price") or p.get("priceMin") or 0)/1000
-    comissao = float(p.get("commissionRate") or 0)*100
-    vendas = int(p.get("salesCount") or p.get("sales") or 0)
-    nota = float(p.get("ratingAverage") or p.get("ratingStar") or 0)
+    titulo = str(p.get("productName","")).strip()
+    link = str(p.get("offerLink") or p.get("productLink","")).strip()
+    try:
+        preco_str = p.get("priceMin", "0") or "0"
+        preco = float(preco_str) / 1000 if isinstance(preco_str, (int, float)) else float(preco_str or "0")
+    except: preco = 0
+    try: comissao = float(p.get("commissionRate", "0") or 0) * 100
+    except: comissao = 0
+    vendas = int(p.get("sales", 0) or 0)
+    nota = float(p.get("ratingStar", 0) or 0)
     if not titulo: return "sem_titulo"
     if not link: return "sem_link"
     if tem_bloqueio(titulo): return "bloqueado"
@@ -230,7 +235,7 @@ def avaliar_rejeicao(p):
     return None
 
 # =========================
-# BUSCA API
+# BUSCA API — ✅ CAMPOS CORRIGIDOS!
 # =========================
 def buscar_produtos(termo, nicho):
     logging.info("🔍 Buscando em %s: %s", nicho, termo)
@@ -240,7 +245,8 @@ def buscar_produtos(termo, nicho):
     termo_busca = variar_termo(termo)
     logging.info("   ↳ Ordem=%s | Página=%s | Buscando: %s", ordem, pagina, termo_busca)
 
-    q = f'query {{productOfferV2(sortType:{ordem},page:{pagina},limit:50,keyword:{json.dumps(termo_busca,ensure_ascii=False)},isAMSOffer:false){{nodes{{name,productName,price,priceMin,commissionRate,salesCount,sales,ratingAverage,ratingStar,affiliateLink,url,image}}}}}}'
+    # ✅ CAMPOS CORRETOS da API: productName, sales, ratingStar, offerLink, productLink, imageUrl
+    q = f'query {{productOfferV2(sortType:{ordem},page:{pagina},limit:50,keyword:{json.dumps(termo_busca,ensure_ascii=False)},isAMSOffer:true){{nodes{{productName,priceMin,priceMax,commissionRate,sales,ratingStar,productLink,offerLink,imageUrl,shopType}}}}}}'
     payload = json.dumps({"query":q}, ensure_ascii=False)
     assinatura = hashlib.sha256(f"{SHOPEE_APP_ID}{ts}{payload}{SHOPEE_PASSWORD}".encode()).hexdigest()
     cab = {"Content-Type":"application/json","Authorization":f"SHA256 Credential={SHOPEE_APP_ID},Timestamp={ts},Signature={assinatura}","User-Agent":"Mozilla/5.0"}
@@ -277,8 +283,8 @@ def selecionar(nicho, termo, qtd, estado, moto=False, peca=None):
     esc = []; tusados = []; familias=Counter()
     for p in val:
         if len(esc)>=qtd: break
-        titulo = str(p.get("name") or p.get("productName","")).strip()
-        link = str(p.get("affiliateLink") or p.get("url","")).strip()
+        titulo = str(p.get("productName","")).strip()
+        link = str(p.get("offerLink") or p.get("productLink","")).strip()
         ch = chave_titulo(titulo)
         fam = identificar_familia(titulo)
         hid = hashlib.md5(f"{ch}|{link}".encode()).hexdigest()
@@ -327,8 +333,8 @@ def anexar_afiliado(link):
 
 def link_whatsai(texto): return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>','',texto))}"
 
+# ✅ MENSAGEM WHATSAPP — Negrito sem frase de afiliado
 def mensagem_whatsai(nome, preco, vendas, nota, comissao, link):
-    # ✅ Negrito no WhatsApp com * — SEM frase de afiliado
     return (
         f"🔥 *Produto:* {nome}\n\n"
         f"💰 *Preço:* R$ {preco}\n"
@@ -378,15 +384,18 @@ async def ciclo(ctx):
         enviados=[]
         for nicho, p in ofertas:
             try:
-                titulo = str(p.get("name") or p.get("productName","")).strip()
-                lb = str(p.get("affiliateLink") or p.get("url","")).strip()
+                titulo = str(p.get("productName","")).strip()
+                lb = str(p.get("offerLink") or p.get("productLink","")).strip()
                 if not titulo or not lb: continue
                 link = anexar_afiliado(lb)
-                preco = float(p.get("price") or p.get("priceMin") or 0)/1000
-                vendas = int(p.get("salesCount") or p.get("sales") or 0)
-                nota = float(p.get("ratingAverage") or p.get("ratingStar") or 0)
-                comissao = round(float(p.get("commissionRate") or 0)*100,2)
-                img = str(p.get("image") or "").strip()
+                try:
+                    preco_str = p.get("priceMin", "0") or "0"
+                    preco = float(preco_str) / 1000 if isinstance(preco_str, (int, float)) else float(preco_str or "0")
+                except: preco = 0
+                vendas = int(p.get("sales", 0) or 0)
+                nota = float(p.get("ratingStar", 0) or 0)
+                comissao = round(float(p.get("commissionRate", 0) or 0) * 100, 2)
+                img = str(p.get("imageUrl","")).strip()
                 prc = f"{preco:.2f}".replace(".",",")
                 vnd = f"{vendas:,}".replace(",",".")
                 nt = f"{nota:.1f}".replace(".",",")
