@@ -294,7 +294,7 @@ def obter_ofertas_garantidas(estado):
             if len(sel) >= MIN_OFERTAS:
                 break
     
-    salvar_estado(est)
+    salvar_estado(estado)
     
     # Ordenar por qualidade (melhores primeiro)
     sel.sort(key=lambda x: pontuar_produto(x[1], x[0]), reverse=True)
