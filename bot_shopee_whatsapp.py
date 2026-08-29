@@ -4,6 +4,7 @@ from difflib import SequenceMatcher
 from datetime import datetime, time as dt_time, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
+from telegram.ext import ApplicationBuilder   # �-- ESSA LINHA ESTAVA FALTANDO!
 
 print("VERSAO V30-SEM-REPETICAO")
 # =========================
