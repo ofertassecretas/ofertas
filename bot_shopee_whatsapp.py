@@ -12,8 +12,8 @@ print("VERSAO V33-CORRIGIDO+GARANTIA-OFERTAS")
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "").strip()
 SHOPEE_APP_ID = "18349740277"
-CHAT_ID_DESTINO = -1003848415150  # Grupo VIP
-CHAT_ID_FREE = --1003886228244     # ← COLOQUE O ID DO GRUPO FREE AQUI
+CHAT_ID_DESTINO=-1003848415150
+FREE_CHAT_ID=-1003886228244
 AFILIADO_ID = "18349740277"
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
@@ -89,7 +89,10 @@ FAMILIAS_PRODUTOS = {
     "bebe": ["bebe", "infantil", "crianca"],
     "moda_fem": ["vestido", "blusa", "saia", "mulher", "feminina"],
     "moda_masc": ["camiseta", "bermuda", "masculino", "homem"],
-    "casa": ["panela", "utensilio", "cozinha"]
+    "casa": ["panela", "utensilio", "cozinha"],
+    "moto": ["kit relacao", "embreagem", "bateria moto", "filtro oleo", 
+             "cabo embreagem", "cabo freio", "vela ignicao", "pneu moto", 
+             "disco freio", "pastilha freio", "titan", "cb 300", "honda"]
 }
 # =========================
 # ARQUIVOS DE ESTADO
