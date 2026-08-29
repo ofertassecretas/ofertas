@@ -342,7 +342,7 @@ def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats):
     ab = random.choice([x for x in ABERTURAS if x not in ABERTURAS_USADAS])
     gt = random.choice([x for x in GATILHOS if x not in GATILHOS_USADOS])
     ch = random.choice(CHAMADAS)
-    ABERTURAS_USADAS.add(ab); GATILHOS_USADAS.add(gt)
+    ABERTURAS_USADAS.add(ab); GATILHOS_USADOS.add(gt)
     return (
         f"{html.escape(ab)}\n\n"
         f"🔥 <b>Produto:</b> {html.escape(nome)}\n\n"
