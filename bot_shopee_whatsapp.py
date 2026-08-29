@@ -28,7 +28,7 @@ SIMILARIDADE_MAX = .88
 SIMILARIDADE_FORTE = .94
 VENDAS_MIN = 2
 AVALIACAO_MIN = 4.0
-PRECO_MIN = 15
+PRECO_MIN = 10  # ✅ ALTERADO PARA R$ 10
 PRECO_MAX = 10000
 COMISSAO_MIN = .03
 VERSAO_RODIZIO = 10
@@ -68,22 +68,20 @@ def variar_termo(termo):
         f"{base} promocao",
         f"{base} oferta",
         f"{base} novo",
-        f"{base} original",
         f"{base} barato",
-        f"{base} premium",
         f"{base} 2025",
     ]
     return random.choice(variacoes)
 
 GRUPO_SINONIMOS = {
     "smartwatch": {"smartwatch", "relogio inteligente"},
-    "airfryer": {"air fryer", "airfryer", "fritadeira eletrica"},
-    "fone": {"fone bluetooth", "fones de ouvido", "headset"},
-    "caixa_som": {"caixa de som", "speaker", "soundbar"},
-    "tv": {"smart tv", "televisao", "tv"},
+    "airfryer": {"air fryer", "fritadeira sem oleo", "fritadeira eletrica"},
+    "fone": {"fone bluetooth", "fone ouvido", "fone sem fio"},
+    "caixa_som": {"caixa de som", "alto falante"},
+    "tv": {"smart tv", "televisao", "tv led"},
     "notebook": {"notebook", "laptop"},
-    "tablet": {"tablet", "ipad"},
-    "celular": {"celular", "smartphone", "iphone"}
+    "tablet": {"tablet"},
+    "celular": {"celular", "smartphone", "aparelho celular"}
 }
 
 MAPA_SINONIMOS = {normalizar(t): g for g, ts in GRUPO_SINONIMOS.items() for t in ts}
@@ -95,46 +93,33 @@ def termo_ja_usado(termo):
 # =========================
 # LISTAS DE PRODUTOS
 # =========================
-MOTOS = ["titan 150", "cb 300", "factor 150", "titan 160", "tornado 250", "fazer 150", "titan 125", "bros 160", "twister 250", "biz 125", "pop 110", "xre 300", "crosser 150", "xre 190", "fazer 250", "lander 250", "bros 150", "tenere 250", "biz 100", "twister 300"]
+MOTOS = ["titan 150", "cb 300", "factor 150", "titan 160", "tornado 250", "fazer 150", "bros 160", "twister 250", "biz 125", "pop 110", "xre 300", "crosser 150", "xre 190", "fazer 250", "lander 250"]
 PECAS_MOTO = [
-    "kit relacao", "kit embreagem", "bateria", "refil bomba combustivel",
-    "chicote fiação principal", "bucha balança", "burrinho de freio",
-    "estribo", "pedal de marcha", "pedal de freio", "rolamento virabrequim",
-    "estator", "chave ignição", "punho chave luz", "kit pisca seta",
-    "par pneu", "bloco óptico", "retentor de bengala", "bucha amortecedor",
-    "carburador corpo de injeção", "kit cilindro", "jogo de juntas", "biela",
-    "válvulas escape admissão", "kit freio a disco", "disco de freio",
-    "tubo interno", "vela iridium", "pastilha freio", "guidao", "manopla",
-    "amortecedor", "retrovisor", "farol", "lona de freio", "cabo embreagem",
-    "cabo acelerador", "coroa moto", "pinhao moto", "corrente moto",
-    "pedaleira", "carenagem", "lanterna traseira", "capacete"
+    "kit relacao", "embreagem completa", "bateria", "filtro oleo",
+    "cabo embreagem", "cabo freio", "vela ignicao", "pneu dianteiro",
+    "disco freio", "pastilha freio", "corrente", "pistao", "anel pistao"
 ]
 
 PRODUTOS_POR_NICHO = {
-    "Casa": ["air fryer", "aspirador", "liquidificador", "cafeteira", "panela eletrica", "panela de pressão", "capa para colchão", "jogo de pratos", "jogo de copos", "copo stanley", "talher", "panos de prato", "toalhas de banho", "coberta manta", "lençol", "mangueira de jardim", "tapete", "torneira de cozinha", "filtro de barro", "guarda roupas casal", "cama casal", "forma de silicone", "sapateira", "umidificador", "ar condicionado", "jogo de panelas", "cortinas", "tinta spray", "frigideiras", "rede de dormir", "pipoqueira", "mop", "ventilador", "batedeira", "escorredor de louça", "caixa organizadora", "papel de parede", "luminária"],
-    "Maternidade": ["carrinho bebe", "berço bebe", "fralda descartavel", "fralda de pano", "naninha", "sapatinho", "kit toalha umedecida", "banheira", "kit bolsa maternidade", "canguru", "kit mamadeira", "babá eletronica", "ninho bebe", "kit enxoval bebe", "babador bebe", "mordedor bebe", "tapete infantil", "cadeirinha bebe", "almofada amamentação", "termometro infantil"],
-    "Eletrônicos": ["smartwatch", "fone bluetooth", "caixa de som bluetooth", "bastão pau de selfie", "celular", "smart tv", "videogame", "capinha celular", "pelicula celular", "balança digital", "aparelho medidor de pressão", "webcam", "pen drive", "impressora termica", "computador", "notebook", "drone", "camera de segurança", "tablet", "ssd", "mouse gamer", "teclado mecanico", "power bank", "carregador turbo", "suporte celular carro"],
-    "Moda Feminina": ["vestido feminino", "conjunto feminino", "kit calcinhas", "biquines", "saída de praia", "maquiagens", "roupa academia", "calça jeans", "calça legging", "saia longa", "sandalias", "pijamas", "blusa regata", "kit sutiã", "bermuda modeladora", "óculos de sol", "calça social", "vestido midi", "jaqueta feminina", "casaco feminino", "conjunto alfaiataria", "short feminino", "tenis feminino", "bolsa feminina", "blazer", "saia jeans", "top", "body"],
-    "Moda Masculina": ["camiseta masculina", "bermuda jeans", "camiseta gola polo", "camisa de botão", "terno", "blazer", "kit meias", "barbeador", "meias esportivas", "óculos de sol", "bermuda", "tenis masculino", "chuteiras", "camisa térmica", "jaqueta masculina", "carteira", "kit cuecas", "calça jeans", "camisa social", "moletom", "sapato social"]
+    "Casa": ["fritadeira sem oleo", "aspirador", "liquidificador", "cafeteira", "panela eletrica", "ferro passar", "ventilador", "batedeira", "cortina", "tapete", "lampada led"],
+    "Bebê": ["carrinho bebe", "berco", "fralda", "brinquedo bebe", "roupa bebe", "banheira bebe", "cadeirinha bebe"],
+    "Eletrônicos": ["smartwatch", "fone ouvido bluetooth", "caixa som bluetooth", "carregador", "cabo usb", "pendrive", "mouse", "teclado"],
+    "Moda Feminina": ["vestido", "blusa", "calca", "saia", "tenis feminino", "bolsa", "oculos sol"],
+    "Moda Masculina": ["camiseta", "bermuda", "calca jeans", "tenis masculino", "bone", "cinto"]
 }
 
 FAMILIAS_PRODUTOS = {
-    "air_fryer": ["air fryer", "airfryer", "fritadeira"],
-    "fone_bluetooth": ["fone bluetooth", "fones de ouvido", "headset"],
+    "fritadeira": ["fritadeira", "air fryer"],
     "smartwatch": ["smartwatch", "relogio inteligente"],
-    "caixa_som": ["caixa de som", "speaker"],
-    "tv": ["smart tv", "televisao", "tv"],
-    "notebook": ["notebook", "laptop"],
-    "tablet": ["tablet", "ipad"],
-    "celular": ["celular", "smartphone", "iphone"],
-    "bebe": ["bebe", "fralda", "carrinho", "berço", "mamadeira", "ninho"],
-    "moda_fem": ["vestido", "conjunto", "saia", "bolsa", "sandalia", "tenis feminino", "body"],
-    "moda_masc": ["camisa", "camiseta", "calça", "tenis masculino", "jaqueta", "bermuda"],
-    "casa": ["tapete", "lençol", "cortina", "organizadora", "luminária"],
-    "moto": ["capacete", "vela", "pastilha", "lona", "corrente", "coroa", "pinhao", "guidao", "retrovisor", "farol"]
+    "fone": ["fone", "ouvido", "bluetooth"],
+    "tv": ["tv", "televisao"],
+    "bebe": ["bebe", "infantil", "crianca"],
+    "moda_fem": ["vestido", "blusa", "saia", "mulher", "feminina"],
+    "moda_masc": ["camiseta", "bermuda", "masculino", "homem"],
+    "casa": ["panela", "utensilio", "cozinha"]
 }
 
-ROTACAO_NICHO_GRATIS = ["Moto", "Casa", "Moda Feminina", "Moda Masculina", "Maternidade", "Eletrônicos"]
+ROTACAO_NICHO_GRATIS = ["Casa", "Bebê", "Eletrônicos", "Moda Feminina", "Moda Masculina"]
 
 # =========================
 # ARQUIVOS DE ESTADO
@@ -167,15 +152,12 @@ def carregar_estado():
             "versao_rodizio": VERSAO_RODIZIO,
             "Moto": {"data": hoje, "indice": 0}
         }
-        for nicho, itens in PRODUTOS_POR_NICHO.items():
+        for nicho in PRODUTOS_POR_NICHO:
             estado[nicho] = {"indice": 0, "data": hoje}
     estado.setdefault("Moto", {"data": "", "indice": 0})
-    estado["Moto"].setdefault("indice", 0)
-    estado["Moto"].setdefault("data", "")
-    for nicho in PRODUTOS_POR_NICHO:
-        estado.setdefault(nicho, {"indice": 0, "data": ""})
-        estado[nicho].setdefault("indice", 0)
-        estado[nicho].setdefault("data", "")
+    for chave in list(PRODUTOS_POR_NICHO.keys()) + ["Moto", "indice_nicho_gratis"]:
+        if chave not in estado or not isinstance(estado[chave], dict):
+            estado[chave] = {"indice": 0, "data": datetime.now(FUSO_BR).strftime("%Y%m%d")}
     estado.setdefault("indice_nicho_gratis", 0)
     return estado
 
@@ -219,71 +201,69 @@ def proximo_termo(nicho, estado):
 # FILTROS E PONTUAÇÃO
 # =========================
 def chave_titulo(titulo):
-    ignorar = {"premium", "novo", "promocao", "promoção", "super", "original", "profissional", "casual", "masculino", "feminino", "infantil", "adulto", "unissex", "kit", "com", "de", "para", "o", "a", "promo", "oferta", "modelo", "versao", "versão", "linha", "envio", "usado", "branco", "preto", "azul", "vermelho", "rosa", "verde", "amarelo", "tamanho", "gamer", "led", "usb"}
+    ignorar = {"premium", "novo", "promocao", "promoção", "super", "original", "kit", "completo"}
     palavras = [p for p in normalizar(titulo).split() if p not in ignorar and len(p) > 2]
     return " ".join(sorted(palavras)[:8])
 
 def tem_bloqueio(texto):
     texto = normalizar(texto)
-    palavras_proibidas = ["teste", "amostra", "não compre", "nao compre", "produto teste", "exemplo", "dummy", "vela led", "vela decorativa", "decorativa", "decoração", "casamento", "festa"]
-    return any(p in texto for p in palavras_proibidas)
+    proibidas = ["teste", "amostra", "nao venda", "exposicao", "promocao interna"]
+    return any(p in texto for p in proibidas)
 
 def duplicata_forte(titulo):
-    normal = normalizar(titulo)
-    chave = chave_titulo(titulo)
+    chave_nova = chave_titulo(titulo)
+    norm_nova = normalizar(titulo)
     for t in ULTIMOS_TITULOS:
-        n = normalizar(t)
-        c = chave_titulo(t)
-        if normal == n or SequenceMatcher(None, normal, n).ratio() >= SIMILARIDADE_MAX or (chave and chave == c):
+        chave_antiga = chave_titulo(t)
+        norm_antiga = normalizar(t)
+        if chave_nova == chave_antiga or SequenceMatcher(None, norm_nova, norm_antiga).ratio() >= SIMILARIDADE_MAX:
             return True
     return False
 
 def produto_parecido(titulo, lista):
-    alvo = normalizar(titulo)
-    chave_alvo = chave_titulo(titulo)
+    chave_nova = chave_titulo(titulo)
+    norm_nova = normalizar(titulo)
     for t in lista:
-        atual = normalizar(t)
-        chave_atual = chave_titulo(t)
-        if SequenceMatcher(None, alvo, atual).ratio() >= .84 or (chave_alvo and chave_alvo == chave_atual):
+        if chave_titulo(t) == chave_nova or SequenceMatcher(None, norm_nova, normalizar(t)).ratio() >= .84:
             return True
     return False
 
 def pontuar_loja(tipos):
     try:
-        return 3 if 1 in tipos else 2 if 4 in tipos else 1 if 2 in tipos else 0
+        return 3 if tipos and 1 in tipos else 2 if tipos and 4 in tipos else 1 if tipos and 2 in tipos else 0
     except:
         return 0
 
 def pontuar_produto(produto, termo=""):
     try:
-        vendas = int(produto.get("sales", 0) or 0)
-        nota = float(produto.get("ratingStar", 0) or 0)
-        comissao = float(produto.get("commissionRate", 0) or 0)
-        preco = float(produto.get("priceMin", 0) or 0)
-        titulo = normalizar(produto.get("productName", ""))
+        vendas = int(produto.get("sales_count", 0) or produto.get("sales", 0) or 0)
+        nota = float(produto.get("rating_average", 0) or produto.get("ratingStar", 0) or 0)
+        comissao = float(produto.get("commission_rate", 0) or 0) * 100
+        preco = float(produto.get("price", 0) or produto.get("price_min", 0) or 0) / 1000
+        titulo = normalizar(produto.get("name", "") or produto.get("productName", ""))
         termo_norm = normalizar(termo)
-        pontuacao = min(vendas / 8, 25) + nota * 2 + comissao * 100 + pontuar_loja(produto.get("shopType", []))
-        if 50 <= preco <= 5000:
+        pontuacao = min(vendas / 8, 25) + nota * 2 + comissao * 2 + pontuar_loja(produto.get("shop_type"))
+        if 50 <= preco <= 500:
             pontuacao += 6
         if termo_norm:
             pontuacao += 8 if termo_norm in titulo else sum(2 for p in termo_norm.split() if p in titulo)
-        return pontuacao
+        return max(0, pontuacao)
     except:
         return 0
 
 def avaliar_rejeicao(produto):
-    titulo = str(produto.get("productName", "")).strip()
-    link = str(produto.get("offerLink") or produto.get("productLink") or "").strip()
-    preco = float(produto.get("priceMin", 0) or 0)
-    comissao = float(produto.get("commissionRate", 0) or 0)
-    vendas = int(produto.get("sales", 0) or 0)
-    nota = float(produto.get("ratingStar", 0) or 0)
+    titulo = str(produto.get("name", "") or produto.get("productName", "")).strip()
+    link = str(produto.get("affiliate_link") or produto.get("url", "") or "").strip()
+    preco = float(produto.get("price", 0) or produto.get("price_min", 0) or 0) / 1000
+    comissao = float(produto.get("commission_rate", 0) or 0) * 100
+    vendas = int(produto.get("sales_count", 0) or produto.get("sales", 0) or 0)
+    nota = float(produto.get("rating_average", 0) or produto.get("ratingStar", 0) or 0)
     if not titulo: return "sem_titulo"
     if not link: return "sem_link"
     if tem_bloqueio(titulo): return "bloqueado"
     if preco < PRECO_MIN: return "preco_baixo"
     if preco > PRECO_MAX: return "preco_alto"
-    if comissao < COMISSAO_MIN: return "comissao_baixa"
+    if comissao < COMISSAO_MIN * 100: return "comissao_baixa"
     if vendas < VENDAS_MIN: return "poucas_vendas"
     if nota and nota < AVALIACAO_MIN: return "nota_baixa"
     if link in ULTIMOS_LINKS or link in LINKS_CICLO_ATUAL: return "link_repetido"
@@ -317,38 +297,24 @@ def identificar_familia(titulo):
 # VALIDAÇÃO DE RELEVÂNCIA
 # =========================
 def validar_modelo(titulo, modelo):
-    norm_titulo = normalizar(titulo)
-    norm_modelo = normalizar(modelo)
-    return all(p in norm_titulo for p in norm_modelo.split() if len(p) > 2)
+    return all(p in normalizar(titulo) for p in normalizar(modelo).split() if len(p) > 2)
 
 def validar_peca(titulo, peca):
     norm_titulo = normalizar(titulo)
-    norm_peca = normalizar(peca)
     equivalencias = {
-        "kit relacao": ["kit relacao", "relação completa", "kit transmissão"],
-        "jogo de juntas": ["jogo de juntas", "juntas"],
-        "burrinho de freio": ["burrinho de freio", "cilindro mestre"],
-        "par pneu": ["par pneu", "kit pneu", "pneus"]
+        "kit relacao": ["relacao", "corrente", "pinhão", "coroa"],
+        "embreagem": ["embreagem", "disco embraiagem"]
     }
-    return any(normalizar(alt) in norm_titulo for alt in equivalencias.get(norm_peca, [norm_peca]))
+    return any(alt in norm_titulo for alt in equivalencias.get(normalizar(peca), [normalizar(peca)]))
 
 def validar_relevancia(nicho, titulo, termo="", modelo=None, peca=None):
     norm_titulo = normalizar(titulo)
-    if nicho == "Eletrônicos" and any(p in norm_titulo for p in ["capa", "pelicula"]) and not any(p in norm_titulo for p in ["celular", "tablet", "iphone"]):
+    if nicho == "Eletrônicos" and any(p in norm_titulo for p in ["capa", "pelicula"]) and not any(p in norm_titulo for p in ["celular", "tablet"]):
         return False
-    if nicho == "Casa" and "tinta" in norm_titulo and not any(p in norm_titulo for p in ["parede", "spray"]):
+    if peca and not validar_peca(titulo, peca):
         return False
-    if nicho == "Moda Feminina" and any(p in norm_titulo for p in ["masculino", "homem"]):
+    if modelo and not validar_modelo(titulo, modelo):
         return False
-    if nicho == "Moda Masculina" and any(p in norm_titulo for p in ["feminino", "mulher"]):
-        return False
-    if nicho == "Maternidade" and any(p in norm_titulo for p in ["organizadora", "cozinha"]) and not any(p in norm_titulo for p in ["bebe", "infantil"]):
-        return False
-    if nicho == "Moto":
-        if modelo and not validar_modelo(titulo, modelo):
-            return False
-        if peca and not validar_peca(titulo, peca):
-            return False
     return True
 
 # =========================
@@ -362,13 +328,13 @@ def buscar_produtos(termo, nicho):
     termo_busca = variar_termo(termo)
     logging.info("   ↳ Ordem=%s | Página=%s | Buscando: %s", ordem, pagina, termo_busca)
 
-    consulta = f'query {{productOfferV2(sortType:{ordem},page:{pagina},limit:50,keyword:{json.dumps(termo_busca, ensure_ascii=False)},isAMSOffer:true){{nodes{{productName,priceMin,priceMax,commissionRate,sales,ratingStar,productLink,offerLink,imageUrl,shopType}}}}}}'
+    consulta = f'query {{productOfferV2(sortType:{ordem},page:{pagina},limit:50,keyword:{json.dumps(termo_busca, ensure_ascii=False)},isAMSOffer:false){{nodes{{name,productName,price,priceMin,commissionRate,salesCount,sales,ratingAverage,ratingStar,affiliateLink,url,image,shopType}}}}}}'
 
     payload = json.dumps({"query": consulta}, ensure_ascii=False)
     assinatura = hashlib.sha256(f"{SHOPEE_APP_ID}{ts}{payload}{SHOPEE_PASSWORD}".encode()).hexdigest()
     cabecalhos = {
         "Content-Type": "application/json",
-        "Authorization": f"SHA256 Credential={SHOPEE_APP_ID}, Timestamp={ts}, Signature={assinatura}",
+        "Authorization": f"SHA256 Credential={SHOPEE_APP_ID},Timestamp={ts},Signature={assinatura}",
         "User-Agent": "Mozilla/5.0"
     }
     try:
@@ -378,7 +344,8 @@ def buscar_produtos(termo, nicho):
         if dados.get("errors"):
             logging.error("API Erro: %s", dados["errors"])
             return []
-        produtos = dados.get("data", {}).get("productOfferV2", {}).get("nodes", []) or []
+        produto_chave = dados.get("data", {}).get("productOfferV2", {})
+        produtos = produto_chave.get("nodes", []) or []
         logging.info("✅ %s produtos encontrados (página %s, ordem %s)", len(produtos), pagina, ordem)
         return produtos
     except Exception as e:
@@ -417,14 +384,12 @@ def selecionar(nicho, termo, quantidade, estado, moto=False, peca=None):
     for p in validos:
         if len(escolhidos) >= quantidade:
             break
-        titulo = str(p.get("productName", "")).strip()
-        link = str(p.get("offerLink") or p.get("productLink") or "").strip()
+        titulo = str(p.get("name") or p.get("productName", "")).strip()
+        link = str(p.get("affiliateLink") or p.get("url", "") or "").strip()
         chave = chave_titulo(titulo)
         familia = identificar_familia(titulo)
         id_historico = hashlib.md5(f"{chave}|{link}".encode()).hexdigest()
 
-        if link in LINKS_CICLO_ATUAL or link in ULTIMOS_LINKS:
-            continue
         if duplicata_forte(titulo) or produto_parecido(titulo, titulos_usados):
             continue
         if not validar_relevancia(nicho, titulo, termo, termo if moto else None, peca):
@@ -447,7 +412,7 @@ def selecionar(nicho, termo, quantidade, estado, moto=False, peca=None):
     del ULTIMOS_LINKS[:-300]
     del ULTIMOS_TITULOS[:-150]
     if motivos:
-        logging.info("📋 Motivos da rejeição: %s", dict(motivos))
+        logging.info("📋 Motivos de exclusão: %s", dict(motivos))
     return escolhidos, estado
 
 # =========================
@@ -455,9 +420,9 @@ def selecionar(nicho, termo, quantidade, estado, moto=False, peca=None):
 # =========================
 def obter_ofertas_shopee():
     global LINKS_CICLO_ATUAL, BASES_VISTAS, TERMOS_USADOS_CICLO
-    LINKS_CICLO_ATUAL = set()
-    BASES_VISTAS = set()
-    TERMOS_USADOS_CICLO = set()
+    LINKS_CICLO_ATUAL.clear()
+    BASES_VISTAS.clear()
+    TERMOS_USADOS_CICLO.clear()
     selecionados = []
     estado = carregar_estado()
 
@@ -467,7 +432,7 @@ def obter_ofertas_shopee():
 
     configuracao = {
         "Casa": 2,
-        "Maternidade": 2,
+        "Bebê": 2,
         "Eletrônicos": 2,
         "Moda Feminina": 1,
         "Moda Masculina": 1
@@ -492,24 +457,23 @@ CHAMADAS = [
     "🚀 Estoque limitado!",
     "💥 Melhor preço do ano!",
     "🎯 Compre antes dos outros!",
-    "🏃 Corra, acabando rápido!",
-    "⏰ Acaba hoje!",
-    "💰 Economia real!",
+    "🏃 Acaba rápido, aproveita!",
+    "⏰ Corre, acaba hoje!",
+    "💰 Economia de verdade!",
     "⭐ Super oferta!",
-    "🛒 Não perca!"
+    "🛒 Não perca essa chance!"
 ]
 
 ABERTURAS = [
     "🚨 Isso não aparece todo dia!",
     "👀 Olha o que encontrei…",
     "🔥 Aproveita enquanto dá!",
-    "💥 Ninguém esperava isso…",
+    "💥 Difícil achar barato assim!",
     "🛑 Para tudo e olha!",
-    "🤯 Difícil de achar barato assim!",
+    "🤯 Preço caiu demais!",
     "⚠️ Pode sumir a qualquer hora…",
-    "👁️ Pouca gente viu ainda…",
-    "📉 Preço caiu de verdade!",
-    "🚀 Tá começando a bombar!"
+    "📉 Caiu de preço agora!",
+    "🚀 Tá bombando de comprar!"
 ]
 
 GATILHOS = [
@@ -521,16 +485,16 @@ GATILHOS = [
     "Quem compra recomenda",
     "Produto confiável",
     "Saindo muito rápido",
-    "Boa comissão pra afiliado",
-    "Resolve o problema direto"
+    "Entrega rápida garantida",
+    "Loja confiável e oficial"
 ]
 
 def anexar_afiliado(link):
     try:
         u = urlparse(link)
-        parametros = parse_qs(u.query)
-        parametros["af_siteid"] = AFILIADO_ID
-        return urlunparse(u._replace(query=urlencode(parametros, doseq=True)))
+        params = parse_qs(u.query)
+        params["af_siteid"] = AFILIADO_ID
+        return urlunparse(u._replace(query=urlencode(params, doseq=True)))
     except:
         return link
 
@@ -538,7 +502,7 @@ def link_whatsai(texto):
     limpo = re.sub(r"<[^>]+>", "", texto)
     return f"https://wa.me/?text={quote(limpo)}"
 
-def montar_mensagem(nome, preco, vendas, nota, comissao, link):
+def montar_mensagem_tg(nome, preco, vendas, nota, comissao, link):
     abertura = random.choice([a for a in ABERTURAS if a not in ABERTURAS_USADAS])
     gatilho = random.choice([g for g in GATILHOS if g not in GATILHOS_USADOS])
     chamada = random.choice(CHAMADAS)
@@ -546,20 +510,27 @@ def montar_mensagem(nome, preco, vendas, nota, comissao, link):
     GATILHOS_USADOS.add(gatilho)
     return (
         f"{html.escape(abertura)}\n\n"
-        f"🔥 <b>{html.escape(nome)}</b>\n\n"
+        f"🔥 <b>Produto:</b> {html.escape(nome)}\n\n"
+        f"💰 <b>Preço:</b> R$ {preco}\n"
+        f"📊 <b>Vendas:</b> {vendas}\n"
+        f"⭐ <b>Avaliação:</b> {nota}\n"
+        f"💼 <b>Comissão:</b> {comissao}%\n\n"
         f"{html.escape(gatilho)}\n\n"
         f"{html.escape(chamada)}\n\n"
-        f"💰 <b>R$ {preco}</b>\n"
-        f"⭐ <b>{nota} | {vendas} vendas</b>\n"
-        f"💸 Comissão: <b>{comissao}%</b>\n\n"
-        f"⚠️ Pode alterar de preço\n\n"
         f'<a href="{html.escape(link)}">🛒 COMPRAR AGORA</a>\n\n'
-        f'<a href="{LINK_GRUPO_OFERTAS}">📲 Entrar no grupo</a>'
+        f'<a href="{LINK_GRUPO_OFERTAS}">📲 Entrar no grupo de ofertas</a>'
     )
 
-def mensagem_whatsai(nome, preco, vendas, nota, link, abertura, gatilho, chamada):
+def mensagem_whatsai(nome, preco, vendas, nota, comissao, link):
+    # ✅ Palavras-chave em NEGRITO (usa * para negrito no WhatsApp)
+    # ✅ REMOVIDA a frase de margem de afiliado
     return (
-        f"{abertura}\n🔥 {nome}\n{gatilho}\n{chamada}\n💰 R$ {preco}\n⭐ {nota} | {vendas} vendas\n⚠️ Pode variar\n🛒 {link}\n📲 Grupo: {LINK_GRUPO_OFERTAS}"
+        f"🔥 *Produto:* {nome}\n\n"
+        f"💰 *Preço:* R$ {preco}\n"
+        f"📊 *Vendas:* {vendas}\n"
+        f"⭐ *Avaliação:* {nota}\n"
+        f"💼 *Comissão:* {comissao}%\n\n"
+        f"🛒 Aproveite pelo link:\n{link}"
     )
 
 # =========================
@@ -567,26 +538,38 @@ def mensagem_whatsai(nome, preco, vendas, nota, link, abertura, gatilho, chamada
 # =========================
 async def enviar_foto(contexto, item, chat_id):
     try:
-        await contexto.bot.send_photo(chat_id=chat_id, photo=item["imagem"], caption=item["texto"], parse_mode="HTML")
+        await contexto.bot.send_photo(
+            chat_id=chat_id,
+            photo=item["imagem"],
+            caption=item["texto"],
+            parse_mode="HTML"
+        )
         return True
     except Exception as e:
         logging.warning("⚠️ Falha ao enviar imagem: %s", e)
     try:
-        await contexto.bot.send_message(chat_id=chat_id, text=item["texto"], parse_mode="HTML")
+        await contexto.bot.send_message(
+            chat_id=chat_id,
+            text=item["texto"],
+            parse_mode="HTML"
+        )
         return True
     except Exception as e:
         logging.error("❌ Falha ao enviar mensagem: %s", e)
     return False
 
 async def enviar_lote(contexto, lista):
-    await contexto.bot.send_message(chat_id=CHAT_ID_DESTINO, text="🚨 <b>OFERTAS NOVAS CHEGANDO…</b>", parse_mode="HTML")
+    await contexto.bot.send_message(
+        chat_id=CHAT_ID_DESTINO,
+        text="🚨 <b>OFERTAS NOVAS ACABARAM DE CHEGAR!</b>",
+        parse_mode="HTML"
+    )
     await asyncio.sleep(5)
     for item in lista:
         logging.info("📤 Enviando: %s", item["nicho"])
         enviado = await enviar_foto(contexto, item, CHAT_ID_DESTINO)
         if enviado:
-            chave = item["historico"]
-            registrar_envio(chave)
+            registrar_envio(item["historico"])
         await asyncio.sleep(40)
 
 # =========================
@@ -608,16 +591,16 @@ async def ciclo_envio(contexto):
         mensagens = []
         for nicho, produto in ofertas:
             try:
-                titulo = str(produto.get("productName", "")).strip()
-                link_bruto = str(produto.get("offerLink") or produto.get("productLink") or "").strip()
+                titulo = str(produto.get("name") or produto.get("productName", "")).strip()
+                link_bruto = str(produto.get("affiliateLink") or produto.get("url", "") or "").strip()
                 if not titulo or not link_bruto:
                     continue
                 link = anexar_afiliado(link_bruto)
-                preco = float(produto.get("priceMin", 0) or 0)
-                vendas = int(produto.get("sales", 0) or 0)
-                nota = float(produto.get("ratingStar", 4.5) or 4.5)
+                preco = float(produto.get("price", 0) or produto.get("priceMin", 0) or 0) / 1000
+                vendas = int(produto.get("salesCount", 0) or produto.get("sales", 0) or 0)
+                nota = float(produto.get("ratingAverage", 0) or produto.get("ratingStar", 0) or 0)
                 comissao = round(float(produto.get("commissionRate", 0) or 0) * 100, 2)
-                imagem = str(produto.get("imageUrl") or "").strip()
+                imagem = str(produto.get("image", "") or "").strip()
 
                 str_preco = f"{preco:.2f}".replace(".", ",")
                 str_vendas = f"{vendas:,}".replace(",", ".")
@@ -625,21 +608,26 @@ async def ciclo_envio(contexto):
 
                 abertura = random.choice([a for a in ABERTURAS if a not in ABERTURAS_USADAS])
                 gatilho = random.choice([g for g in GATILHOS if g not in GATILHOS_USADOS])
-                chamada = random.choice(CHAMADAS)
                 ABERTURAS_USADAS.add(abertura)
                 GATILHOS_USADOS.add(gatilho)
 
-                texto = montar_mensagem(titulo, str_preco, str_vendas, str_nota, comissao, link)
-                link_whats = link_whatsai(mensagem_whatsai(titulo, str_preco, str_vendas, str_nota, link, abertura, gatilho, chamada))
-                texto += f'\n<a href="{link_whats}">📲 Compartilhar WhatsApp</a>\n━━━━━━━━━━━━━━━━\n📢 <b>Ofertas do Dia</b>'
+                texto_tg = montar_mensagem_tg(titulo, str_preco, str_vendas, str_nota, comissao, link)
+                texto_whats = mensagem_whatsai(titulo, str_preco, str_vendas, str_nota, comissao, link)
+                link_compartilhar = link_whatsai(texto_whats)
+                texto_tg += f'\n<a href="{link_compartilhar}">📲 Compartilhar no WhatsApp</a>'
 
                 id_historico = hashlib.md5(f"{chave_titulo(titulo)}|{link_bruto}".encode()).hexdigest()
-                mensagens.append({"texto": texto, "imagem": imagem, "historico": id_historico, "nicho": nicho})
+                mensagens.append({
+                    "texto": texto_tg,
+                    "imagem": imagem,
+                    "historico": id_historico,
+                    "nicho": nicho
+                })
             except Exception as e:
                 logging.error("❌ Erro ao montar mensagem: %s", e)
 
         if len(mensagens) < MIN_OFERTAS:
-            logging.warning("⚠️ Menos de %s ofertas válidas após formatação", MIN_OFERTAS)
+            logging.warning("⚠️ Menos de %s ofertas válidas", MIN_OFERTAS)
             return
 
         await enviar_lote(contexto, mensagens)
@@ -650,11 +638,9 @@ async def ciclo_envio(contexto):
         nicho_gratis = ROTACAO_NICHO_GRATIS[indice_gratis % len(ROTACAO_NICHO_GRATIS)]
         estado["indice_nicho_gratis"] = (indice_gratis + 1) % len(ROTACAO_NICHO_GRATIS)
         salvar_estado(estado)
-        oferta_gratis = next((m for m in mensagens if m["nicho"] == nicho_gratis), None) or (mensagens[0] if mensagens else None)
+        oferta_gratis = next((m for m in mensagens if m["nicho"] == nicho_gratis), None) or mensagens[0]
         if oferta_gratis and await enviar_foto(contexto, oferta_gratis, FREE_CHAT_ID):
-            logging.info("✅ Enviado gratuito: %s", oferta_gratis["nicho"])
-        else:
-            logging.warning("⚠️ Sem oferta grátis para %s", nicho_gratis)
+            logging.info("✅ Grátis enviada: %s", oferta_gratis["nicho"])
 
         logging.info("========== ✅ CICLO FINALIZADO ==========")
     except Exception as e:
@@ -671,12 +657,11 @@ async def loop(aplicativo):
         if agora - ultima_execucao >= CHECK_INTERVAL:
             await ciclo_envio(type("Contexto", (), {"bot": aplicativo.bot})())
             ultima_execucao = agora
-        logging.info("💚 Aguardando… | %s", datetime.now(FUSO_BR).strftime("%d/%m às %H:%M"))
         await asyncio.sleep(60)
 
 async def manter_vivo():
     while True:
-        logging.info("💓 Bot ativo | %s", datetime.now(FUSO_BR).strftime("%d/%m/%Y %H:%M"))
+        logging.info("💓 Bot ativo | %s", datetime.now(FUSO_BR).strftime("%d/%m às %H:%M"))
         await asyncio.sleep(300)
 
 # =========================
@@ -684,24 +669,18 @@ async def manter_vivo():
 # =========================
 def verificar_variaveis():
     obrigatorias = ["TELEGRAM_TOKEN", "SHOPEE_PASSWORD", "SHOPEE_APP_ID"]
-    faltando = [v for v in obrigatorias if not globals().get(v, "")]
+    faltando = [v for v in obrigatorias if not os.getenv(v, "").strip()]
     if faltando:
-        raise RuntimeError(f"Variáveis obrigatórias faltando: {', '.join(faltando)}")
+        raise RuntimeError(f"Defina as variáveis: {', '.join(faltando)}")
+
+async def principal():
+    verificar_variaveis()
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    logging.info("🤖 Bot carregado! Aguardando ciclo…")
+    asyncio.create_task(manter_vivo())
+    await loop(app)
 
 def iniciar():
-    verificar_variaveis()
-    logging.info("=" * 45)
-    logging.info("🚀 SHOPEE BOT V30 — SEM REPETIÇÃO")
-    logging.info("🔄 Ordem, página e termo variam por busca")
-    logging.info("📦 Histórico 30 dias + 1 por família")
-    logging.info("=" * 45)
-
-    async def principal():
-        app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-        logging.info("🤖 Bot carregado com sucesso")
-        asyncio.create_task(manter_vivo())
-        await loop(app)
-
     try:
         asyncio.run(principal())
     except Exception as e:
@@ -711,3 +690,4 @@ def iniciar():
 
 if __name__ == "__main__":
     iniciar()
+
