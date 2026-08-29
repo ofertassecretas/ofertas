@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder
 
-print("VERSAO V31-CORRIGIDO")
+print("VERSAO V32-FILTROS-RELAXADOS")
 # =========================
 # CONFIG
 # =========================
@@ -14,22 +14,21 @@ TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "").strip()
 SHOPEE_APP_ID = "18349740277"
 CHAT_ID_DESTINO = -1003848415150
-FREE_CHAT_ID = -1003886228244
 AFILIADO_ID = "18349740277"
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 CHECK_INTERVAL = 5400
 MAX_OFERTAS = 10
-MIN_OFERTAS = 4
+MIN_OFERTAS = 3  # ✅ Reduzido para enviar com menos
 HISTORICO_DIAS = 30
 SIMILARIDADE_MAX = .88
-VENDAS_MIN = 2
-AVALIACAO_MIN = 4.0
-PRECO_MIN = 10  # ✅ PREÇO MÍNIMO R$ 10
+VENDAS_MIN = 0     # ✅ ACEITA ZERO VENDAS
+AVALIACAO_MIN = 0  # ✅ ACEITA SEM AVALIAÇÃO
+PRECO_MIN = 10
 PRECO_MAX = 10000
 COMISSAO_MIN = 3
-VERSAO_RODIZIO = 31
+VERSAO_RODIZIO = 32
 LIMITE_POR_FAMILIA = 1
 MAX_PAGINA_BUSCA = 4
 TIPOS_ORDEM = [1, 2, 3, 4, 5]
@@ -59,7 +58,7 @@ def horario_valido():
 
 def variar_termo(termo):
     base = termo.strip()
-    variacoes = [base, f"{base} promocao", f"{base} oferta", f"{base} barato", f"{base} 2025"]
+    variacoes = [base, f"{base} promocao", f"{base} oferta", f"{base} barato"]
     return random.choice(variacoes)
 
 GRUPO_SINONIMOS = {
@@ -72,11 +71,11 @@ GRUPO_SINONIMOS = {
     "tablet": {"tablet"},
     "celular": {"celular", "smartphone"}
 }
-MAPA_SINONIMOS = {normalizar(t): g for g, ts in GRUPO_SINONIMOS.items() for t in ts}
+MAPA_SINonIMOS = {normalizar(t): g for g, ts in GRUPO_SINONIMOS.items() for t in ts}
 
 def termo_ja_usado(termo):
-    g = MAPA_SINONIMOS.get(normalizar(termo))
-    return bool(g and any(MAPA_SINONIMOS.get(normalizar(t)) == g for t in TERMOS_USADOS_CICLO))
+    g = MAPA_SinonIMOS.get(normalizar(termo))
+    return bool(g and any(MAPA_SinonIMOS.get(normalizar(t)) == g for t in TERMOS_USADOS_CICLO))
 
 # =========================
 # LISTAS DE PRODUTOS
@@ -102,8 +101,6 @@ FAMILIAS_PRODUTOS = {
     "moda_masc": ["camiseta", "bermuda", "masculino", "homem"],
     "casa": ["panela", "utensilio", "cozinha"]
 }
-
-ROTACAO_NICHO_GRATIS = ["Casa", "Bebê", "Eletrônicos", "Moda Feminina", "Moda Masculina"]
 
 # =========================
 # ARQUIVOS DE ESTADO
@@ -134,7 +131,6 @@ def carregar_estado():
         estado = {"versao_rodizio": VERSAO_RODIZIO, "Moto": {"data": hoje, "indice": 0}}
         for nicho in PRODUTOS_POR_NICHO:
             estado[nicho] = {"indice": 0, "data": hoje}
-    estado.setdefault("indice_nicho_gratis", 0)
     return estado
 
 def salvar_estado(estado): salvar_json(ARQUIVO_ESTADO, estado)
@@ -212,6 +208,7 @@ def pontuar_produto(p, termo=""):
         return max(0,pont)
     except: return 0
 
+# ✅ FILTRO CORRIGIDO: só rejeita se valor EXISTIR e for menor que o mínimo
 def avaliar_rejeicao(p):
     titulo = str(p.get("productName","")).strip()
     link = str(p.get("offerLink") or p.get("productLink","")).strip()
@@ -229,13 +226,15 @@ def avaliar_rejeicao(p):
     if preco < PRECO_MIN: return "preco_baixo"
     if preco > PRECO_MAX: return "preco_alto"
     if comissao < COMISSAO_MIN: return "comissao_baixa"
-    if vendas < VENDAS_MIN: return "poucas_vendas"
-    if nota and nota < AVALIACAO_MIN: return "nota_baixa"
+    # ✅ SÓ rejeita vendas se vier número MAIOR QUE 0 e abaixo do mínimo
+    if vendas > 0 and vendas < VENDAS_MIN: return "poucas_vendas"
+    # ✅ SÓ rejeita nota se vier número MAIOR QUE 0 e abaixo do mínimo
+    if nota > 0 and nota < AVALIACAO_MIN: return "nota_baixa"
     if link in LINKS_CICLO_ATUAL or link in ULTIMOS_LINKS: return "link_repetido"
     return None
 
 # =========================
-# BUSCA API — ✅ CAMPOS CORRIGIDOS!
+# BUSCA API
 # =========================
 def buscar_produtos(termo, nicho):
     logging.info("🔍 Buscando em %s: %s", nicho, termo)
@@ -245,7 +244,6 @@ def buscar_produtos(termo, nicho):
     termo_busca = variar_termo(termo)
     logging.info("   ↳ Ordem=%s | Página=%s | Buscando: %s", ordem, pagina, termo_busca)
 
-    # ✅ CAMPOS CORRETOS da API: productName, sales, ratingStar, offerLink, productLink, imageUrl
     q = f'query {{productOfferV2(sortType:{ordem},page:{pagina},limit:50,keyword:{json.dumps(termo_busca,ensure_ascii=False)},isAMSOffer:true){{nodes{{productName,priceMin,priceMax,commissionRate,sales,ratingStar,productLink,offerLink,imageUrl,shopType}}}}}}'
     payload = json.dumps({"query":q}, ensure_ascii=False)
     assinatura = hashlib.sha256(f"{SHOPEE_APP_ID}{ts}{payload}{SHOPEE_PASSWORD}".encode()).hexdigest()
@@ -333,7 +331,7 @@ def anexar_afiliado(link):
 
 def link_whatsai(texto): return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>','',texto))}"
 
-# ✅ MENSAGEM WHATSAPP — Negrito sem frase de afiliado
+# ✅ Mensagem WhatsApp — Negrito, sem frase de afiliado
 def mensagem_whatsai(nome, preco, vendas, nota, comissao, link):
     return (
         f"🔥 *Produto:* {nome}\n\n"
