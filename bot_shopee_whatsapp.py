@@ -344,14 +344,14 @@ def buscar_produtos(kw, nicho):
     logging.info("🔍 Buscando em %s: %s", nicho, kw)
     ts = int(time.time())
     
-    # ORDEM E PÁGINA ALEATÓRIAS + VARIAÇÃO DE TERMO
+    # ✅ ORDEM E PÁGINA ALEATÓRIAS + VARIAÇÃO DE TERMO
     ordem = random.choice(TIPOS_ORDEM)
-    pagina = random.randint(1, BUSCA_PAGINAS_MAX)
-    offset = (pagina - 1) * 50
+    pagina = random.randint(1, BUSCA_PAGINAS_MAX)  # ← AGORA USA "page", NÃO "offset"
     kw_variado = gerar_variacoes_termo(kw)
     logging.info("   ↳ Ordem=%s | Página=%s | Buscando: %s", ordem, pagina, kw_variado)
 
-    query = f'query {{productOfferV2(sortType:{ordem},offset:{offset},limit:50,keyword:{json.dumps(kw_variado,ensure_ascii=False)},isAMSOffer:true){{nodes{{productName,priceMin,priceMax,commissionRate,sales,ratingStar,productLink,offerLink,imageUrl,shopType}}}}}}'
+    # ✅ TROCADO "offset" POR "page" — ERA O ERRO!
+    query = f'query {{productOfferV2(sortType:{ordem},page:{pagina},limit:50,keyword:{json.dumps(kw_variado,ensure_ascii=False)},isAMSOffer:true){{nodes{{productName,priceMin,priceMax,commissionRate,sales,ratingStar,productLink,offerLink,imageUrl,shopType}}}}}}'
     
     payload = json.dumps({"query": query}, ensure_ascii=False)
     sig = hashlib.sha256((SHOPEE_APP_ID + str(ts) + payload + SHOPEE_PASSWORD).encode()).hexdigest()
@@ -373,60 +373,6 @@ def buscar_produtos(kw, nicho):
     except Exception as e:
         logging.error("❌ Shopee: %s", e)
         return []
-
-def selecionar(nicho, termo, cota, e, moto=False, peca=None):
-    kw = f"{peca} {termo}" if moto else termo
-    resultados = buscar_produtos(kw, nicho)
-    validos = []
-    motivos = Counter()
-    for p in resultados:
-        m = motivo_rejeicao(p)
-        if m:
-            motivos[m] += 1
-            REJEICOES[m] += 1
-        else:
-            validos.append(p)
-    logging.info("📊 %s [%s]: %s brutos / %s válidos", nicho, kw, len(resultados), len(validos))
-    
-    # NOVA ORDENAÇÃO PONDERADA ALEATÓRIA (não fica sempre os mesmos no topo)
-    if validos:
-        validos_com_peso = [(p, oferta_score(p, termo)) for p in validos]
-        pesos = [max(1, score ** 1.5) for _, score in validos_com_peso]
-        validos = [p for p, _ in random.choices(validos_com_peso, weights=pesos, k=len(validos_com_peso))]
-
-    escolhidos = []
-    titulos = []
-    familias = Counter()
-    for p in validos:
-        if len(escolhidos) >= cota:
-            break
-        t = str(p.get("productName", "")).strip()
-        l = str(p.get("offerLink") or p.get("productLink") or "").strip()
-        b = chave_base_titulo(t)
-        f = familia(t)
-        pid = hashlib.md5(f"{b}|{l}".encode()).hexdigest()
-        if not l or b in BASES_VISTAS or l in set_ciclo or historico_bloqueia(pid):
-            continue
-        if titulo_duplicado_forte(t) or produto_parecido(t, titulos):
-            continue
-        if not validar_relevancia(nicho, t, termo=termo, modelo=termo if moto else None, peca=peca):
-            motivos["relevancia"] += 1
-            continue
-        if f != "outros" and familias[f] >= LIMITE_POR_FAMILIA:
-            continue
-        escolhidos.append(p)
-        titulos.append(t)
-        familias[f] += 1
-        BASES_VISTAS.add(b)
-        set_ciclo.add(l)
-        ULTIMAS_BUSCAS_SHOPEE.append(l)
-        ULTIMOS_TITULOS.append(normalizar_texto(t))
-        logging.info("🏆 ESCOLHIDO | %s | família=%s", t, f)
-    del ULTIMAS_BUSCAS_SHOPEE[:-300]
-    del ULTIMOS_TITULOS[:-150]
-    if motivos:
-        logging.info("📋 Motivos %s: %s", nicho, dict(motivos))
-    return escolhidos, e
 
 # =========================
 # COLETA
