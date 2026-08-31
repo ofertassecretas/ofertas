@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder
 
-print("VERSAO V36-FINAL-FREE-FUNCIONANDO")
+print("VERSAO V37-ERROS-CORRIGIDOS")
 # =========================
 # CONFIG
 # =========================
@@ -14,7 +14,7 @@ TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "").strip()
 SHOPEE_APP_ID = "18349740277"
 CHAT_ID_DESTINO = -1003848415150
-FREE_CHAT_ID = -1003886228244  # ✅ NOME CORRETO DA VARIÁVEL!
+FREE_CHAT_ID = -1003886228244
 AFILIADO_ID = "18349740277"
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
@@ -29,7 +29,7 @@ RATING_MIN = 4.0
 PRECO_MIN = 15
 PRECO_MAX = 10000
 COMISSAO_MIN = .03
-VERSAO_RODIZIO = 36
+VERSAO_RODIZIO = 37
 LIMITE_POR_FAMILIA = 2
 MAX_PAGINA_BUSCA = 4
 TIPOS_ORDEM = [1, 2, 3, 4, 5]
@@ -40,10 +40,11 @@ ARQUIVO_HISTORICO = "historico_envios.json"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+# ✅ DECLAREI AS VARIÁVEIS QUE ESTAVAM FALTANDO!
 ULTIMOS_LINKS = []
 ULTIMOS_TITULOS = []
 ABERTURAS_USADAS = set()
-GATILHOS_USADOS = set()
+GATILHOS_USADAS = set()  # ✅ FALTAVA ESSA!
 LINKS_CICLO_ATUAL = set()
 TERMOS_USADOS_CICLO = set()
 BASES_VISTAS = set()
@@ -56,7 +57,7 @@ def normalizar(texto):
 
 def horario_valido():
     agora = datetime.now(FUSO_BR).time()
-    return dt_time(5, 30) <= agora <= dt_time(22, 30)
+    return dt_time(5, 30) <= agora <= dt_time(21, 30)
 
 def variar_termo(termo):
     base = termo.strip()
@@ -80,33 +81,34 @@ def termo_ja_usado(termo):
     return bool(g and any(MAPA_SINONIMOS.get(normalizar(t)) == g for t in TERMOS_USADOS_CICLO))
 
 # =========================
-# LISTAS DE PRODUTOS E MOTO
+# LISTAS DE PRODUTOS E MOTO — ✅ USANDO LISTA DO CÓDIGO ANTIGO
 # =========================
 PECAS_MOTO = [
-    "kit relacao", "kit embreagem", "bateria", "refil bomba combustivel",
-    "chicote fiação principal", "bucha balança", "burrinho de freio",
-    "estribo", "pedal de marcha", "pedal de freio", "rolamento virabrequim",
-    "estator", "chave ignição", "punho chave luz", "kit pisca seta",
-    "par pneu", "bloco optico", "retentor de bengala", "bucha amortecedor",
-    "carburador corpo de injeção", "kit cilindro", "jogo de juntas", "biela",
-    "valvulas escape admissão", "kit freio a disco", "disco de freio",
-    "tubo interno", "vela iridium", "pastilha freio", "guidao", "manopla",
-    "amortecedor", "retrovisor", "farol", "lona de freio", "cabo embreagem",
-    "cabo acelerador", "coroa moto", "pinhao moto", "corrente moto",
-    "pedaleira", "carenagem", "lanterna traseira", "capacete"
+    "kit relacao","kit embreagem","bateria","refil bomba combustivel",
+    "chicote fiação principal","bucha balança","burrinho de freio",
+    "estribo","pedal de marcha","pedal de freio","rolamento virabrequim",
+    "estator","chave ignição","punho chave luz","kit pisca seta",
+    "par pneu","bloco optico","retentor de bengala","bucha amortecedor",
+    "carburador corpo de injeção","kit cilindro","jogo de juntas","biela",
+    "valvulas escape admissão","kit freio a disco","disco de freio",
+    "tubo interno","vela iridium","pastilha freio","guidao","manopla",
+    "amortecedor","retrovisor","farol","lona de freio","cabo embreagem",
+    "cabo acelerador","coroa moto","pinhao moto","corrente moto",
+    "pedaleira","carenagem","lanterna traseira","capacete"
 ]
 MOTOS = [
-    "titan 150", "cb 300", "factor 150", "titan 160", "tornado 250", "fazer 150",
-    "bros 160", "twister 250", "biz 125", "pop 110", "xre 300", "crosser 150",
-    "xre 190", "fazer 250", "lander 250", "bros 150", "tenere 250", "biz 100", "twister 300"
+    "titan 150","cb 300","factor 150","titan 160","tornado 250","fazer 150",
+    "titan 125","bros 160","twister 250","biz 125","pop 110","xre 300",
+    "crosser 150","xre 190","fazer 250","lander 250","bros 150",
+    "tenere 250","biz 100","twister 300"
 ]
 
 PRODUTOS_POR_NICHO = {
-    "Casa": ["air fryer", "aspirador", "liquidificador", "cafeteira", "panela eletrica", "panela de pressão", "ventilador", "batedeira", "filtro de barro", "jogo de panelas"],
-    "Maternidade": ["carrinho bebe", "berco bebe", "fralda descartavel", "naninha", "kit toalha umedecida", "banheira", "kit bolsa maternidade", "kit mamadeira", "ninho bebe", "kit enxoval bebe"],
-    "Eletroeletrônicos": ["smartwatch", "fone bluetooth", "caixa de som bluetooth", "bastão pau de selfie", "celular", "smart tv", "video game", "capinha celular", "pelicula celular", "balança digital", "pen drive", "impressora termica", "computador", "notebook", "drone", "camera de segurança", "tablet", "ssd", "mouse gamer", "teclado mecanico", "power bank", "carregador turbo"],
-    "Moda feminina": ["vestido feminino", "conjunto feminino", "biquines", "saida de praia", "maquiagens", "roupa academia", "calça jean", "calça leggin", "saia longa", "sandalias", "pijamas", "blusa regata", "oculos de sol", "tenis feminino", "bolsa feminina", "jaqueta feminina", "short feminino"],
-    "Moda masculina": ["camiseta masculina", "bermudas jeans", "camisetas regatas", "camisa polo", "camisa de linho", "terno", "blazer", "barbeador", "oculos de sol", "calção de futebol", "tenis futebol", "chuteiras", "camisa termica", "bermuda masculina", "jaqueta masculina", "tenis masculino", "carteira masculina", "calça jeans masculina", "camisa social masculina", "moletom masculino", "sapatenis masculino"]
+    "Casa":["air fryer","aspirador","liquidificador","cafeteira","panela eletrica","panela de pressão","ventilador","batedeira","filtro de barro","jogo de panelas"],
+    "Maternidade":["carrinho bebe","berco bebe","fralda descartavel","naninha","kit toalha umedecida","banheira","kit bolsa maternidade","kit mamadeira","ninho bebe","kit enxoval bebe"],
+    "Eletroeletrônicos":["smartwatch","fone bluetooth","caixa de som bluetooth","bastão pau de selfie","celular","smart tv","video game","capinha celular","pelicula celular","balança digital","pen drive","impressora termica","computador","notebook","drone","camera de segurança","tablet","ssd","mouse gamer","teclado mecanico","power bank","carregador turbo"],
+    "Moda feminina":["vestido feminino","conjunto feminino","biquines","saida de praia","maquiagens","roupa academia","calça jean","calça leggin","saia longa","sandalias","pijamas","blusa regata","oculos de sol","tenis feminino","bolsa feminina","jaqueta feminina","short feminino"],
+    "Moda masculina":["camiseta masculina","bermudas jeans","camisetas regatas","camisa polo","camisa de linho","terno","blazer","barbeador","oculos de sol","calção de futebol","tenis futebol","chuteiras","camisa termica","bermuda masculina","jaqueta masculina","tenis masculino","carteira masculina","calça jeans masculina","camisa social masculina","moletom masculino","sapatenis masculino"]
 }
 
 NICHOS_FREE_ROTA = ["Moto", "Casa", "Moda feminina", "Moda masculina", "Maternidade", "Eletroeletrônicos"]
@@ -128,7 +130,7 @@ FAMILIAS_PRODUTOS = {
 }
 
 # =========================
-# ROTAÇÃO INTELIGENTE DE MOTO — 2 MODELOS POR PEÇA, SEM REPETIR PAR
+# ROTAÇÃO DE MOTO — ✅ CORRIGIDA PARA USAR NOMES CORRETOS
 # =========================
 def gerar_par_moto(indice_ciclo):
     peca = PECAS_MOTO[indice_ciclo % len(PECAS_MOTO)]
@@ -216,31 +218,34 @@ def proximo_termo(nicho, estado):
     return itens[c["pos"] % len(itens)], estado
 
 # =========================
-# FILTROS
+# FILTROS — ✅ IGUAIS AO CÓDIGO ANTIGO
 # =========================
 def chave_titulo(titulo):
-    ign = {"premium","novo","promocao","promoção","super","original","kit","completo"}
-    return " ".join(sorted([p for p in normalizar(titulo).split() if p not in ign and len(p) > 2])[:8])
+    stop = {"premium","novo","promocao","promoção","super","original","profissional","casual","masculino","feminino","infantil","adulto","unissex","kit","com","de","para","o","a","promo","oferta","modelo","versao","versão","linha","envio","usado","branco","preto","azul","vermelho","rosa","verde","amarelo","tamanho","gamer","led","usb"}
+    p = [x for x in normalizar(titulo).split() if x not in stop and len(x) > 2]
+    return " ".join(sorted(p)[:8])
 
-def tem_bloqueio(texto):
-    return any(p in normalizar(texto) for p in ["teste","amostra","nao venda","exposicao"])
+def tem_bloqueio(t):
+    t = normalizar(t)
+    return any(x in t for x in ["teste","amostra","não compre","nao compre","produto teste","exemplo","dummy","vela led","vela decorativa","decorativa","decoração","casamento","festa"])
 
 def duplicata_forte(titulo):
-    ch = chave_titulo(titulo); nt = normalizar(titulo)
-    return any(ch == chave_titulo(t) or SequenceMatcher(None, nt, normalizar(t)).ratio() >= SIMILARIDADE_MAX for t in ULTIMOS_TITULOS)
+    n, b = normalizar(titulo), chave_titulo(titulo)
+    return any(n == normalizar(p) or SequenceMatcher(None, n, normalizar(p)).ratio() >= SIMILARIDADE_MAX or (b and b == chave_titulo(p)) for p in ULTIMOS_TITULOS)
 
 def enviado_anteriormente(chave):
     h = carregar_historico()
-    if chave in h:
-        try: return (datetime.now(FUSO_BR) - datetime.fromisoformat(h[chave]).replace(tzinfo=FUSO_BR)) < timedelta(days=HISTORICO_DIAS)
-        except: pass
-    return False
+    if chave not in h: return False
+    try:
+        d = datetime.fromisoformat(h[chave])
+        if d.tzinfo is None: d = d.replace(tzinfo=FUSO_BR)
+        return datetime.now(FUSO_BR) - d < timedelta(days=HISTORICO_DIAS)
+    except: return False
 
 def registrar_envio(chave):
-    h = carregar_historico()
-    h[chave] = datetime.now(FUSO_BR).isoformat()
-    lim = datetime.now(FUSO_BR) - timedelta(days=HISTORICO_DIAS*3)
-    salvar_historico({k:v for k,v in h.items() if datetime.fromisoformat(v).replace(tzinfo=FUSO_BR) >= lim})
+    h = carregar_historico(); h[chave] = datetime.now(FUSO_BR).isoformat()
+    limite = datetime.now(FUSO_BR) - timedelta(days=HISTORICO_DIAS*3)
+    salvar_historico({k:v for k,v in h.items() if datetime.fromisoformat(v).replace(tzinfo=FUSO_BR) >= limite})
 
 def identificar_familia(titulo):
     nt = normalizar(titulo)
@@ -250,15 +255,16 @@ def identificar_familia(titulo):
 
 def pontuar_produto(p, termo=""):
     try:
-        vendas = int(p.get("sales", 0) or 0)
-        nota = float(p.get("ratingStar", 0) or 0)
-        preco_str = p.get("priceMin", "0") or "0"
-        preco = float(preco_str) / 1000 if isinstance(preco_str, (int, float)) else float(preco_str or "0")
-        pt = normalizar(termo); tp = normalizar(p.get("productName",""))
-        pont = min(vendas/8,25) + nota*3
-        if 50 <= preco <= 500: pont +=6
-        if pt: pont += 8 if pt in tp else sum(2 for x in pt.split() if x in tp)
-        return max(0,pont)
+        v = int(p.get("sales", 0) or 0)
+        r = float(p.get("ratingStar", 0) or 0)
+        c = float(p.get("commissionRate", 0) or 0)
+        pr = float(p.get("priceMin", 0) or 0)
+        n = normalizar(p.get("productName",""))
+        tn = normalizar(termo)
+        s = min(v/8, 25) + r*3 + c*100
+        if 50 <= pr <= 5000: s += 6
+        if tn: s += 8 if tn in n else sum(2 for x in tn.split() if x in n)
+        return s
     except: return 0
 
 def avaliar_rejeicao(p):
@@ -278,7 +284,7 @@ def avaliar_rejeicao(p):
     if preco < PRECO_MIN: return "preco_baixo"
     if preco > PRECO_MAX: return "preco_alto"
     if comissao < COMISSAO_MIN: return "comissao_baixa"
-    if vendas < VENDAS_MIN: return "vendas_baixas"
+    if vendas > 0 and vendas < VENDAS_MIN: return "vendas_baixas"
     if nota > 0 and nota < RATING_MIN: return "nota_baixa"
     if link in LINKS_CICLO_ATUAL or link in ULTIMOS_LINKS: return "link_repetido"
     return None
@@ -317,25 +323,25 @@ def selecionar(nicho, termo, qtd, estado, moto=False, peca=None):
     val = []; motivos = Counter()
     for p in res:
         m = avaliar_rejeicao(p)
-        if m: motivos[m]+=1
+        if m: motivos[m] += 1
         else: val.append(p)
     logging.info("📊 %s: %s brutos / %s válidos", nicho, len(res), len(val))
     
     if val:
         val.sort(key=lambda x: pontuar_produto(x, termo), reverse=True)
     
-    esc = []; familias=Counter()
+    esc = []; familias = Counter()
     for p in val:
-        if len(esc)>=qtd: break
+        if len(esc) >= qtd: break
         titulo = str(p.get("productName","")).strip()
         link = str(p.get("offerLink") or p.get("productLink","")).strip()
         ch = chave_titulo(titulo)
         fam = identificar_familia(titulo)
         hid = hashlib.md5(f"{ch}|{link}".encode()).hexdigest()
         if duplicata_forte(titulo): continue
-        if familias[fam]>=LIMITE_POR_FAMILIA: continue
+        if familias[fam] >= LIMITE_POR_FAMILIA: continue
         if enviado_anteriormente(hid): continue
-        esc.append(p); familias[fam]+=1
+        esc.append(p); familias[fam] += 1
         LINKS_CICLO_ATUAL.add(link); ULTIMOS_LINKS.append(link); ULTIMOS_TITULOS.append(titulo)
         BASES_VISTAS.add(ch)
         registrar_envio(hid)
@@ -345,7 +351,7 @@ def selecionar(nicho, termo, qtd, estado, moto=False, peca=None):
     return esc, estado
 
 # =========================
-# COLETAR TODAS AS OFERTAS
+# COLETAR OFERTAS
 # =========================
 def obter_ofertas_shopee():
     global LINKS_CICLO_ATUAL, TERMOS_USADOS_CICLO, BASES_VISTAS
@@ -353,7 +359,7 @@ def obter_ofertas_shopee():
     sel = []
     estado = carregar_estado()
     
-    # 🏍️ MOTO — 2 modelos diferentes por peça
+    # 🏍️ MOTO — 2 modelos
     peca, moto1, moto2, estado = proxima_busca_moto(estado)
     its1, estado = selecionar("Moto", moto1, 1, estado, True, peca)
     sel.extend([("Moto", x) for x in its1])
@@ -374,7 +380,7 @@ def obter_ofertas_shopee():
     return sel[:MAX_OFERTAS], estado
 
 # =========================
-# FORMATAR DADOS SEMPRE VISÍVEIS
+# FORMATAR EXIBIÇÃO
 # =========================
 def formatar_vendas(vendas):
     if vendas == 0: return "0"
@@ -385,7 +391,7 @@ def formatar_nota(nota):
     return f"{nota:.1f}".replace(".",",")
 
 # =========================
-# MENSAGENS — SEM COMISSÃO, SEM FRASES DE AFILIADO
+# MENSAGENS — SEM COMISSÃO, SEM AFILIADO
 # =========================
 ABERTURAS = [
     "🚨 Isso não aparece todo dia!","👀 Olha o que encontrei…","🔥 Aproveita enquanto dá!",
@@ -406,7 +412,6 @@ def anexar_afiliado(link):
     except: return link
 
 def link_whatsai_completo(nome, preco, vendas, nota, link):
-    """Link do WhatsApp com TUDO incluso + link do grupo"""
     texto = (
         f"🔥 Produto: {nome}\n"
         f"💰 Preço: R$ {preco}\n"
@@ -418,6 +423,7 @@ def link_whatsai_completo(nome, preco, vendas, nota, link):
     return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>','',texto))}"
 
 def montar_mensagem_telegram(nome, preco, vendas, nota, link, lk_whats, free=False):
+    # ✅ GATILHOS_USADAS AGORA EXISTE!
     ab = random.choice([x for x in ABERTURAS if x not in ABERTURAS_USADAS] or ABERTURAS)
     gt = random.choice([x for x in GATILHOS if x not in GATILHOS_USADAS] or GATILHOS)
     ch = random.choice(CHAMADAS)
@@ -452,7 +458,7 @@ async def ciclo(ctx):
     try:
         logging.info("========== 🔄 INÍCIO ==========")
         if not horario_valido(): logging.info("⏹️ Fora do horário"); return
-        ABERTURAS_USADAS.clear(); GATILHOS_USADOS.clear()
+        ABERTURAS_USADAS.clear(); GATILHOS_USADAS.clear()
         
         ofertas, estado = obter_ofertas_shopee()
         
@@ -491,8 +497,8 @@ async def ciclo(ctx):
             if ok: registrar_envio(item["hid"])
             await asyncio.sleep(40)
         
-        # 🆓 ENVIAR OFERTA FREE — ESCOLHE NICHO POR ROTAÇÃO
-        logging.info("========== 🆓 BLOCO FREE ==========")
+        # 🆓 ENVIAR FREE — ESCOLHE NICHO POR ROTAÇÃO
+        logging.info("========== 🆓 BLOCO GRATUITO ==========")
         idx_free = estado.get("free_nicho_idx", 0)
         nicho_free = NICHOS_FREE_ROTA[idx_free % len(NICHOS_FREE_ROTA)]
         estado["free_nicho_idx"] = (idx_free + 1) % len(NICHOS_FREE_ROTA)
@@ -514,12 +520,12 @@ async def ciclo(ctx):
     except Exception as e: logging.error("❌ ERRO CICLO: %s", e, exc_info=True)
 
 async def loop(app):
-    ult=0
+    ult = 0
     while True:
-        agora=time.time()
-        if agora-ult>=CHECK_INTERVAL:
+        agora = time.time()
+        if agora - ult >= CHECK_INTERVAL:
             await ciclo(type("Ctx",(),{"bot":app.bot})())
-            ult=agora
+            ult = agora
         await asyncio.sleep(60)
 
 async def manter_vivo():
