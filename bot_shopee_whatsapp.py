@@ -87,7 +87,6 @@ MOTOS = ["titan 150", "cb 300", "factor 150", "titan 160", "tornado 250", "fazer
 PECAS_MOTO = ["kit relacao", "embreagem", "bateria", "filtro oleo", "cabo embreagem", "cabo freio", "vela ignicao", "pneu", "disco freio", "pastilha freio"]
 
 PRODUTOS_POR_NICHO = {
-    "Moto": [],
     "Casa": ["fritadeira sem oleo", "aspirador", "liquidificador", "cafeteira", "panela eletrica", "ventilador", "batedeira", "lampada led"],
     "Bebê": ["carrinho bebe", "berco", "brinquedo bebe", "roupa bebe", "cadeirinha bebe"],
     "Eletrônicos": ["smartwatch", "fone ouvido bluetooth", "caixa som bluetooth", "carregador", "cabo usb", "pendrive", "mouse", "teclado"],
