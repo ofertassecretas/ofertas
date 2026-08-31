@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder
 
-print("VERSAO V38-CTAS+NEGRITO+MOTO-FIXA")
+print("VERSAO V40-FIXA-MOTO+PRECO-MINIMO")
 # =========================
 # CONFIG
 # =========================
@@ -21,15 +21,15 @@ SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 CHECK_INTERVAL = 5400
 MAX_OFERTAS = 10
-MIN_OFERTAS = 4
+MIN_OFERTAS = 2  # ✅ BAIXEI DE 4 → 2
 HISTORICO_DIAS = 3
 SIMILARIDADE_MAX = .88
 VENDAS_MIN = 2
 RATING_MIN = 4.0
-PRECO_MIN = 15
+PRECO_MIN = 5    # ✅ BAIXEI DE 15 → 5 (NÃO CORTA MAIS OS PRODUTOS!)
 PRECO_MAX = 10000
 COMISSAO_MIN = .03
-VERSAO_RODIZIO = 38  # ✅ NOVA VERSÃO → ZERA A MOTO AUTOMATICAMENTE!
+VERSAO_RODIZIO = 40  # ✅ NOVA VERSÃO → ZERA TUDO!
 LIMITE_POR_FAMILIA = 2
 MAX_PAGINA_BUSCA = 4
 TIPOS_ORDEM = [1, 2, 3, 4, 5]
@@ -40,7 +40,6 @@ ARQUIVO_HISTORICO = "historico_envios.json"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# ✅ VARIÁVEIS DECLARADAS
 ULTIMOS_LINKS = []
 ULTIMOS_TITULOS = []
 ABERTURAS_USADAS = set()
@@ -50,88 +49,80 @@ TERMOS_USADOS_CICLO = set()
 BASES_VISTAS = set()
 
 # =========================
+# ✅ LISTA CORRETA DE PEÇAS E MOTOS
+# =========================
+PECAS_MOTO = [
+    "kit relacao","kit embreagem","bateria moto","refil bomba combustivel",
+    "bucha balança","burrinho de freio","estribo moto","pedal de marcha",
+    "pedal de freio","rolamento virabrequim","estator moto","chave ignicao moto",
+    "kit pisca seta","par pneu moto","bloco optico moto","retentor bengala",
+    "bucha amortecedor dianteiro","kit cilindro moto","jogo juntas motor",
+    "biela moto","valvulas admissao escape","disco freio moto","tubo interno pneu",
+    "vela iridium moto","pastilha freio","guidao moto","manopla moto",
+    "amortecedor traseiro","retrovisor moto","farol moto","lona freio",
+    "cabo embreagem moto","cabo acelerador","coroa pinhao corrente",
+    "pedaleira moto","carenagem moto","lanterna traseira moto"
+]
+MOTOS = [
+    "titan 150","cb 300r","factor 150","titan 160","tornado 250","fazer 150",
+    "titan 125","bros 160","twister 250","biz 125","pop 110i","xre 300",
+    "crosser 150","xre 190","fazer 250i","lander 250","bros 150 es",
+    "tenere 250","biz 100","twister 300"
+]
+
+PRODUTOS_POR_NICHO = {
+    "Casa":["fritadeira de ar","aspirador de po","liquidificador","cafeteira eletrica",
+            "panela eletrica de pressao","ventilador de mesa","batedeira planetaria",
+            "jogo de panelas antiaderente","filtro de agua barro","panela de arroz"],
+    "Maternidade":["carrinho de bebe","berco bebe","fralda pampers","mamadeira aventa",
+                   "banheira bebe","bolsa maternidade completa","enxoval bebe menino",
+                   "ninho bebe conforto","kit toalha fralda","travesseiro bebe antissufocante"],
+    "Eletroeletrônicos":["smartwatch android","fone bluetooth sem fio","caixa de som bluetooth",
+                        "carregador turbo celular","pelicula hidrogel","capinha celular",
+                        "power bank 20000mah","bastao selfie tripé","pen drive 64gb",
+                        "balança digital corporal","mouse gamer","teclado mecanico"],
+    "Moda feminina":["vestido longo verao","conjunto blusa e calça","biquini maiô",
+                     "saida de praia","legging suplex","camiseta regata feminina",
+                     "tenis casual feminino","sandalia salto baixo","bolsa transversal",
+                     "oculos de sol feminino"],
+    "Moda masculina":["camiseta basica algodao","camisa polo social","bermuda tactel",
+                      "calça jeans masculina","tenis esportivo masculino","sandalia masculina",
+                      "jaqueta corta vento","cueca box algodao","meia cano curto",
+                      "carteira couro masculina"]
+}
+
+NICHOS_FREE_ROTA = ["Moto", "Casa", "Moda feminina", "Moda masculina", "Maternidade", "Eletroeletrônicos"]
+
+FAMILIAS_PRODUTOS = {
+    "air_fryer": ["fritadeira de ar", "fritadeira sem oleo", "air fryer"],
+    "fone_bluetooth": ["fone bluetooth", "fone ouvido", "fone sem fio", "fone tws"],
+    "smartwatch": ["smartwatch", "relogio inteligente"],
+    "caixa_som": ["caixa de som", "alto falante", "caixa som bluetooth"],
+    "bebe": ["bebe", "infantil", "carrinho bebe", "berco", "mamadeira", "ninho bebe"],
+    "moda_fem": ["vestido", "conjunto feminino", "saia", "bolsa feminina", "tenis feminino"],
+    "moda_masc": ["camisa", "camiseta", "calça jeans", "tenis masculino", "bermuda"],
+    "casa_lar": ["panela", "aspirador", "liquidificador", "cafeteira", "ventilador"],
+    "moto_geral": ["kit relacao", "embreagem", "pneu moto", "disco freio moto", "bateria moto"]
+}
+
+# =========================
 # FUNÇÕES BÁSICAS
 # =========================
 def normalizar(texto):
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9à-ÿ\s]", " ", str(texto or "").lower().strip()))
+
+def remover_acentos(texto):
+    return re.sub(r"[ãáàâäéèêëíìîïõóòôöúùûü]", lambda m: {"ã":"a","á":"a","à":"a","â":"a","ä":"a","é":"e","è":"e","ê":"e","ë":"e","í":"i","ì":"i","î":"i","ï":"i","õ":"o","ó":"o","ò":"o","ô":"o","ö":"o","ú":"u","ù":"u","û":"u","ü":"u"}[m.group()], texto)
 
 def horario_valido():
     agora = datetime.now(FUSO_BR).time()
     return dt_time(5, 30) <= agora <= dt_time(22, 30)
 
 def variar_termo(termo):
-    base = termo.strip()
-    variacoes = [base, f"{base} promocao", f"{base} oferta"]
+    base = remover_acentos(termo.strip())
+    variacoes = [base, f"{base} promocao", f"{base} oferta", f"{base} barato"]
     return random.choice(variacoes)
 
-GRUPO_SINONIMOS = {
-    "smartwatch": {"smartwatch", "relogio inteligente"},
-    "airfryer": {"air fryer", "fritadeira sem oleo", "fritadeira eletrica"},
-    "fone": {"fone bluetooth", "fone ouvido", "fone sem fio"},
-    "caixa_som": {"caixa de som", "alto falante"},
-    "tv": {"smart tv", "televisao", "tv led"},
-    "notebook": {"notebook", "laptop"},
-    "tablet": {"tablet"},
-    "celular": {"celular", "smartphone"}
-}
-MAPA_SINONIMOS = {normalizar(t): g for g, ts in GRUPO_SINONIMOS.items() for t in ts}
-
-def termo_ja_usado(termo):
-    g = MAPA_SINONIMOS.get(normalizar(termo))
-    return bool(g and any(MAPA_SINONIMOS.get(normalizar(t)) == g for t in TERMOS_USADOS_CICLO))
-
-# =========================
-# ✅ LISTAS EXATAS DO CÓDIGO ANTIGO
-# =========================
-PECAS_MOTO = [
-    "kit relacao","kit embreagem","bateria","refil bomba combustivel",
-    "chicote fiação principal","bucha balança","burrinho de freio",
-    "estribo","pedal de marcha","pedal de freio","rolamento virabrequim",
-    "estator","chave ignição","punho chave luz","kit pisca seta",
-    "par pneu","bloco optico","retentor de bengala","bucha amortecedor",
-    "carburador corpo de injeção","kit cilindro","jogo de juntas","biela",
-    "valvulas escape admissão","kit freio a disco","disco de freio",
-    "tubo interno","vela iridium","pastilha freio","guidao","manopla",
-    "amortecedor","retrovisor","farol","lona de freio","cabo embreagem",
-    "cabo acelerador","coroa moto","pinhao moto","corrente moto",
-    "pedaleira","carenagem","lanterna traseira","capacete"
-]
-MOTOS = [
-    "titan 150","cb 300","factor 150","titan 160","tornado 250","fazer 150",
-    "titan 125","bros 160","twister 250","biz 125","pop 110","xre 300",
-    "crosser 150","xre 190","fazer 250","lander 250","bros 150",
-    "tenere 250","biz 100","twister 300"
-]
-
-PRODUTOS_POR_NICHO = {
-    "Casa":["air fryer","aspirador","liquidificador","cafeteira","panela eletrica","panela de pressão","ventilador","batedeira","filtro de barro","jogo de panelas"],
-    "Maternidade":["carrinho bebe","berco bebe","fralda descartavel","naninha","kit toalha umedecida","banheira","kit bolsa maternidade","kit mamadeira","ninho bebe","kit enxoval bebe"],
-    "Eletroeletrônicos":["smartwatch","fone bluetooth","caixa de som bluetooth","bastão pau de selfie","celular","smart tv","video game","capinha celular","pelicula celular","balança digital","pen drive","impressora termica","computador","notebook","drone","camera de segurança","tablet","ssd","mouse gamer","teclado mecanico","power bank","carregador turbo"],
-    "Moda feminina":["vestido feminino","conjunto feminino","biquines","saida de praia","maquiagens","roupa academia","calça jean","calça leggin","saia longa","sandalias","pijamas","blusa regata","oculos de sol","tenis feminino","bolsa feminina","jaqueta feminina","short feminino"],
-    "Moda masculina":["camiseta masculina","bermudas jeans","camisetas regatas","camisa polo","camisa de linho","terno","blazer","barbeador","oculos de sol","calção de futebol","tenis futebol","chuteiras","camisa termica","bermuda masculina","jaqueta masculina","tenis masculino","carteira masculina","calça jeans masculina","camisa social masculina","moletom masculino","sapatenis masculino"]
-}
-
-NICHOS_FREE_ROTA = ["Moto", "Casa", "Moda feminina", "Moda masculina", "Maternidade", "Eletroeletrônicos"]
-
-FAMILIAS_PRODUTOS = {
-    "air_fryer": ["air fryer", "fritadeira"],
-    "fone_bluetooth": ["fone bluetooth", "fone ouvido", "fone sem fio"],
-    "smartwatch": ["smartwatch", "relogio inteligente"],
-    "caixa_som": ["caixa de som", "alto falante"],
-    "tv": ["smart tv", "televisao", "tv"],
-    "notebook": ["notebook", "laptop"],
-    "tablet": ["tablet"],
-    "celular": ["celular", "smartphone"],
-    "bebe": ["bebe", "infantil", "carrinho", "berco", "mamadeira", "ninho"],
-    "moda_fem": ["vestido", "conjunto", "saia", "bolsa", "sandalia", "tenis feminino", "body"],
-    "moda_masc": ["camisa", "camiseta", "calca", "tenis masculino", "jaqueta", "bermuda"],
-    "casa_lar": ["panela", "aspirador", "liquidificador", "cafeteira", "ventilador", "batedeira"],
-    "moto_geral": ["kit relacao", "embreagem", "pneu", "disco freio", "pastilha freio", "bateria", "vela"]
-}
-
-# =========================
-# ✅ ROTAÇÃO DE MOTO — VERSÃO NOVA → COMEÇA DO ZERO!
-# =========================
 def gerar_par_moto(indice_ciclo):
     peca = PECAS_MOTO[indice_ciclo % len(PECAS_MOTO)]
     deslocamento = (indice_ciclo // len(PECAS_MOTO)) % len(MOTOS)
@@ -166,7 +157,6 @@ def carregar_json(caminho, padrao):
 
 def carregar_estado():
     estado = carregar_json(ARQUIVO_ESTADO, {})
-    # ✅ VERSÃO NOVA → ZERA TUDO DA MOTO AUTOMATICAMENTE!
     if estado.get("versao_rodizio") != VERSAO_RODIZIO:
         logging.info("🔄 Nova versão detectada → Reiniciando rotação da Moto!")
         hoje = datetime.now(FUSO_BR).strftime("%Y%m%d")
@@ -212,7 +202,7 @@ def proximo_termo(nicho, estado):
     for _ in range(len(itens)):
         t = itens[c["pos"] % len(itens)]
         c["pos"] += 1
-        if termo_ja_usado(t):
+        if t in TERMOS_USADOS_CICLO:
             logging.info("🛑 Pulado: %s", t)
             continue
         TERMOS_USADOS_CICLO.add(t)
@@ -220,7 +210,7 @@ def proximo_termo(nicho, estado):
     return itens[c["pos"] % len(itens)], estado
 
 # =========================
-# FILTROS — IGUAIS AO CÓDIGO ANTIGO
+# FILTROS
 # =========================
 def chave_titulo(titulo):
     stop = {"premium","novo","promocao","promoção","super","original","profissional","casual","masculino","feminino","infantil","adulto","unissex","kit","com","de","para","o","a","promo","oferta","modelo","versao","versão","linha","envio","usado","branco","preto","azul","vermelho","rosa","verde","amarelo","tamanho","gamer","led","usb"}
@@ -229,7 +219,7 @@ def chave_titulo(titulo):
 
 def tem_bloqueio(t):
     t = normalizar(t)
-    return any(x in t for x in ["teste","amostra","não compre","nao compre","produto teste","exemplo","dummy","vela led","vela decorativa","decorativa","decoração","casamento","festa"])
+    return any(x in t for x in ["teste","amostra","não compre","nao compre","produto teste","exemplo","dummy"])
 
 def duplicata_forte(titulo):
     n, b = normalizar(titulo), chave_titulo(titulo)
@@ -264,7 +254,7 @@ def pontuar_produto(p, termo=""):
         n = normalizar(p.get("productName",""))
         tn = normalizar(termo)
         s = min(v/8, 25) + r*3 + c*100
-        if 50 <= pr <= 5000: s += 6
+        if 20 <= pr <= 200: s += 8
         if tn: s += 8 if tn in n else sum(2 for x in tn.split() if x in n)
         return s
     except: return 0
@@ -283,7 +273,7 @@ def avaliar_rejeicao(p):
     if not titulo: return "sem_titulo"
     if not link: return "sem_link"
     if tem_bloqueio(titulo): return "bloqueado"
-    if preco < PRECO_MIN: return "preco_baixo"
+    if preco < PRECO_MIN: return f"preco_baixo_{preco:.0f}"
     if preco > PRECO_MAX: return "preco_alto"
     if comissao < COMISSAO_MIN: return "comissao_baixa"
     if vendas > 0 and vendas < VENDAS_MIN: return "vendas_baixas"
@@ -393,7 +383,7 @@ def formatar_nota(nota):
     return f"{nota:.1f}".replace(".",",")
 
 # =========================
-# ✅ CTAS DE VOLTA — IGUAIS AO CÓDIGO ANTIGO!
+# ✅ CTAS COMPLETAS
 # =========================
 ABERTURAS = [
     "👇 CORRE QUE TÁ ACABANDO!","⚡ CLIQUE ANTES QUE AUMENTE!","🚀 ESTOQUE LIMITADO - AGORA!",
@@ -403,15 +393,15 @@ ABERTURAS = [
 ]
 ABERTURAS_FRASES = [
     "🚨 Isso aqui não é comum aparecer assim","👀 Achei isso aqui e fui conferir…",
-    "🔥 Isso aqui tá com cara de oportunidade","💥 Esse aqui tá chamando atenção de quem compra",
+    "🔥 Isso aqui tá com cara de oportunidade","💥 Esse aqui tá chamando atenção",
     "🛑 Para tudo e olha isso aqui","🤯 Sério… olha esse achado",
     "⚠️ Isso aqui pode desaparecer rápido","👁️ Pouca gente viu isso ainda",
-    "📉 Esse preço aqui não costuma durar","🚀 Esse aqui tá começando a rodar forte"
+    "📉 Esse preço não costuma durar","🚀 Esse aqui tá vendendo muito"
 ]
 GATILHOS = [
-    "Preço muito abaixo do que costuma aparecer","Avaliações acima da média","Volume de vendas alto",
-    "Simples e funcional","Custo-benefício forte","Quem compra recomenda",
-    "Produto direto ao ponto","Tá vendendo bem","Resolve de verdade"
+    "Preço muito abaixo do normal","Avaliações acima da média","Volume de vendas alto",
+    "Produto bem avaliado pelos compradores","Custo-benefício excelente",
+    "Quem compra recomenda","Entrega rápida garantida","Produto com desconto real"
 ]
 
 def anexar_afiliado(link):
@@ -419,11 +409,10 @@ def anexar_afiliado(link):
     except: return link
 
 # =========================
-# ✅ WHATSAPP COM NEGRITO CORRETO (*texto*) + CTAS COMPLETAS
+# ✅ WHATSAPP com negrito correto: *texto*
 # =========================
 def gerar_link_whatsapp(nome, preco, vendas, rating, link, abertura, gatilho, acao):
-    # ✅ WHATSAPP usa *negrito* → não <b> → ISSO ESTAVA ERRADO!
-    mensagem_zap = (
+    mensagem = (
         f"{abertura}\n\n"
         f"🔥 *{nome}*\n\n"
         f"{gatilho}\n\n"
@@ -434,10 +423,10 @@ def gerar_link_whatsapp(nome, preco, vendas, rating, link, abertura, gatilho, ac
         f"🛒 *COMPRAR AGORA:* {link}\n\n"
         f"👥 *Quer mais ofertas?* Entre no nosso grupo:\n{LINK_GRUPO_OFERTAS}"
     )
-    return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>','',mensagem_zap))}"
+    return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>','',mensagem))}"
 
 # =========================
-# ✅ TELEGRAM mantém <b> + CTAS COMPLETAS
+# ✅ TELEGRAM com <b> e CTAS completas
 # =========================
 def montar_mensagem_telegram(nome, preco, vendas, nota, link, lk_whats, abertura, gatilho, acao, free=False):
     etiqueta = "🎁 <b>OFERTA DESTAQUE</b>" if free else ""
@@ -496,17 +485,15 @@ async def ciclo(ctx):
                 img = str(p.get("imageUrl","")).strip()
                 prc = f"{preco:.2f}".replace(".",",")
                 
-                # ✅ SELECIONA ABERTURA, GATILHO E AÇÃO — CTAS DE VOLTA!
                 abertura = random.choice([x for x in ABERTURAS_FRASES if x not in ABERTURAS_USADAS] or ABERTURAS_FRASES)
                 gatilho = random.choice([x for x in GATILHOS if x not in GATILHOS_USADAS] or GATILHOS)
                 acao = random.choice(ABERTURAS)
                 ABERTURAS_USADAS.add(abertura); GATILHOS_USADAS.add(gatilho)
                 
-                # ✅ LINK DO WHATSAPP COM FORMATO CORRETO E CTAS
                 lk_whats = gerar_link_whatsapp(titulo, prc, vendas, nota, link, abertura, gatilho, acao)
                 msg = montar_mensagem_telegram(titulo, prc, vendas, nota, link, lk_whats, abertura, gatilho, acao)
                 hid = hashlib.md5(f"{chave_titulo(titulo)}|{lb}".encode()).hexdigest()
-                enviados.append({"msg":msg,"img":img,"hid":hid,"nicho":nicho,"abertura":abertura,"gatilho":gatilho,"acao":acao})
+                enviados.append({"msg":msg,"img":img,"hid":hid,"nicho":nicho})
             except Exception as e: logging.error("❌ Montagem: %s", e)
         
         for item in enviados:
