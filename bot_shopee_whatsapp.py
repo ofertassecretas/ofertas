@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder
 
-print("VERSAO V37-ERROS-CORRIGIDOS")
+print("VERSAO V38-CTAS+NEGRITO+MOTO-FIXA")
 # =========================
 # CONFIG
 # =========================
@@ -29,7 +29,7 @@ RATING_MIN = 4.0
 PRECO_MIN = 15
 PRECO_MAX = 10000
 COMISSAO_MIN = .03
-VERSAO_RODIZIO = 37
+VERSAO_RODIZIO = 38  # ✅ NOVA VERSÃO → ZERA A MOTO AUTOMATICAMENTE!
 LIMITE_POR_FAMILIA = 2
 MAX_PAGINA_BUSCA = 4
 TIPOS_ORDEM = [1, 2, 3, 4, 5]
@@ -40,11 +40,11 @@ ARQUIVO_HISTORICO = "historico_envios.json"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# ✅ DECLAREI AS VARIÁVEIS QUE ESTAVAM FALTANDO!
+# ✅ VARIÁVEIS DECLARADAS
 ULTIMOS_LINKS = []
 ULTIMOS_TITULOS = []
 ABERTURAS_USADAS = set()
-GATILHOS_USADAS = set()  # ✅ FALTAVA ESSA!
+GATILHOS_USADAS = set()
 LINKS_CICLO_ATUAL = set()
 TERMOS_USADOS_CICLO = set()
 BASES_VISTAS = set()
@@ -81,7 +81,7 @@ def termo_ja_usado(termo):
     return bool(g and any(MAPA_SINONIMOS.get(normalizar(t)) == g for t in TERMOS_USADOS_CICLO))
 
 # =========================
-# LISTAS DE PRODUTOS E MOTO — ✅ USANDO LISTA DO CÓDIGO ANTIGO
+# ✅ LISTAS EXATAS DO CÓDIGO ANTIGO
 # =========================
 PECAS_MOTO = [
     "kit relacao","kit embreagem","bateria","refil bomba combustivel",
@@ -130,7 +130,7 @@ FAMILIAS_PRODUTOS = {
 }
 
 # =========================
-# ROTAÇÃO DE MOTO — ✅ CORRIGIDA PARA USAR NOMES CORRETOS
+# ✅ ROTAÇÃO DE MOTO — VERSÃO NOVA → COMEÇA DO ZERO!
 # =========================
 def gerar_par_moto(indice_ciclo):
     peca = PECAS_MOTO[indice_ciclo % len(PECAS_MOTO)]
@@ -166,7 +166,9 @@ def carregar_json(caminho, padrao):
 
 def carregar_estado():
     estado = carregar_json(ARQUIVO_ESTADO, {})
+    # ✅ VERSÃO NOVA → ZERA TUDO DA MOTO AUTOMATICAMENTE!
     if estado.get("versao_rodizio") != VERSAO_RODIZIO:
+        logging.info("🔄 Nova versão detectada → Reiniciando rotação da Moto!")
         hoje = datetime.now(FUSO_BR).strftime("%Y%m%d")
         estado = {
             "versao_rodizio": VERSAO_RODIZIO,
@@ -218,7 +220,7 @@ def proximo_termo(nicho, estado):
     return itens[c["pos"] % len(itens)], estado
 
 # =========================
-# FILTROS — ✅ IGUAIS AO CÓDIGO ANTIGO
+# FILTROS — IGUAIS AO CÓDIGO ANTIGO
 # =========================
 def chave_titulo(titulo):
     stop = {"premium","novo","promocao","promoção","super","original","profissional","casual","masculino","feminino","infantil","adulto","unissex","kit","com","de","para","o","a","promo","oferta","modelo","versao","versão","linha","envio","usado","branco","preto","azul","vermelho","rosa","verde","amarelo","tamanho","gamer","led","usb"}
@@ -391,58 +393,66 @@ def formatar_nota(nota):
     return f"{nota:.1f}".replace(".",",")
 
 # =========================
-# MENSAGENS — SEM COMISSÃO, SEM AFILIADO
+# ✅ CTAS DE VOLTA — IGUAIS AO CÓDIGO ANTIGO!
 # =========================
 ABERTURAS = [
-    "🚨 Isso não aparece todo dia!","👀 Olha o que encontrei…","🔥 Aproveita enquanto dá!",
-    "🛑 Para e olha!","🤯 Difícil achar barato assim!","⚠️ Pode sumir a qualquer hora…",
-    "📉 Caiu de preço!","🚀 Tá bombando!"
+    "👇 CORRE QUE TÁ ACABANDO!","⚡ CLIQUE ANTES QUE AUMENTE!","🚀 ESTOQUE LIMITADO - AGORA!",
+    "💥 MELHOR PREÇO DO ANO!","🎯 COMPRE ANTES DOS OUTROS!","🔥 VOOOU DAS PRATELEIRAS!",
+    "⏰ PROMOÇÃO ACABA HOJE!","💰 ECONOMIA REAL - CORRE!","⭐ OFERTA QUENTE AGORA!",
+    "🛒 NÃO DEIXA ESCAPAR!"
+]
+ABERTURAS_FRASES = [
+    "🚨 Isso aqui não é comum aparecer assim","👀 Achei isso aqui e fui conferir…",
+    "🔥 Isso aqui tá com cara de oportunidade","💥 Esse aqui tá chamando atenção de quem compra",
+    "🛑 Para tudo e olha isso aqui","🤯 Sério… olha esse achado",
+    "⚠️ Isso aqui pode desaparecer rápido","👁️ Pouca gente viu isso ainda",
+    "📉 Esse preço aqui não costuma durar","🚀 Esse aqui tá começando a rodar forte"
 ]
 GATILHOS = [
-    "Bem abaixo do preço normal","Avaliações excelentes","Muita gente comprando",
-    "Custo-benefício ótimo","Quem compra recomenda","Produto confiável","Saindo rápido"
-]
-CHAMADAS = [
-    "👇 Corre antes que acabe!","⚡ Clique antes de aumentar!","🚀 Estoque limitado!",
-    "💥 Oportunidade!","🎯 Compre antes dos outros!","⏰ Acaba hoje!","💰 Economia real!","🛒 Não perca!"
+    "Preço muito abaixo do que costuma aparecer","Avaliações acima da média","Volume de vendas alto",
+    "Simples e funcional","Custo-benefício forte","Quem compra recomenda",
+    "Produto direto ao ponto","Tá vendendo bem","Resolve de verdade"
 ]
 
 def anexar_afiliado(link):
     try: u=urlparse(link); p=parse_qs(u.query); p["af_siteid"]=AFILIADO_ID; return urlunparse(u._replace(query=urlencode(p,doseq=True)))
     except: return link
 
-def link_whatsai_completo(nome, preco, vendas, nota, link):
-    texto = (
-        f"🔥 Produto: {nome}\n"
-        f"💰 Preço: R$ {preco}\n"
-        f"📊 Vendas: {vendas}\n"
-        f"⭐ Avaliação: {nota}\n\n"
-        f"🛒 Comprar: {link}\n\n"
-        f"👥 Grupo de ofertas: {LINK_GRUPO_OFERTAS}"
+# =========================
+# ✅ WHATSAPP COM NEGRITO CORRETO (*texto*) + CTAS COMPLETAS
+# =========================
+def gerar_link_whatsapp(nome, preco, vendas, rating, link, abertura, gatilho, acao):
+    # ✅ WHATSAPP usa *negrito* → não <b> → ISSO ESTAVA ERRADO!
+    mensagem_zap = (
+        f"{abertura}\n\n"
+        f"🔥 *{nome}*\n\n"
+        f"{gatilho}\n\n"
+        f"{acao}\n\n"
+        f"💰 *Preço:* R$ {preco}\n"
+        f"⭐ *Avaliação:* {rating} | 🛒 *Vendas:* {vendas}\n\n"
+        f"⚠️ Pode subir de preço a qualquer momento!\n\n"
+        f"🛒 *COMPRAR AGORA:* {link}\n\n"
+        f"👥 *Quer mais ofertas?* Entre no nosso grupo:\n{LINK_GRUPO_OFERTAS}"
     )
-    return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>','',texto))}"
+    return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>','',mensagem_zap))}"
 
-def montar_mensagem_telegram(nome, preco, vendas, nota, link, lk_whats, free=False):
-    # ✅ GATILHOS_USADAS AGORA EXISTE!
-    ab = random.choice([x for x in ABERTURAS if x not in ABERTURAS_USADAS] or ABERTURAS)
-    gt = random.choice([x for x in GATILHOS if x not in GATILHOS_USADAS] or GATILHOS)
-    ch = random.choice(CHAMADAS)
-    ABERTURAS_USADAS.add(ab); GATILHOS_USADAS.add(gt)
-    etiqueta = "🎁 OFERTA DESTAQUE" if free else ""
-    
-    # ✅ SEM COMISSÃO + ESPAÇO ENTRE BOTÕES
+# =========================
+# ✅ TELEGRAM mantém <b> + CTAS COMPLETAS
+# =========================
+def montar_mensagem_telegram(nome, preco, vendas, nota, link, lk_whats, abertura, gatilho, acao, free=False):
+    etiqueta = "🎁 <b>OFERTA DESTAQUE</b>" if free else ""
     return (
         f"{etiqueta}\n\n" if etiqueta else ""
-        f"{html.escape(ab)}\n\n"
-        f"🔥 <b>Produto:</b> {html.escape(nome)}\n\n"
+        f"{html.escape(abertura)}\n\n"
+        f"🔥 <b>{html.escape(nome)}</b>\n\n"
         f"💰 <b>Preço:</b> R$ {preco}\n"
         f"📊 <b>Vendas:</b> {vendas}\n"
         f"⭐ <b>Avaliação:</b> {nota}\n\n"
-        f"{html.escape(gt)}\n\n"
-        f"{html.escape(ch)}\n\n"
+        f"{html.escape(gatilho)}\n\n"
+        f"{html.escape(acao)}\n\n"
         f'<a href="{html.escape(link)}">🛒 COMPRAR AGORA</a>\n\n'
-        f'<a href="{lk_whats}">📲 Compartilhar WhatsApp</a>\n\n'
-        f'<a href="{LINK_GRUPO_OFERTAS}">👥 Grupo de ofertas</a>'
+        f'<a href="{lk_whats}">📲 Compartilhar no WhatsApp</a>\n\n'
+        f'<a href="{LINK_GRUPO_OFERTAS}">👥 Grupo de Ofertas</a>'
     )
 
 # =========================
@@ -485,10 +495,18 @@ async def ciclo(ctx):
                 nota = formatar_nota(float(p.get("ratingStar", 0) or 0))
                 img = str(p.get("imageUrl","")).strip()
                 prc = f"{preco:.2f}".replace(".",",")
-                lk_whats = link_whatsai_completo(titulo, prc, vendas, nota, link)
-                msg = montar_mensagem_telegram(titulo, prc, vendas, nota, link, lk_whats)
+                
+                # ✅ SELECIONA ABERTURA, GATILHO E AÇÃO — CTAS DE VOLTA!
+                abertura = random.choice([x for x in ABERTURAS_FRASES if x not in ABERTURAS_USADAS] or ABERTURAS_FRASES)
+                gatilho = random.choice([x for x in GATILHOS if x not in GATILHOS_USADAS] or GATILHOS)
+                acao = random.choice(ABERTURAS)
+                ABERTURAS_USADAS.add(abertura); GATILHOS_USADAS.add(gatilho)
+                
+                # ✅ LINK DO WHATSAPP COM FORMATO CORRETO E CTAS
+                lk_whats = gerar_link_whatsapp(titulo, prc, vendas, nota, link, abertura, gatilho, acao)
+                msg = montar_mensagem_telegram(titulo, prc, vendas, nota, link, lk_whats, abertura, gatilho, acao)
                 hid = hashlib.md5(f"{chave_titulo(titulo)}|{lb}".encode()).hexdigest()
-                enviados.append({"msg":msg,"img":img,"hid":hid,"nicho":nicho})
+                enviados.append({"msg":msg,"img":img,"hid":hid,"nicho":nicho,"abertura":abertura,"gatilho":gatilho,"acao":acao})
             except Exception as e: logging.error("❌ Montagem: %s", e)
         
         for item in enviados:
@@ -497,7 +515,7 @@ async def ciclo(ctx):
             if ok: registrar_envio(item["hid"])
             await asyncio.sleep(40)
         
-        # 🆓 ENVIAR FREE — ESCOLHE NICHO POR ROTAÇÃO
+        # 🆓 ENVIAR FREE
         logging.info("========== 🆓 BLOCO GRATUITO ==========")
         idx_free = estado.get("free_nicho_idx", 0)
         nicho_free = NICHOS_FREE_ROTA[idx_free % len(NICHOS_FREE_ROTA)]
