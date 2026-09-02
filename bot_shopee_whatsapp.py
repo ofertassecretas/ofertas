@@ -436,10 +436,8 @@ def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False):
         f"💡 {html.escape(gt)}",
         f"👉 {html.escape(ch)}",
         "",
-        f'<a href="{html.escape(link)}">🛒 COMPRAR AGORA</a>',
-        
-        f'<a href="{lk_whats}">📲 Compartilhar no WhatsApp</a>',
-        
+        f'<a href="{html.escape(link)}">🛒 COMPRAR AGORA</a>\n\n'
+        f'<a href="{lk_whats}">📲 Compartilhar no WhatsApp</a>\n\n'
         f'<a href="{LINK_GRUPO_OFERTAS}">👥 Entrar no grupo de ofertas</a>'
     ])
     
