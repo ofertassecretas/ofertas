@@ -49,7 +49,7 @@ def normalizar(texto):
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9à-ÿ\s]", " ", str(texto or "").lower().strip()))
 def horario_valido():
     agora = datetime.now(FUSO_BR).time()
-    return dt_time(5, 30) <= agora <= dt_time(22, 30)
+    return dt_time(5, 30) <= agora <= dt_time(21, 30)
 def variar_termo(termo):
     base = termo.strip()
     variacoes = [base, f"{base} promocao", f"{base} oferta"]
@@ -437,7 +437,9 @@ def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False):
         f"👉 {html.escape(ch)}",
         "",
         f'<a href="{html.escape(link)}">🛒 COMPRAR AGORA</a>',
+        
         f'<a href="{lk_whats}">📲 Compartilhar no WhatsApp</a>',
+        
         f'<a href="{LINK_GRUPO_OFERTAS}">👥 Entrar no grupo de ofertas</a>'
     ])
     
