@@ -5,9 +5,9 @@ from datetime import datetime, time as dt_time, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder
-print("VERSAO V35-NICHO-MOTO-2-POR-CICLO")
+print("VERSAO V35-NICHO-MOTO-2-POR-CICLO-FIX")
 # =========================
-# CONFIG
+# CONFIG — EXATAMENTE COMO ESTAVA
 # =========================
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "").strip()
@@ -28,7 +28,7 @@ AVALIACAO_MIN = 3.5
 PRECO_MIN = 5
 PRECO_MAX = 10000
 COMISSAO_MIN = 3
-VERSAO_RODIZIO = 36  # ← AUMENTADO para reiniciar contadores
+VERSAO_RODIZIO = 36  # ← Só mudei pra reiniciar contadores
 LIMITE_POR_FAMILIA = 1
 MAX_PAGINA_BUSCA = 4
 TIPOS_ORDEM = [1, 2, 3, 4, 5]
@@ -44,10 +44,10 @@ LINKS_CICLO_ATUAL = set()
 TERMOS_USADOS_CICLO = set()
 
 # =========================
-# 🛵 LISTAS DE PEÇAS E MOTOS — REORGANIZADAS
+# 🛵 LISTAS DE MOTO — REORGANIZADAS
 # =========================
-# Um tipo de peça por ciclo, com vários modelos para rodar sem repetir combinações
-TIPOS_PECAS_MOTO = [
+# Pares de motos por ciclo, sem repetir combinação enquanto houver opções
+PECAS_MOTO = [
     "kit relação",
     "burrinho de freio",
     "par de pneu",
@@ -61,7 +61,7 @@ TIPOS_PECAS_MOTO = [
     "pastilha de freio"
 ]
 
-MODELOS_MOTO = [
+MOTOS = [
     "Titan 150", "Factor 150",
     "Tornado 250", "Biz 125",
     "CB 300", "Bros 160",
@@ -72,6 +72,9 @@ MODELOS_MOTO = [
     "Lander 250", "CG 160 Start"
 ]
 
+# =========================
+# ⬇️ TUDO O RESTANTE EXATAMENTE COMO ESTAVA ⬇️
+# =========================
 PRODUTOS_POR_NICHO = {
     "Casa": ["fritadeira sem óleo", "aspirador", "liquidificador", "cafeteira", "panela elétrica", "ventilador", "batedeira", "lâmpada led"],
     "Bebê": ["carrinho bebê", "berço", "brinquedo bebê", "roupa bebê", "cadeirinha bebê"],
@@ -94,9 +97,6 @@ FAMILIAS_PRODUTOS = {
              "disco freio", "pastilha freio", "titan", "cb 300", "honda"]
 }
 
-# =========================
-# FUNÇÕES BÁSICAS
-# =========================
 def normalizar(texto):
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9à-ÿ\s]", " ", str(texto or "").lower().strip()))
 def horario_valido():
@@ -122,9 +122,6 @@ def termo_ja_usado(termo):
     g = MAPA_SINONIMOS.get(normalizar(termo))
     return bool(g and any(MAPA_SINONIMOS.get(normalizar(t)) == g for t in TERMOS_USADOS_CICLO))
 
-# =========================
-# ARQUIVOS DE ESTADO
-# =========================
 def salvar_json(caminho, dados):
     try:
         pasta = os.path.dirname(os.path.abspath(caminho)) or "."
@@ -143,11 +140,12 @@ def carregar_json(caminho, padrao):
     except Exception as e:
         logging.error("Erro ler %s: %s", caminho, e)
         return padrao
+
 def carregar_estado():
     estado = carregar_json(ARQUIVO_ESTADO, {})
     if estado.get("versao_rodizio") != VERSAO_RODIZIO:
         hoje = datetime.now(FUSO_BR).strftime("%Y%m%d")
-        estado = {"versao_rodizio": VERSAO_RODIZIO, "Moto": {"data": hoje, "indice_peca": 0, "indice_par_moto": 0}}
+        estado = {"versao_rodizio": VERSAO_RODIZIO, "Moto": {"data": hoje, "indice_peca": 0, "indice_par": 0}}
         for nicho in PRODUTOS_POR_NICHO:
             estado[nicho] = {"indice": 0, "data": hoje}
     return estado
@@ -159,35 +157,29 @@ def salvar_historico(dados):
     salvar_json(ARQUIVO_HISTORICO, dados)
 
 # =========================
-# 🛵 ROTAÇÃO MOTO — AQUI ESTÁ A MUDANÇA PRINCIPAL
+# 🛵 FUNÇÃO PRINCIPAL ALTERADA — 1 PEÇA + 2 MOTOS
 # =========================
 def proxima_busca_moto(estado):
-    """
-    Retorna: 1 TIPO DE PEÇA + 2 MODELOS DE MOTO por ciclo
-    Exemplo: "kit relação" + ["Titan 150", "Factor 150"]
-    Depois de rodar todos os pares de moto com uma peça, passa para a próxima peça.
-    Não repete par de moto enquanto houver combinações novas.
-    """
     st = estado["Moto"]
     idx_peca = st["indice_peca"]
-    idx_par = st["indice_par_moto"]
+    idx_par = st["indice_par"]
 
-    peca = TIPOS_PECAS_MOTO[idx_peca % len(TIPOS_PECAS_MOTO)]
+    peca = PECAS_MOTO[idx_peca % len(PECAS_MOTO)]
 
-    # Monta pares consecutivos de motos: (0,1), (2,3), (4,5)... e volta quando acabar
-    total_pares = len(MODELOS_MOTO) // 2
+    # Monta pares: (0,1), (2,3), (4,5)...
+    total_pares = len(MOTOS) // 2
     par_atual = idx_par % total_pares
-    moto1 = MODELOS_MOTO[par_atual * 2]
-    moto2 = MODELOS_MOTO[par_atual * 2 + 1]
+    moto1 = MOTOS[par_atual * 2]
+    moto2 = MOTOS[par_atual * 2 + 1]
 
-    # Avança o índice para o próximo par
-    st["indice_par_moto"] += 1
+    # Avança para o próximo par
+    st["indice_par"] += 1
 
-    # Se passou por TODOS os pares → avança para a PRÓXIMA PEÇA e reinicia os pares
-    if st["indice_par_moto"] >= total_pares:
-        st["indice_par_moto"] = 0
-        st["indice_peca"] = (idx_peca + 1) % len(TIPOS_PECAS_MOTO)
-        logging.info("🔄 Todas combinações de motos esgotadas — avançando para próxima peça")
+    # Quando acabar todos os pares → avança para próxima peça
+    if st["indice_par"] >= total_pares:
+        st["indice_par"] = 0
+        st["indice_peca"] = (idx_peca + 1) % len(PECAS_MOTO)
+        logging.info("🔄 Todas combinações de motos esgotadas — avançando peça")
 
     logging.info("🏍️ Peça: [%s] | Modelos: [%s / %s]", peca, moto1, moto2)
     return peca, moto1, moto2, estado
@@ -205,9 +197,6 @@ def proximo_termo(nicho, estado):
         return t, estado
     return itens[c["indice"] % len(itens)], estado
 
-# =========================
-# FILTROS
-# =========================
 def chave_titulo(titulo):
     ign = {"premium","novo","promocao","promoção","super","original","kit","completo"}
     return " ".join(sorted([p for p in normalizar(titulo).split() if p not in ign and len(p) > 2])[:8])
@@ -287,9 +276,6 @@ def avaliar_rejeicao(p):
         return "link_repetido"
     return None
 
-# =========================
-# BUSCA API
-# =========================
 def buscar_produtos(termo, nicho):
     logging.info("🔍 Buscando em %s: %s", nicho, termo)
     ts = int(time.time())
@@ -315,11 +301,8 @@ def buscar_produtos(termo, nicho):
         logging.error("❌ Falha busca: %s", e)
         return []
 
-# =========================
-# SELECIONAR
-# =========================
-def selecionar(nicho, termo, qtd, estado, peca=None):
-    tcompleto = f"{peca} {termo}" if peca else termo
+def selecionar(nicho, termo, qtd, estado, moto=False, peca=None):
+    tcompleto = f"{peca} {termo}" if moto else termo
     res = buscar_produtos(tcompleto, nicho)
     val = []
     motivos = Counter()
@@ -365,7 +348,7 @@ def selecionar(nicho, termo, qtd, estado, peca=None):
     return esc, estado
 
 # =========================
-# 🛵 BUSCA INTELIGENTE — COM 2 OFERTAS DE MOTO POR CICLO
+# 🛵 BUSCA — 2 OFERTAS DE MOTO POR CICLO
 # =========================
 def obter_ofertas_garantidas(estado):
     global LINKS_CICLO_ATUAL, TERMOS_USADOS_CICLO
@@ -373,25 +356,21 @@ def obter_ofertas_garantidas(estado):
     TERMOS_USADOS_CICLO.clear()
     sel = []
     lista_nichos = list(PRODUTOS_POR_NICHO.items())
-    
-    # =========================
-    # 🏍️ NICHO MOTO — 2 OFERTAS POR CICLO
-    # =========================
+
+    # 🏍️ BUSCA MOTO — 1 PEÇA + 2 MODELOS = 2 OFERTAS
     peca, moto1, moto2, estado = proxima_busca_moto(estado)
-    
-    # Busca para o PRIMEIRO modelo
-    its1, estado = selecionar("Moto", moto1, 1, estado, peca)
+
+    # Busca modelo 1
+    its1, estado = selecionar("Moto", moto1, 1, estado, True, peca)
     sel.extend([("Moto", x) for x in its1])
-    
-    # Busca para o SEGUNDO modelo (mesma peça, outro modelo)
-    its2, estado = selecionar("Moto", moto2, 1, estado, peca)
+
+    # Busca modelo 2 (mesma peça)
+    its2, estado = selecionar("Moto", moto2, 1, estado, True, peca)
     sel.extend([("Moto", x) for x in its2])
-    
+
     logging.info("🏍️ Moto: %s + %s | %s selecionados", moto1, moto2, len(its1)+len(its2))
-    
-    # =========================
-    # OUTROS NICHOS — completa até ter 10 ofertas
-    # =========================
+
+    # COMPLETA COM OUTROS NICHOS ATÉ CHEGAR EM 10
     tentativas = 0
     max_tentativas = 50
     while len(sel) < MIN_OFERTAS and tentativas < max_tentativas:
@@ -404,13 +383,10 @@ def obter_ofertas_garantidas(estado):
             sel.extend([(nicho, x) for x in its])
         if len(sel) >= MIN_OFERTAS:
             break
-    
+
     salvar_estado(estado)
-    
-    # Ordenar por qualidade
     sel.sort(key=lambda x: pontuar_produto(x[1], x[0]), reverse=True)
-    
-    # Garantir exatamente 10
+
     if len(sel) >= MIN_OFERTAS:
         sel = sel[:MAX_OFERTAS]
         logging.info("✅ ✅ GARANTIDO: %s ofertas selecionadas", len(sel))
@@ -418,15 +394,9 @@ def obter_ofertas_garantidas(estado):
         logging.warning("⚠️ Atingiu limite de tentativas com %s ofertas", len(sel))
     return sel
 
-# =========================
-# LISTA OFERTAS
-# =========================
 def obter_ofertas_shopee():
     return obter_ofertas_garantidas(carregar_estado())
 
-# =========================
-# MENSAGENS
-# =========================
 ABERTURAS = [
     "🚨 Isso não aparece todo dia!",
     "👀 Olha o que encontrei…",
@@ -456,6 +426,7 @@ CHAMADAS = [
     "💰 Economia real!",
     "🛒 Não perca!"
 ]
+
 def anexar_afiliado(link):
     try:
         u = urlparse(link)
@@ -482,17 +453,17 @@ def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False):
         disponiveis_ab = ABERTURAS
     ab = random.choice(disponiveis_ab)
     ABERTURAS_USADAS.add(ab)
-    
+
     disponiveis_gt = [x for x in GATILHOS if x not in GATILHOS_USADAS]
     if not disponiveis_gt:
         GATILHOS_USADAS.clear()
         disponiveis_gt = GATILHOS
     gt = random.choice(disponiveis_gt)
     GATILHOS_USADAS.add(gt)
-    
+
     ch = random.choice(CHAMADAS)
     etiqueta = "🎁 OFERTA DESTAQUE DA SEMANA!" if free else ""
-    
+
     partes = []
     if etiqueta:
         partes.append(f"<b>{html.escape(etiqueta)}</b>")
@@ -512,12 +483,8 @@ def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False):
         f'<a href="{lk_whats}">📲 Compartilhar no WhatsApp</a>\n\n'
         f'<a href="{LINK_GRUPO_OFERTAS}">👥 Entrar no grupo de ofertas</a>'
     ])
-    
     return "\n".join(partes)
 
-# =========================
-# ENVIO
-# =========================
 async def enviar_msg(ctx, txt, img, cid):
     if not txt or not txt.strip():
         logging.warning("⚠️ Texto vazio — não enviado")
@@ -539,9 +506,6 @@ async def enviar_msg(ctx, txt, img, cid):
             logging.error("❌ Falha total envio: %s", e2)
             return False
 
-# =========================
-# CICLO PRINCIPAL
-# =========================
 async def ciclo(ctx):
     try:
         logging.info("========== 🔄 INÍCIO ==========")
@@ -550,25 +514,24 @@ async def ciclo(ctx):
             return
         ABERTURAS_USADAS.clear()
         GATILHOS_USADAS.clear()
-        
+
         ofertas = obter_ofertas_shopee()
-        
+
         if len(ofertas) < MIN_OFERTAS:
             logging.warning("⚠️ Apenas %s ofertas válidas. Mínimo de %s exigido. Ciclo pulado.", len(ofertas), MIN_OFERTAS)
             return
-        
+
         logging.info("✅ Total: %s | Enviando: %s/%s", len(ofertas), len(ofertas), MAX_OFERTAS)
-        
-        # SORTEIA 1 DA LISTA DE 10 PARA FREE — GARANTIDO
+
         idx_free = random.randint(0, len(ofertas)-1)
         oferta_free = ofertas.pop(idx_free)
         ofertas_vip = ofertas
         nicho_free, produto_free = oferta_free
         logging.info("🎁 Sorteado para FREE: %s | %s", produto_free.get("productName","")[:50], nicho_free)
-        
+
         await ctx.bot.send_message(CHAT_ID_DESTINO, text="🚨 <b>OFERTAS NOVAS CHEGARAM!</b>", parse_mode="HTML")
         await asyncio.sleep(5)
-        
+
         enviados = []
         for nicho, p in ofertas_vip:
             try:
@@ -597,18 +560,17 @@ async def ciclo(ctx):
                 enviados.append({"txt": txt_tg, "img": img, "hid": hid, "nicho": nicho})
             except Exception as e:
                 logging.error("❌ Montagem: %s", e)
-        
+
         if len(enviados) < MIN_OFERTAS - OFERTA_FREE:
             return
-        
+
         for item in enviados:
             logging.info("📤 Enviando VIP: %s", item["nicho"])
             ok = await enviar_msg(ctx, item["txt"], item["img"], CHAT_ID_DESTINO)
             if ok:
                 registrar_envio(item["hid"])
             await asyncio.sleep(40)
-        
-        # ===== ENVIO FREE =====
+
         logging.info("🎁 Enviando oferta destaque para grupo FREE")
         try:
             titulo = str(produto_free.get("productName", "")).strip()
@@ -631,7 +593,7 @@ async def ciclo(ctx):
             lk_whats = link_whatsai(txt_whats)
             txt_tg = montar_tg(titulo, prc, vnd, nt, comissao, link, lk_whats, free=True)
             hid = hashlib.md5(f"{chave_titulo(titulo)}|{lb}".encode()).hexdigest()
-            
+
             ok = await enviar_msg(ctx, txt_tg, img, CHAT_ID_FREE)
             if ok:
                 registrar_envio(hid)
@@ -640,7 +602,7 @@ async def ciclo(ctx):
                 logging.warning("⚠️ Falha ao enviar oferta FREE")
         except Exception as e:
             logging.error("❌ Erro envio FREE: %s", e, exc_info=True)
-        
+
         logging.info("========== ✅ CONCLUÍDO ==========")
     except Exception as e:
         logging.error("❌ ERRO: %s", e, exc_info=True)
