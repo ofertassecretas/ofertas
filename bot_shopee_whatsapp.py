@@ -5,7 +5,7 @@ from datetime import datetime, time as dt_time, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder
-print("VERSAO V35-NICHO-MOTO-2-POR-CICLO-FIX")
+print("VERSAO V36-FIX-ESTADO-MOTO")
 # =========================
 # CONFIG — EXATAMENTE COMO ESTAVA
 # =========================
@@ -28,7 +28,7 @@ AVALIACAO_MIN = 3.5
 PRECO_MIN = 5
 PRECO_MAX = 10000
 COMISSAO_MIN = 3
-VERSAO_RODIZIO = 36  # ← Só mudei pra reiniciar contadores
+VERSAO_RODIZIO = 36
 LIMITE_POR_FAMILIA = 1
 MAX_PAGINA_BUSCA = 4
 TIPOS_ORDEM = [1, 2, 3, 4, 5]
@@ -44,9 +44,8 @@ LINKS_CICLO_ATUAL = set()
 TERMOS_USADOS_CICLO = set()
 
 # =========================
-# 🛵 LISTAS DE MOTO — REORGANIZADAS
+# 🛵 LISTAS DE MOTO
 # =========================
-# Pares de motos por ciclo, sem repetir combinação enquanto houver opções
 PECAS_MOTO = [
     "kit relação",
     "burrinho de freio",
@@ -72,9 +71,6 @@ MOTOS = [
     "Lander 250", "CG 160 Start"
 ]
 
-# =========================
-# ⬇️ TUDO O RESTANTE EXATAMENTE COMO ESTAVA ⬇️
-# =========================
 PRODUTOS_POR_NICHO = {
     "Casa": ["fritadeira sem óleo", "aspirador", "liquidificador", "cafeteira", "panela elétrica", "ventilador", "batedeira", "lâmpada led"],
     "Bebê": ["carrinho bebê", "berço", "brinquedo bebê", "roupa bebê", "cadeirinha bebê"],
@@ -141,14 +137,20 @@ def carregar_json(caminho, padrao):
         logging.error("Erro ler %s: %s", caminho, e)
         return padrao
 
+# =========================
+# ✅ CORRIGIDO: ADAPTA ESTADO ANTIGO → NOVO AUTOMATICAMENTE
+# =========================
 def carregar_estado():
     estado = carregar_json(ARQUIVO_ESTADO, {})
     if estado.get("versao_rodizio") != VERSAO_RODIZIO:
+        logging.info("🔄 Atualizando estado para versão %s...", VERSAO_RODIZIO)
         hoje = datetime.now(FUSO_BR).strftime("%Y%m%d")
         estado = {"versao_rodizio": VERSAO_RODIZIO, "Moto": {"data": hoje, "indice_peca": 0, "indice_par": 0}}
         for nicho in PRODUTOS_POR_NICHO:
             estado[nicho] = {"indice": 0, "data": hoje}
+        logging.info("✅ Estado atualizado com sucesso!")
     return estado
+
 def salvar_estado(estado):
     salvar_json(ARQUIVO_ESTADO, estado)
 def carregar_historico():
@@ -157,7 +159,7 @@ def salvar_historico(dados):
     salvar_json(ARQUIVO_HISTORICO, dados)
 
 # =========================
-# 🛵 FUNÇÃO PRINCIPAL ALTERADA — 1 PEÇA + 2 MOTOS
+# 🛵 BUSCA MOTO — 1 PEÇA + 2 MOTOS
 # =========================
 def proxima_busca_moto(estado):
     st = estado["Moto"]
@@ -165,21 +167,16 @@ def proxima_busca_moto(estado):
     idx_par = st["indice_par"]
 
     peca = PECAS_MOTO[idx_peca % len(PECAS_MOTO)]
-
-    # Monta pares: (0,1), (2,3), (4,5)...
     total_pares = len(MOTOS) // 2
     par_atual = idx_par % total_pares
     moto1 = MOTOS[par_atual * 2]
     moto2 = MOTOS[par_atual * 2 + 1]
 
-    # Avança para o próximo par
     st["indice_par"] += 1
-
-    # Quando acabar todos os pares → avança para próxima peça
     if st["indice_par"] >= total_pares:
         st["indice_par"] = 0
         st["indice_peca"] = (idx_peca + 1) % len(PECAS_MOTO)
-        logging.info("🔄 Todas combinações de motos esgotadas — avançando peça")
+        logging.info("🔄 Ciclo de motos concluído → avançando peça")
 
     logging.info("🏍️ Peça: [%s] | Modelos: [%s / %s]", peca, moto1, moto2)
     return peca, moto1, moto2, estado
@@ -348,7 +345,7 @@ def selecionar(nicho, termo, qtd, estado, moto=False, peca=None):
     return esc, estado
 
 # =========================
-# 🛵 BUSCA — 2 OFERTAS DE MOTO POR CICLO
+# 🛵 2 OFERTAS DE MOTO + COMPLETA ATÉ 10
 # =========================
 def obter_ofertas_garantidas(estado):
     global LINKS_CICLO_ATUAL, TERMOS_USADOS_CICLO
@@ -357,20 +354,17 @@ def obter_ofertas_garantidas(estado):
     sel = []
     lista_nichos = list(PRODUTOS_POR_NICHO.items())
 
-    # 🏍️ BUSCA MOTO — 1 PEÇA + 2 MODELOS = 2 OFERTAS
+    logging.info("🏍️ Iniciando busca de ofertas de moto...")
     peca, moto1, moto2, estado = proxima_busca_moto(estado)
 
-    # Busca modelo 1
     its1, estado = selecionar("Moto", moto1, 1, estado, True, peca)
     sel.extend([("Moto", x) for x in its1])
+    logging.info("🏍️ Moto 1 (%s): %s selecionados", moto1, len(its1))
 
-    # Busca modelo 2 (mesma peça)
     its2, estado = selecionar("Moto", moto2, 1, estado, True, peca)
     sel.extend([("Moto", x) for x in its2])
+    logging.info("🏍️ Moto 2 (%s): %s selecionados", moto2, len(its2))
 
-    logging.info("🏍️ Moto: %s + %s | %s selecionados", moto1, moto2, len(its1)+len(its2))
-
-    # COMPLETA COM OUTROS NICHOS ATÉ CHEGAR EM 10
     tentativas = 0
     max_tentativas = 50
     while len(sel) < MIN_OFERTAS and tentativas < max_tentativas:
@@ -391,7 +385,7 @@ def obter_ofertas_garantidas(estado):
         sel = sel[:MAX_OFERTAS]
         logging.info("✅ ✅ GARANTIDO: %s ofertas selecionadas", len(sel))
     else:
-        logging.warning("⚠️ Atingiu limite de tentativas com %s ofertas", len(sel))
+        logging.warning("⚠️ Atingiu limite com %s ofertas", len(sel))
     return sel
 
 def obter_ofertas_shopee():
@@ -612,6 +606,7 @@ async def loop(app):
     while True:
         agora = time.time()
         if agora - ult >= CHECK_INTERVAL:
+            logging.info("🔄 Iniciando ciclo de buscas...")
             await ciclo(type("Ctx", (), {"bot": app.bot})())
             ult = agora
         await asyncio.sleep(60)
@@ -620,10 +615,11 @@ async def manter_vivo():
         logging.info("💓 Ativo | %s", datetime.now(FUSO_BR).strftime("%d/%m às %H:%M"))
         await asyncio.sleep(300)
 async def principal():
+    logging.info("🤖 Iniciando bot...")
     if not TELEGRAM_TOKEN or not SHOPEE_PASSWORD:
         raise RuntimeError("Configure TELEGRAM_TOKEN e SHOPEE_PASSWORD")
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    logging.info("🤖 Bot pronto!")
+    logging.info("✅ Bot pronto!")
     asyncio.create_task(manter_vivo())
     await loop(app)
 def iniciar():
@@ -633,3 +629,6 @@ def iniciar():
         logging.error("🔄 Reiniciando em 15s: %s", e)
         time.sleep(15)
         iniciar()
+
+if __name__ == "__main__":
+    iniciar()
