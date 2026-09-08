@@ -5,7 +5,7 @@ from datetime import datetime, time as dt_time, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder
-print("VERSAO V38-SEM-ACENTO-ROTACAO-FIXA")
+print("VERSAO V39-BUSCA-EXATA-SEM-ACENTO")
 # =========================
 # CONFIG
 # =========================
@@ -28,7 +28,7 @@ AVALIACAO_MIN = 3.5
 PRECO_MIN = 5
 PRECO_MAX = 10000
 COMISSAO_MIN = 3
-VERSAO_RODIZIO = 38
+VERSAO_RODIZIO = 39
 LIMITE_POR_FAMILIA = 1
 MAX_PAGINA_BUSCA = 4
 TIPOS_ORDEM = [1, 2, 3, 4, 5]
@@ -44,7 +44,7 @@ LINKS_CICLO_ATUAL = set()
 TERMOS_USADOS_CICLO = set()
 
 # =========================
-# 🛵 PEÇAS SEM ACENTO — CHAVE DO PROBLEMA!
+# 🛵 PEÇAS — SEM ACENTO
 # =========================
 PECAS_MOTO = [
     "kit relacao",
@@ -93,13 +93,19 @@ FAMILIAS_PRODUTOS = {
 }
 
 def normalizar(texto):
-    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9a-z\s]", " ", str(texto or "").lower().strip()))
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", str(texto or "").lower().strip()))
 def horario_valido():
     agora = datetime.now(FUSO_BR).time()
     return dt_time(5, 30) <= agora <= dt_time(21, 30)
+
+# ✅ REMOVE ACENTOS DEFINITIVAMENTE
+def sem_acento(texto):
+    mapa = str.maketrans("áàâãéèêíïóôõöúüçñ", "aaaaeeeiioooouucn")
+    return texto.translate(mapa)
+
 def variar_termo(termo):
-    base = termo.strip()
-    variacoes = [base, f"{base} oferta"]
+    base = sem_acento(termo.strip())
+    variacoes = [base]  # ✅ SÓ O TERMO PURO — sem "oferta/promocao"!
     return random.choice(variacoes)
 
 GRUPO_SINONIMOS = {
@@ -155,7 +161,7 @@ def salvar_historico(dados):
     salvar_json(ARQUIVO_HISTORICO, dados)
 
 # =========================
-# 🛵 ROTAÇÃO — AVANÇA SEMPRE, MESMO SEM RESULTADO
+# 🛵 ROTAÇÃO MOTO — AVANÇA SEMPRE
 # =========================
 def proxima_busca_moto(estado):
     st = estado["Moto"]
@@ -168,7 +174,6 @@ def proxima_busca_moto(estado):
     moto1 = MOTOS[par_atual * 2]
     moto2 = MOTOS[par_atual * 2 + 1]
 
-    # ✅ AVANÇA SEMPRE — não importa se achou ou não
     st["indice_par"] += 1
     if st["indice_par"] >= total_pares:
         st["indice_par"] = 0
@@ -219,6 +224,8 @@ def identificar_familia(titulo):
         if any(normalizar(p) in nt for p in ps):
             return f
     return "outros"
+
+# ✅ PONTUA — BONUS SE TIVER NOME DA MOTO
 def pontuar_produto(p, termo="", modelo_moto=""):
     try:
         vendas = int(p.get("sales", 0) or 0)
@@ -234,13 +241,14 @@ def pontuar_produto(p, termo="", modelo_moto=""):
         if pt:
             pont += 10 if pt in tp else sum(2 for x in pt.split() if x in tp)
         if modelo_moto:
-            nm = normalizar(modelo_moto)
+            nm = sem_acento(modelo_moto).lower()
             if nm in tp:
-                pont += 15
-                logging.info("✨ Combinação perfeita: %s + %s", termo, modelo_moto)
+                pont += 25  # ✅ BÔNUS GRANDE — coloca no topo!
+                logging.info("✨ PERFEITO: %s + %s → %s", termo, modelo_moto, p.get("productName","")[:40])
         return max(0, pont)
     except:
         return 0
+
 def avaliar_rejeicao(p):
     titulo = str(p.get("productName", "")).strip()
     link = str(p.get("offerLink") or p.get("productLink", "")).strip()
@@ -276,12 +284,12 @@ def avaliar_rejeicao(p):
     return None
 
 def buscar_produtos(termo, nicho):
-    logging.info("🔍 Buscando em %s: %s", nicho, termo)
+    termo_busca = sem_acento(termo.strip())  # ✅ SEMPRE sem acento
+    logging.info("🔍 Buscando em %s: %s", nicho, termo_busca)
     ts = int(time.time())
     ordem = random.choice(TIPOS_ORDEM)
     pagina = random.randint(1, MAX_PAGINA_BUSCA)
-    termo_busca = variar_termo(termo)
-    logging.info(" ↳ Ordem=%s | Pagina=%s | Buscando: %s", ordem, pagina, termo_busca)
+    logging.info(" ↳ Ordem=%s | Pagina=%s", ordem, pagina)
     q = f'query {{productOfferV2(sortType:{ordem},page:{pagina},limit:50,keyword:{json.dumps(termo_busca,ensure_ascii=False)},isAMSOffer:true){{nodes{{productName,priceMin,priceMax,commissionRate,sales,ratingStar,productLink,offerLink,imageUrl,shopType}}}}}}'
     payload = json.dumps({"query": q}, ensure_ascii=False)
     assinatura = hashlib.sha256(f"{SHOPEE_APP_ID}{ts}{payload}{SHOPEE_PASSWORD}".encode()).hexdigest()
@@ -301,7 +309,7 @@ def buscar_produtos(termo, nicho):
         return []
 
 def selecionar(nicho, termo, qtd, estado, moto=False, peca=None, modelo_moto=""):
-    tcompleto = peca if moto else termo
+    tcompleto = sem_acento(f"{peca} {modelo_moto}" if moto else termo)  # ✅ PEÇA + MOTO!
     res = buscar_produtos(tcompleto, nicho)
     val = []
     motivos = Counter()
@@ -313,7 +321,7 @@ def selecionar(nicho, termo, qtd, estado, moto=False, peca=None, modelo_moto="")
             val.append(p)
     logging.info("📊 %s: %s brutos / %s validos", nicho, len(res), len(val))
     if val:
-        com_pont = [(p, pontuar_produto(p, termo, modelo_moto)) for p in val]
+        com_pont = [(p, pontuar_produto(p, peca if moto else termo, modelo_moto)) for p in val]
         pesos = [max(1, n**1.5) for _, n in com_pont]
         idx = random.choices(range(len(com_pont)), weights=pesos, k=len(com_pont))
         val = [com_pont[i][0] for i in idx]
@@ -347,7 +355,7 @@ def selecionar(nicho, termo, qtd, estado, moto=False, peca=None, modelo_moto="")
     return esc, estado
 
 # =========================
-# 🛵 BUSCA 2 DE MOTO
+# 🛵 BUSCA — 2 DE MOTO GARANTIDAS
 # =========================
 def obter_ofertas_garantidas(estado):
     global LINKS_CICLO_ATUAL, TERMOS_USADOS_CICLO
@@ -359,6 +367,7 @@ def obter_ofertas_garantidas(estado):
     logging.info("🏍️ Iniciando busca de ofertas de moto...")
     peca, moto1, moto2, estado = proxima_busca_moto(estado)
 
+    # ✅ BUSCA EXATA: "kit relacao Titan 150"
     its1, estado = selecionar("Moto", peca, 1, estado, True, peca, moto1)
     sel.extend([("Moto", x) for x in its1])
     logging.info("🏍️ Moto 1 (%s): %s selecionados", moto1, len(its1))
