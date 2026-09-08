@@ -5,7 +5,7 @@ from datetime import datetime, time as dt_time, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder
-print("VERSAO V36-FIX-ESTADO-MOTO")
+print("VERSAO V37-BUSCA-MOTO-FLEXIVEL")
 # =========================
 # CONFIG — EXATAMENTE COMO ESTAVA
 # =========================
@@ -28,7 +28,7 @@ AVALIACAO_MIN = 3.5
 PRECO_MIN = 5
 PRECO_MAX = 10000
 COMISSAO_MIN = 3
-VERSAO_RODIZIO = 36
+VERSAO_RODIZIO = 37
 LIMITE_POR_FAMILIA = 1
 MAX_PAGINA_BUSCA = 4
 TIPOS_ORDEM = [1, 2, 3, 4, 5]
@@ -137,9 +137,6 @@ def carregar_json(caminho, padrao):
         logging.error("Erro ler %s: %s", caminho, e)
         return padrao
 
-# =========================
-# ✅ CORRIGIDO: ADAPTA ESTADO ANTIGO → NOVO AUTOMATICAMENTE
-# =========================
 def carregar_estado():
     estado = carregar_json(ARQUIVO_ESTADO, {})
     if estado.get("versao_rodizio") != VERSAO_RODIZIO:
@@ -148,7 +145,7 @@ def carregar_estado():
         estado = {"versao_rodizio": VERSAO_RODIZIO, "Moto": {"data": hoje, "indice_peca": 0, "indice_par": 0}}
         for nicho in PRODUTOS_POR_NICHO:
             estado[nicho] = {"indice": 0, "data": hoje}
-        logging.info("✅ Estado atualizado com sucesso!")
+        logging.info("✅ Estado atualizado!")
     return estado
 
 def salvar_estado(estado):
@@ -159,7 +156,7 @@ def salvar_historico(dados):
     salvar_json(ARQUIVO_HISTORICO, dados)
 
 # =========================
-# 🛵 BUSCA MOTO — 1 PEÇA + 2 MOTOS
+# 🛵 ROTAÇÃO MOTO
 # =========================
 def proxima_busca_moto(estado):
     st = estado["Moto"]
@@ -222,7 +219,7 @@ def identificar_familia(titulo):
         if any(normalizar(p) in nt for p in ps):
             return f
     return "outros"
-def pontuar_produto(p, termo=""):
+def pontuar_produto(p, termo="", modelo_moto=""):
     try:
         vendas = int(p.get("sales", 0) or 0)
         nota = float(p.get("ratingStar", 0) or 0)
@@ -236,6 +233,12 @@ def pontuar_produto(p, termo=""):
             pont += 8
         if pt:
             pont += 10 if pt in tp else sum(2 for x in pt.split() if x in tp)
+        # ✅ BÔNUS SE TIVER O NOME DA MOTO NO TÍTULO
+        if modelo_moto:
+            nm = normalizar(modelo_moto)
+            if nm in tp:
+                pont += 15
+                logging.info("✨ Combinação perfeita: %s + %s", termo, modelo_moto)
         return max(0, pont)
     except:
         return 0
@@ -298,8 +301,9 @@ def buscar_produtos(termo, nicho):
         logging.error("❌ Falha busca: %s", e)
         return []
 
-def selecionar(nicho, termo, qtd, estado, moto=False, peca=None):
-    tcompleto = f"{peca} {termo}" if moto else termo
+def selecionar(nicho, termo, qtd, estado, moto=False, peca=None, modelo_moto=""):
+    # ✅ BUSCA SÓ PELA PEÇA (mais resultados), NÃO + modelo
+    tcompleto = peca if moto else termo
     res = buscar_produtos(tcompleto, nicho)
     val = []
     motivos = Counter()
@@ -311,7 +315,8 @@ def selecionar(nicho, termo, qtd, estado, moto=False, peca=None):
             val.append(p)
     logging.info("📊 %s: %s brutos / %s válidos", nicho, len(res), len(val))
     if val:
-        com_pont = [(p, pontuar_produto(p, termo)) for p in val]
+        # ✅ PONTUA DANDO BÔNUS SE TIVER O NOME DA MOTO NO TÍTULO
+        com_pont = [(p, pontuar_produto(p, termo, modelo_moto)) for p in val]
         pesos = [max(1, n**1.5) for _, n in com_pont]
         idx = random.choices(range(len(com_pont)), weights=pesos, k=len(com_pont))
         val = [com_pont[i][0] for i in idx]
@@ -345,7 +350,7 @@ def selecionar(nicho, termo, qtd, estado, moto=False, peca=None):
     return esc, estado
 
 # =========================
-# 🛵 2 OFERTAS DE MOTO + COMPLETA ATÉ 10
+# 🛵 BUSCA — 2 OFERTAS DE MOTO GARANTIDAS
 # =========================
 def obter_ofertas_garantidas(estado):
     global LINKS_CICLO_ATUAL, TERMOS_USADOS_CICLO
@@ -357,11 +362,12 @@ def obter_ofertas_garantidas(estado):
     logging.info("🏍️ Iniciando busca de ofertas de moto...")
     peca, moto1, moto2, estado = proxima_busca_moto(estado)
 
-    its1, estado = selecionar("Moto", moto1, 1, estado, True, peca)
+    # ✅ Busca pela PEÇA, mas dá BÔNUS se achar o nome da moto
+    its1, estado = selecionar("Moto", peca, 1, estado, True, peca, moto1)
     sel.extend([("Moto", x) for x in its1])
     logging.info("🏍️ Moto 1 (%s): %s selecionados", moto1, len(its1))
 
-    its2, estado = selecionar("Moto", moto2, 1, estado, True, peca)
+    its2, estado = selecionar("Moto", peca, 1, estado, True, peca, moto2)
     sel.extend([("Moto", x) for x in its2])
     logging.info("🏍️ Moto 2 (%s): %s selecionados", moto2, len(its2))
 
@@ -385,7 +391,7 @@ def obter_ofertas_garantidas(estado):
         sel = sel[:MAX_OFERTAS]
         logging.info("✅ ✅ GARANTIDO: %s ofertas selecionadas", len(sel))
     else:
-        logging.warning("⚠️ Atingiu limite com %s ofertas", len(sel))
+        logging.warning("⚠️ Apenas %s ofertas após %s tentativas", len(sel), tentativas)
     return sel
 
 def obter_ofertas_shopee():
