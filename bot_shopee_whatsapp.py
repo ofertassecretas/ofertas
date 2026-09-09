@@ -73,7 +73,7 @@ MOTOS = [
     "CG 160",             "NXR 160 Bros",
     "CB 250 Twister",     "Fazer 250",
     "XRE 190",            "Crosser 150",
-    "Biz 125",            "Pop 110i",
+    "Biz 125",            "Biz 110",       # ✅ ERA "Pop 110i" → NÃO EXISTE!
     "YBR 150",            "FZ 15",
     "CB 300F Twister",    "XRE 300",
     "Titan 160",          "Start 160",
@@ -174,7 +174,7 @@ def salvar_historico(dados):
     salvar_json(ARQUIVO_HISTORICO, dados)
 
 # =========================
-# 🛵 ROTAÇÃO MOTO — AVANÇA SEMPRE
+# 🛵 ROTAÇÃO MOTO — AVANÇA SEMPRE A CADA CICLO!
 # =========================
 def proxima_busca_moto(estado):
     st = estado["Moto"]
@@ -187,13 +187,15 @@ def proxima_busca_moto(estado):
     moto1 = MOTOS[par_atual * 2]
     moto2 = MOTOS[par_atual * 2 + 1]
 
+    # ✅ AVANÇA PAR SEMPRE
     st["indice_par"] += 1
-    if st["indice_par"] >= total_pares:
-        st["indice_par"] = 0
-        st["indice_peca"] = (idx_peca + 1) % len(PECAS_MOTO)
-        logging.info("🔄 Ciclo de pares concluido → avancando peca")
+
+    # ✅ AVANÇA PEÇA SEMPRE — A CADA CICLO, MESMO QUE NÃO ACHE PRODUTOS!
+    st["indice_peca"] = (idx_peca + 1) % len(PECAS_MOTO)
+    st["indice_par"] = 0  # Reinicia os pares pra NOVA peça
 
     logging.info("🏍️ Peca: [%s] | Modelos: [%s / %s]", peca, moto1, moto2)
+    logging.info("🔄 Avancando peca: proxima sera [%s]", PECAS_MOTO[st["indice_peca"] % len(PECAS_MOTO)])
     return peca, moto1, moto2, estado
 
 def proximo_termo(nicho, estado):
