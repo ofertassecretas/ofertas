@@ -5,7 +5,8 @@ from datetime import datetime, time as dt_time, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder
-print("VERSAO V39-BUSCA-EXATA-SEM-ACENTO")
+print("VERSAO V40-PEÇAS-VARIADAS-SEM-MOUSEPAD")
+
 # =========================
 # CONFIG
 # =========================
@@ -28,13 +29,20 @@ AVALIACAO_MIN = 3.5
 PRECO_MIN = 5
 PRECO_MAX = 10000
 COMISSAO_MIN = 3
-VERSAO_RODIZIO = 39
+VERSAO_RODIZIO = 40
 LIMITE_POR_FAMILIA = 1
 MAX_PAGINA_BUSCA = 4
 TIPOS_ORDEM = [1, 2, 3, 4, 5]
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 ARQUIVO_ESTADO = "estado_buscas.json"
 ARQUIVO_HISTORICO = "historico_envios.json"
+
+# 🚫 PALAVRAS PROIBIDAS — NUNCA APARECEM!
+PALAVRAS_PROIBIDAS = [
+    "mousepad", "mouse pad", "tapete de mouse", "almofada de mouse",
+    "mouse", "pad mouse", "pad para mouse"
+]
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 ULTIMOS_LINKS = []
 ULTIMOS_TITULOS = []
@@ -44,30 +52,35 @@ LINKS_CICLO_ATUAL = set()
 TERMOS_USADOS_CICLO = set()
 
 # =========================
-# 🛵 PEÇAS — SEM ACENTO
+# 🛵 PEÇAS — MUITA VARIEDADE!
 # =========================
 PECAS_MOTO = [
-    "kit relacao",
-    "embreagem",
-    "bateria moto",
-    "filtro de oleo",
-    "cabo de embreagem",
-    "cabo de freio",
-    "vela de ignicao",
-    "pneu moto",
-    "disco de freio",
-    "pastilha de freio"
+    "kit relacao", "kit transmissao", "coroa e pinhao", "coroa", "pinhao", "corrente transmissao",
+    "pastilha de freio", "disco de freio", "lonas de freio", "cabo de freio", "bomba de freio",
+    "embreagem completa", "disco de embreagem", "cabo de embreagem", "mola de embreagem",
+    "bateria de moto", "filtro de oleo", "filtro de ar", "vela de ignicao", "correia dentada",
+    "retentor", "junta de motor", "pistao e aneis", "cabecote",
+    "lampada de farol", "pisca alerta", "buzina", "regulador de voltagem", "estator",
+    "pneu dianteiro", "pneu traseiro", "aro de roda", "camara de ar",
+    "cabo de acelerador", "manete de freio", "manete de embreagem", "pedal de freio", "pedal de marcha",
+    "paralama dianteiro", "paralama traseiro", "bolha de farol", "protetor de motor", "sliders de protecao",
+    "punhos de guiador", "espelho retrovisor", "banco assento", "suporte de placa", "pegamao traseiro",
+    "amortecedor dianteiro", "amortecedor traseiro", "retentor de bengala", "mola de suspensao"
 ]
 
 MOTOS = [
-    "Titan 150", "Factor 150",
-    "Tornado 250", "Biz 125",
-    "CB 300", "Bros 160",
-    "Titan 160", "Fazer 150",
-    "Twister 250", "Pop 110",
-    "XRE 300", "Crosser 150",
-    "XRE 190", "Fazer 250",
-    "Lander 250", "CG 160 Start"
+    "Titan 150",          "Factor 150",
+    "CG 160",             "NXR 160 Bros",
+    "CB 250 Twister",     "Fazer 250",
+    "XRE 190",            "Crosser 150",
+    "Biz 125",            "Pop 110i",
+    "YBR 150",            "FZ 15",
+    "CB 300F Twister",    "XRE 300",
+    "Titan 160",          "Start 160",
+    "Pulsar N150",        "Dominar 200",
+    "Elite 125",          "NMax 160",
+    "Lander 250",         "Tenere 250",
+    "MT-03",              "CB 500F",
 ]
 
 PRODUTOS_POR_NICHO = {
@@ -97,16 +110,16 @@ def normalizar(texto):
 def horario_valido():
     agora = datetime.now(FUSO_BR).time()
     return dt_time(5, 30) <= agora <= dt_time(21, 30)
-
-# ✅ REMOVE ACENTOS DEFINITIVAMENTE
 def sem_acento(texto):
     mapa = str.maketrans("áàâãéèêíïóôõöúüçñ", "aaaaeeeiioooouucn")
     return texto.translate(mapa)
+def tem_palavra_proibida(texto):
+    nt = normalizar(texto)
+    return any(p in nt for p in PALAVRAS_PROIBIDAS)
 
 def variar_termo(termo):
     base = sem_acento(termo.strip())
-    variacoes = [base]  # ✅ SÓ O TERMO PURO — sem "oferta/promocao"!
-    return random.choice(variacoes)
+    return base
 
 GRUPO_SINONIMOS = {
     "smartwatch": {"smartwatch", "relogio inteligente"},
@@ -178,7 +191,7 @@ def proxima_busca_moto(estado):
     if st["indice_par"] >= total_pares:
         st["indice_par"] = 0
         st["indice_peca"] = (idx_peca + 1) % len(PECAS_MOTO)
-        logging.info("🔄 Ciclo de motos concluido → avancando peca")
+        logging.info("🔄 Ciclo de pares concluido → avancando peca")
 
     logging.info("🏍️ Peca: [%s] | Modelos: [%s / %s]", peca, moto1, moto2)
     return peca, moto1, moto2, estado
@@ -243,8 +256,8 @@ def pontuar_produto(p, termo="", modelo_moto=""):
         if modelo_moto:
             nm = sem_acento(modelo_moto).lower()
             if nm in tp:
-                pont += 25  # ✅ BÔNUS GRANDE — coloca no topo!
-                logging.info("✨ PERFEITO: %s + %s → %s", termo, modelo_moto, p.get("productName","")[:40])
+                pont += 25
+                logging.info("✨ PERFEITO: %s + %s → %s", termo, modelo_moto, p.get("productName","")[:50])
         return max(0, pont)
     except:
         return 0
@@ -263,6 +276,9 @@ def avaliar_rejeicao(p):
         comissao = 0
     vendas = int(p.get("sales", 0) or 0)
     nota = float(p.get("ratingStar", 0) or 0)
+
+    if tem_palavra_proibida(titulo):
+        return "PROIBIDO (mousepad)"
     if not titulo:
         return "sem_titulo"
     if not link:
@@ -284,7 +300,7 @@ def avaliar_rejeicao(p):
     return None
 
 def buscar_produtos(termo, nicho):
-    termo_busca = sem_acento(termo.strip())  # ✅ SEMPRE sem acento
+    termo_busca = sem_acento(termo.strip())
     logging.info("🔍 Buscando em %s: %s", nicho, termo_busca)
     ts = int(time.time())
     ordem = random.choice(TIPOS_ORDEM)
@@ -309,7 +325,7 @@ def buscar_produtos(termo, nicho):
         return []
 
 def selecionar(nicho, termo, qtd, estado, moto=False, peca=None, modelo_moto=""):
-    tcompleto = sem_acento(f"{peca} {modelo_moto}" if moto else termo)  # ✅ PEÇA + MOTO!
+    tcompleto = sem_acento(f"{peca} {modelo_moto}" if moto else termo)
     res = buscar_produtos(tcompleto, nicho)
     val = []
     motivos = Counter()
@@ -367,7 +383,6 @@ def obter_ofertas_garantidas(estado):
     logging.info("🏍️ Iniciando busca de ofertas de moto...")
     peca, moto1, moto2, estado = proxima_busca_moto(estado)
 
-    # ✅ BUSCA EXATA: "kit relacao Titan 150"
     its1, estado = selecionar("Moto", peca, 1, estado, True, peca, moto1)
     sel.extend([("Moto", x) for x in its1])
     logging.info("🏍️ Moto 1 (%s): %s selecionados", moto1, len(its1))
@@ -441,7 +456,7 @@ def anexar_afiliado(link):
     except:
         return link
 def link_whatsai(texto):
-    return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>', '', texto))}"
+    return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>', '', texto)))}"
 def mensagem_whatsai(nome, preco, vendas, nota, comissao, link):
     return (
         f"🔥 Produto: {nome}\n\n"
