@@ -5,7 +5,8 @@ from datetime import datetime, time as dt_time, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder
-print("VERSAO V40-PEÇAS-VARIADAS-SEM-MOUSEPAD")
+
+print("VERSAO V41-ROTACAO-MOTO-CORRIGIDA")
 
 # =========================
 # CONFIG
@@ -18,6 +19,7 @@ CHAT_ID_FREE = -1003886228244
 AFILIADO_ID = "18349740277"
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
+
 CHECK_INTERVAL = 5400
 MAX_OFERTAS = 10
 MIN_OFERTAS = 10
@@ -29,21 +31,23 @@ AVALIACAO_MIN = 3.5
 PRECO_MIN = 5
 PRECO_MAX = 10000
 COMISSAO_MIN = 3
-VERSAO_RODIZIO = 40
+VERSAO_RODIZIO = 41
 LIMITE_POR_FAMILIA = 1
 MAX_PAGINA_BUSCA = 4
 TIPOS_ORDEM = [1, 2, 3, 4, 5]
+
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 ARQUIVO_ESTADO = "estado_buscas.json"
 ARQUIVO_HISTORICO = "historico_envios.json"
 
-# 🚫 PALAVRAS PROIBIDAS — NUNCA APARECEM!
+# 🚫 PALAVRAS PROIBIDAS
 PALAVRAS_PROIBIDAS = [
     "mousepad", "mouse pad", "tapete de mouse", "almofada de mouse",
     "mouse", "pad mouse", "pad para mouse"
 ]
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
 ULTIMOS_LINKS = []
 ULTIMOS_TITULOS = []
 ABERTURAS_USADAS = set()
@@ -52,20 +56,20 @@ LINKS_CICLO_ATUAL = set()
 TERMOS_USADOS_CICLO = set()
 
 # =========================
-# 🛵 PEÇAS — MUITA VARIEDADE!
+# 🛵 PEÇAS E MODELOS
 # =========================
 PECAS_MOTO = [
-    "kit relacao", "kit transmissao", "coroa e pinhao", "coroa", "pinhao", "corrente transmissao",
-    "pastilha de freio", "disco de freio", "lonas de freio", "cabo de freio", "bomba de freio",
-    "embreagem completa", "disco de embreagem", "cabo de embreagem", "mola de embreagem",
-    "bateria de moto", "filtro de oleo", "filtro de ar", "vela de ignicao", "correia dentada",
-    "retentor", "junta de motor", "pistao e aneis", "cabecote",
-    "lampada de farol", "pisca alerta", "buzina", "regulador de voltagem", "estator",
-    "pneu dianteiro", "pneu traseiro", "aro de roda", "camara de ar",
-    "cabo de acelerador", "manete de freio", "manete de embreagem", "pedal de freio", "pedal de marcha",
-    "paralama dianteiro", "paralama traseiro", "bolha de farol", "protetor de motor", "sliders de protecao",
-    "punhos de guiador", "espelho retrovisor", "banco assento", "suporte de placa", "pegamao traseiro",
-    "amortecedor dianteiro", "amortecedor traseiro", "retentor de bengala", "mola de suspensao"
+    "kit relacao", "estator", "kit cilindro", "painel completo", "guidão", "regulador de voltagem", "bucha amortecedor",
+    "pastilha de freio", "disco de freio", "lonas de freio", "vela iridium", "burrinho de freio", "bomba de combustivel", "bucha pro link",
+    "embreagem completa", "disco de embreagem", "cabo de embreagem", "mola de embreagem", "jogo de juntas", "bucha da balança", "chave de seta",
+    "bateria de moto", "filtro de oleo", "filtro de ar", "vela de ignicao", "corrente comando", "guarnição tampa de valvulas", "motor de arranque",
+    "retentor", "junta de motor", "pistao e aneis", "cabecote", "burrinho de freio traseiro", "valvula de escape", "chave ignição", "escova do arranque",
+    "lampada de farol", "seta pisca", "buzina", "regulador de voltagem", "estator", "tampa lateral", "valvula admissão", "cdi",
+    "pneu dianteiro", "pneu traseiro", "par pneu", "aro de roda", "camara de ar", "caixa direção", "caixa de marcha", "tencionador corrente comando",
+    "cabo de acelerador", "manete de freio", "manete de embreagem", "pedal de freio", "pedal de marcha", "capa de banco", "guia de valvulas",
+    "paralama dianteiro", "paralama traseiro", "bolha de farol", "protetor de motor", "sliders de protecao", "desmultiplicador",
+    "punhos de guiador", "espelho retrovisor", "banco assento", "suporte de placa", "pegamao traseiro", "kit rolamentos",
+    "amortecedor dianteiro", "amortecedor traseiro", "retentor de bengala", "mola de suspensao", "vela iridium"
 ]
 
 MOTOS = [
@@ -73,7 +77,7 @@ MOTOS = [
     "CG 160",             "NXR 160 Bros",
     "CB 250 Twister",     "Fazer 250",
     "XRE 190",            "Crosser 150",
-    "Biz 125",            "Biz 110",       # ✅ ERA "Pop 110i" → NÃO EXISTE!
+    "Biz 125",            "Biz 110",
     "YBR 150",            "FZ 15",
     "CB 300F Twister",    "XRE 300",
     "Titan 160",          "Start 160",
@@ -81,6 +85,7 @@ MOTOS = [
     "Elite 125",          "NMax 160",
     "Lander 250",         "Tenere 250",
     "MT-03",              "CB 500F",
+    "Tornado 250",        "CB 300"
 ]
 
 PRODUTOS_POR_NICHO = {
@@ -105,14 +110,20 @@ FAMILIAS_PRODUTOS = {
              "disco freio", "pastilha freio", "titan", "cb 300", "honda"]
 }
 
+# =========================
+# FUNÇÕES AUXILIARES
+# =========================
 def normalizar(texto):
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", str(texto or "").lower().strip()))
+
 def horario_valido():
     agora = datetime.now(FUSO_BR).time()
     return dt_time(5, 30) <= agora <= dt_time(21, 30)
+
 def sem_acento(texto):
     mapa = str.maketrans("áàâãéèêíïóôõöúüçñ", "aaaaeeeiioooouucn")
     return texto.translate(mapa)
+
 def tem_palavra_proibida(texto):
     nt = normalizar(texto)
     return any(p in nt for p in PALAVRAS_PROIBIDAS)
@@ -131,7 +142,9 @@ GRUPO_SINONIMOS = {
     "tablet": {"tablet"},
     "celular": {"celular", "smartphone"}
 }
+
 MAPA_SINONIMOS = {normalizar(t): g for g, ts in GRUPO_SINONIMOS.items() for t in ts}
+
 def termo_ja_usado(termo):
     g = MAPA_SINONIMOS.get(normalizar(termo))
     return bool(g and any(MAPA_SINONIMOS.get(normalizar(t)) == g for t in TERMOS_USADOS_CICLO))
@@ -145,6 +158,7 @@ def salvar_json(caminho, dados):
         os.replace(temp, caminho)
     except Exception as e:
         logging.error("Erro salvar %s: %s", caminho, e)
+
 def carregar_json(caminho, padrao):
     try:
         if not os.path.exists(caminho):
@@ -155,12 +169,24 @@ def carregar_json(caminho, padrao):
         logging.error("Erro ler %s: %s", caminho, e)
         return padrao
 
+# =========================
+# 🛵 GERENCIAMENTO DE ESTADO — ROTAÇÃO INTELIGENTE
+# =========================
 def carregar_estado():
     estado = carregar_json(ARQUIVO_ESTADO, {})
     if estado.get("versao_rodizio") != VERSAO_RODIZIO:
         logging.info("🔄 Atualizando estado para versao %s...", VERSAO_RODIZIO)
         hoje = datetime.now(FUSO_BR).strftime("%Y%m%d")
-        estado = {"versao_rodizio": VERSAO_RODIZIO, "Moto": {"data": hoje, "indice_peca": 0, "indice_par": 0}}
+        estado = {
+            "versao_rodizio": VERSAO_RODIZIO,
+            "Moto": {
+                "data": hoje,
+                "indice_peca": 0,
+                "modelo_por_peca": {}  # {"kit relacao": indice_modelo, ...}
+            }
+        }
+        for p in PECAS_MOTO:
+            estado["Moto"]["modelo_por_peca"][p] = 0
         for nicho in PRODUTOS_POR_NICHO:
             estado[nicho] = {"indice": 0, "data": hoje}
         logging.info("✅ Estado atualizado!")
@@ -168,36 +194,72 @@ def carregar_estado():
 
 def salvar_estado(estado):
     salvar_json(ARQUIVO_ESTADO, estado)
+
 def carregar_historico():
     return carregar_json(ARQUIVO_HISTORICO, {})
+
 def salvar_historico(dados):
     salvar_json(ARQUIVO_HISTORICO, dados)
 
 # =========================
-# 🛵 ROTAÇÃO MOTO — AVANÇA SEMPRE A CADA CICLO!
+# 🛵 ROTAÇÃO DE MOTO — CORRIGIDA!
 # =========================
+def obter_proximo_modelo(estado, peca, deslocamento=0):
+    """Retorna próximo modelo NÃO repetido para aquela peça"""
+    st = estado["Moto"]
+    idx_atual = st["modelo_por_peca"].get(peca, 0)
+    idx = (idx_atual + deslocamento) % len(MOTOS)
+    # Avança o contador para a próxima vez
+    if deslocamento == 0:
+        st["modelo_por_peca"][peca] = (idx_atual + 1) % len(MOTOS)
+    return MOTOS[idx], idx
+
 def proxima_busca_moto(estado):
     st = estado["Moto"]
     idx_peca = st["indice_peca"]
-    idx_par = st["indice_par"]
+    
+    # ✅ PEÇA 1 e PEÇA 2 DIFERENTES no mesmo ciclo
+    peca1 = PECAS_MOTO[idx_peca % len(PECAS_MOTO)]
+    peca2 = PECAS_MOTO[(idx_peca + 1) % len(PECAS_MOTO)]
+    
+    # ✅ MODELOS DIFERENTES para cada peça
+    modelo1, _ = obter_proximo_modelo(estado, peca1, deslocamento=0)
+    modelo2, _ = obter_proximo_modelo(estado, peca2, deslocamento=len(MOTOS)//2)
+    
+    # ✅ Avança 2 peças para o PRÓXIMO ciclo → NÃO repete peça na sequência
+    st["indice_peca"] = (idx_peca + 2) % len(PECAS_MOTO)
+    
+    logging.info("🏍️ Peca 1: [%s] | Modelo: %s", peca1, modelo1)
+    logging.info("🏍️ Peca 2: [%s] | Modelo: %s", peca2, modelo2)
+    logging.info("🔄 Proximas pecas: [%s] e [%s]", 
+                 PECAS_MOTO[st["indice_peca"] % len(PECAS_MOTO)],
+                 PECAS_MOTO[(st["indice_peca"] + 1) % len(PECAS_MOTO)])
+    
+    return peca1, modelo1, peca2, modelo2, estado
 
-    peca = PECAS_MOTO[idx_peca % len(PECAS_MOTO)]
-    total_pares = len(MOTOS) // 2
-    par_atual = idx_par % total_pares
-    moto1 = MOTOS[par_atual * 2]
-    moto2 = MOTOS[par_atual * 2 + 1]
+def buscar_com_fallback(peca, modelo_inicial, estado, nicho="Moto"):
+    """Tenta buscar; se não achar, passa para o PRÓXIMO modelo automaticamente"""
+    st = estado["Moto"]
+    idx_inicial = MOTOS.index(modelo_inicial) if modelo_inicial in MOTOS else 0
+    
+    for tentativa in range(len(MOTOS)):
+        idx_modelo = (idx_inicial + tentativa) % len(MOTOS)
+        modelo = MOTOS[idx_modelo]
+        termo_busca = f"{peca} {modelo}"
+        logging.info("🔍 Tentando: %s", termo_busca)
+        
+        resultados, estado = selecionar(nicho, termo_busca, 1, estado, 
+                                        moto=True, peca=peca, modelo_moto=modelo)
+        if resultados:
+            logging.info("✅ Encontrado com %s!", modelo)
+            return resultados, estado
+    
+    logging.warning("⚠️ Nenhum resultado para %s em TODOS os modelos!", peca)
+    return [], estado
 
-    # ✅ AVANÇA PAR SEMPRE
-    st["indice_par"] += 1
-
-    # ✅ AVANÇA PEÇA SEMPRE — A CADA CICLO, MESMO QUE NÃO ACHE PRODUTOS!
-    st["indice_peca"] = (idx_peca + 1) % len(PECAS_MOTO)
-    st["indice_par"] = 0  # Reinicia os pares pra NOVA peça
-
-    logging.info("🏍️ Peca: [%s] | Modelos: [%s / %s]", peca, moto1, moto2)
-    logging.info("🔄 Avancando peca: proxima sera [%s]", PECAS_MOTO[st["indice_peca"] % len(PECAS_MOTO)])
-    return peca, moto1, moto2, estado
-
+# =========================
+# DEMAIS FUNÇÕES
+# =========================
 def proximo_termo(nicho, estado):
     itens = PRODUTOS_POR_NICHO[nicho]
     c = estado[nicho]
@@ -214,12 +276,15 @@ def proximo_termo(nicho, estado):
 def chave_titulo(titulo):
     ign = {"premium","novo","promocao","promocao","super","original","kit","completo"}
     return " ".join(sorted([p for p in normalizar(titulo).split() if p not in ign and len(p) > 2])[:8])
+
 def tem_bloqueio(texto):
     return any(p in normalizar(texto) for p in ["teste","amostra","nao venda","exposicao"])
+
 def duplicata_forte(titulo):
     ch = chave_titulo(titulo)
     nt = normalizar(titulo)
     return any(ch == chave_titulo(t) or SequenceMatcher(None, nt, normalizar(t)).ratio() >= SIMILARIDADE_MAX for t in ULTIMOS_TITULOS)
+
 def enviado_anteriormente(chave):
     h = carregar_historico()
     if chave in h:
@@ -228,11 +293,13 @@ def enviado_anteriormente(chave):
         except:
             pass
     return False
+
 def registrar_envio(chave):
     h = carregar_historico()
     h[chave] = datetime.now(FUSO_BR).isoformat()
     lim = datetime.now(FUSO_BR) - timedelta(days=HISTORICO_DIAS*3)
     salvar_historico({k: v for k, v in h.items() if datetime.fromisoformat(v).replace(tzinfo=FUSO_BR) >= lim})
+
 def identificar_familia(titulo):
     nt = normalizar(titulo)
     for f, ps in FAMILIAS_PRODUTOS.items():
@@ -240,7 +307,6 @@ def identificar_familia(titulo):
             return f
     return "outros"
 
-# ✅ PONTUA — BONUS SE TIVER NOME DA MOTO
 def pontuar_produto(p, termo="", modelo_moto=""):
     try:
         vendas = int(p.get("sales", 0) or 0)
@@ -278,7 +344,7 @@ def avaliar_rejeicao(p):
         comissao = 0
     vendas = int(p.get("sales", 0) or 0)
     nota = float(p.get("ratingStar", 0) or 0)
-
+    
     if tem_palavra_proibida(titulo):
         return "PROIBIDO (mousepad)"
     if not titulo:
@@ -365,7 +431,6 @@ def selecionar(nicho, termo, qtd, estado, moto=False, peca=None, modelo_moto="")
         ULTIMOS_LINKS.append(link)
         ULTIMOS_TITULOS.append(titulo)
         registrar_envio(hid)
-        logging.info("🏆 Selecionado: %s | %s", titulo[:50], fam)
     del ULTIMOS_LINKS[:-300]
     del ULTIMOS_TITULOS[:-150]
     if motivos:
@@ -373,7 +438,7 @@ def selecionar(nicho, termo, qtd, estado, moto=False, peca=None, modelo_moto="")
     return esc, estado
 
 # =========================
-# 🛵 BUSCA — 2 DE MOTO GARANTIDAS
+# 🛵 OFERTAS GARANTIDAS — CORRIGIDO
 # =========================
 def obter_ofertas_garantidas(estado):
     global LINKS_CICLO_ATUAL, TERMOS_USADOS_CICLO
@@ -381,18 +446,21 @@ def obter_ofertas_garantidas(estado):
     TERMOS_USADOS_CICLO.clear()
     sel = []
     lista_nichos = list(PRODUTOS_POR_NICHO.items())
-
+    
     logging.info("🏍️ Iniciando busca de ofertas de moto...")
-    peca, moto1, moto2, estado = proxima_busca_moto(estado)
-
-    its1, estado = selecionar("Moto", peca, 1, estado, True, peca, moto1)
+    peca1, modelo1, peca2, modelo2, estado = proxima_busca_moto(estado)
+    
+    # ✅ Busca PEÇA 1 com fallback de modelo
+    its1, estado = buscar_com_fallback(peca1, modelo1, estado)
     sel.extend([("Moto", x) for x in its1])
-    logging.info("🏍️ Moto 1 (%s): %s selecionados", moto1, len(its1))
-
-    its2, estado = selecionar("Moto", peca, 1, estado, True, peca, moto2)
+    logging.info("🏍️ Moto 1 (%s): %s selecionados", peca1, len(its1))
+    
+    # ✅ Busca PEÇA 2 com fallback de modelo
+    its2, estado = buscar_com_fallback(peca2, modelo2, estado)
     sel.extend([("Moto", x) for x in its2])
-    logging.info("🏍️ Moto 2 (%s): %s selecionados", moto2, len(its2))
-
+    logging.info("🏍️ Moto 2 (%s): %s selecionados", peca2, len(its2))
+    
+    # ✅ Completa com outros nichos se precisar
     tentativas = 0
     max_tentativas = 50
     while len(sel) < MIN_OFERTAS and tentativas < max_tentativas:
@@ -405,10 +473,10 @@ def obter_ofertas_garantidas(estado):
             sel.extend([(nicho, x) for x in its])
         if len(sel) >= MIN_OFERTAS:
             break
-
+    
     salvar_estado(estado)
     sel.sort(key=lambda x: pontuar_produto(x[1], x[0]), reverse=True)
-
+    
     if len(sel) >= MIN_OFERTAS:
         sel = sel[:MAX_OFERTAS]
         logging.info("✅ ✅ GARANTIDO: %s ofertas selecionadas", len(sel))
@@ -419,34 +487,22 @@ def obter_ofertas_garantidas(estado):
 def obter_ofertas_shopee():
     return obter_ofertas_garantidas(carregar_estado())
 
+# =========================
+# MENSAGENS E ENVIO
+# =========================
 ABERTURAS = [
-    "🚨 Isso nao aparece todo dia!",
-    "👀 Olha o que encontrei…",
-    "🔥 Aproveita enquanto da!",
-    "🛑 Para e olha!",
-    "🤯 Dificil achar barato assim!",
-    "⚠️ Pode sumir a qualquer hora…",
-    "📉 Caiu de preco!",
-    "🚀 Ta bombando!"
+    "🚨 Isso nao aparece todo dia!", "👀 Olha o que encontrei…", "🔥 Aproveita enquanto da!",
+    "🛑 Para e olha!", "🤯 Dificil achar barato assim!", "⚠️ Pode sumir a qualquer hora…",
+    "📉 Caiu de preco!", "🚀 Ta bombando!"
 ]
 GATILHOS = [
-    "Bem abaixo do preco normal",
-    "Avaliacoes excelentes",
-    "Muita gente comprando",
-    "Custo-beneficio otimo",
-    "Quem compra recomenda",
-    "Produto confiavel",
-    "Saindo rapido"
+    "Bem abaixo do preco normal", "Avaliacoes excelentes", "Muita gente comprando",
+    "Custo-beneficio otimo", "Quem compra recomenda", "Produto confiavel", "Saindo rapido"
 ]
 CHAMADAS = [
-    "👇 Corre antes que acabe!",
-    "⚡ Clique antes de aumentar!",
-    "🚀 Estoque limitado!",
-    "💥 Oportunidade!",
-    "🎯 Compre antes dos outros!",
-    "⏰ Acaba hoje!",
-    "💰 Economia real!",
-    "🛒 Nao perca!"
+    "👇 Corre antes que acabe!", "⚡ Clique antes de aumentar!", "🚀 Estoque limitado!",
+    "💥 Oportunidade!", "🎯 Compre antes dos outros!", "⏰ Acaba hoje!",
+    "💰 Economia real!", "🛒 Nao perca!"
 ]
 
 def anexar_afiliado(link):
@@ -457,8 +513,10 @@ def anexar_afiliado(link):
         return urlunparse(u._replace(query=urlencode(p, doseq=True)))
     except:
         return link
+
 def link_whatsai(texto):
     return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>', '', texto))}"
+
 def mensagem_whatsai(nome, preco, vendas, nota, comissao, link):
     return (
         f"🔥 Produto: {nome}\n\n"
@@ -468,6 +526,7 @@ def mensagem_whatsai(nome, preco, vendas, nota, comissao, link):
         f"💼 Comissao: {comissao}%\n\n"
         f"🛒 Aproveite pelo link:\n{link}"
     )
+
 def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False):
     disponiveis_ab = [x for x in ABERTURAS if x not in ABERTURAS_USADAS]
     if not disponiveis_ab:
@@ -475,32 +534,29 @@ def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False):
         disponiveis_ab = ABERTURAS
     ab = random.choice(disponiveis_ab)
     ABERTURAS_USADAS.add(ab)
-
+    
     disponiveis_gt = [x for x in GATILHOS if x not in GATILHOS_USADAS]
     if not disponiveis_gt:
         GATILHOS_USADAS.clear()
         disponiveis_gt = GATILHOS
     gt = random.choice(disponiveis_gt)
     GATILHOS_USADAS.add(gt)
-
+    
     ch = random.choice(CHAMADAS)
     etiqueta = "🎁 OFERTA DESTAQUE DA SEMANA!" if free else ""
-
+    
     partes = []
     if etiqueta:
         partes.append(f"<b>{html.escape(etiqueta)}</b>")
     partes.extend([
-        f"{html.escape(ab)}",
-        "",
+        f"{html.escape(ab)}", "",
         f"🔥 <b>Produto:</b> {html.escape(nome)}",
         f"💰 <b>Preco:</b> R$ {preco}",
         f"📊 <b>Vendas:</b> {vendas}",
         f"⭐ <b>Avaliacao:</b> {nota}",
-        f"💼 <b>Comissao:</b> {comissao}%",
-        "",
+        f"💼 <b>Comissao:</b> {comissao}%", "",
         f"💡 {html.escape(gt)}",
-        f"👉 {html.escape(ch)}",
-        "",
+        f"👉 {html.escape(ch)}", "",
         f'<a href="{html.escape(link)}">🛒 COMPRAR AGORA</a>\n\n'
         f'<a href="{lk_whats}">📲 Compartilhar no WhatsApp</a>\n\n'
         f'<a href="{LINK_GRUPO_OFERTAS}">👥 Entrar no grupo de ofertas</a>'
@@ -528,32 +584,39 @@ async def enviar_msg(ctx, txt, img, cid):
             logging.error("❌ Falha total envio: %s", e2)
             return False
 
+# =========================
+# 🎁 CICLO PRINCIPAL — SORTEIO FREE CORRIGIDO!
+# =========================
 async def ciclo(ctx):
     try:
         logging.info("========== 🔄 INICIO ==========")
         if not horario_valido():
             logging.info("⏹️ Fora do horario")
             return
+        
         ABERTURAS_USADAS.clear()
         GATILHOS_USADAS.clear()
-
+        
         ofertas = obter_ofertas_shopee()
-
         if len(ofertas) < MIN_OFERTAS:
             logging.warning("⚠️ Apenas %s ofertas validas. Minimo de %s exigido. Ciclo pulado.", len(ofertas), MIN_OFERTAS)
             return
-
-        logging.info("✅ Total: %s | Enviando: %s/%s", len(ofertas), len(ofertas), MAX_OFERTAS)
-
+        
+        logging.info("✅ Total: %s | Enviando %s para VIP", len(ofertas), len(ofertas))
+        
+        # ✅ CORREÇÃO: TODAS as ofertas vão pro VIP! Nenhuma é removida!
+        ofertas_vip = ofertas.copy()  # ✅ 10 ofertas no VIP
+        
+        # ✅ SORTEIA 1 das 10 para o Free
         idx_free = random.randint(0, len(ofertas)-1)
-        oferta_free = ofertas.pop(idx_free)
-        ofertas_vip = ofertas
+        oferta_free = ofertas[idx_free]
         nicho_free, produto_free = oferta_free
         logging.info("🎁 Sorteado para FREE: %s | %s", produto_free.get("productName","")[:50], nicho_free)
-
+        
+        # ✅ Envia TODAS as 10 para VIP
         await ctx.bot.send_message(CHAT_ID_DESTINO, text="🚨 <b>OFERTAS NOVAS CHEGARAM!</b>", parse_mode="HTML")
         await asyncio.sleep(5)
-
+        
         enviados = []
         for nicho, p in ofertas_vip:
             try:
@@ -582,17 +645,18 @@ async def ciclo(ctx):
                 enviados.append({"txt": txt_tg, "img": img, "hid": hid, "nicho": nicho})
             except Exception as e:
                 logging.error("❌ Montagem: %s", e)
-
-        if len(enviados) < MIN_OFERTAS - OFERTA_FREE:
+        
+        if len(enviados) < MIN_OFERTAS:
             return
-
+        
         for item in enviados:
             logging.info("📤 Enviando VIP: %s", item["nicho"])
             ok = await enviar_msg(ctx, item["txt"], item["img"], CHAT_ID_DESTINO)
             if ok:
                 registrar_envio(item["hid"])
             await asyncio.sleep(40)
-
+        
+        # ✅ Envia a SORTEADA para o Free
         logging.info("🎁 Enviando oferta destaque para grupo FREE")
         try:
             titulo = str(produto_free.get("productName", "")).strip()
@@ -615,16 +679,13 @@ async def ciclo(ctx):
             lk_whats = link_whatsai(txt_whats)
             txt_tg = montar_tg(titulo, prc, vnd, nt, comissao, link, lk_whats, free=True)
             hid = hashlib.md5(f"{chave_titulo(titulo)}|{lb}".encode()).hexdigest()
-
             ok = await enviar_msg(ctx, txt_tg, img, CHAT_ID_FREE)
             if ok:
                 registrar_envio(hid)
                 logging.info("✅ Oferta FREE enviada!")
-            else:
-                logging.warning("⚠️ Falha ao enviar oferta FREE")
         except Exception as e:
             logging.error("❌ Erro envio FREE: %s", e, exc_info=True)
-
+        
         logging.info("========== ✅ CONCLUIDO ==========")
     except Exception as e:
         logging.error("❌ ERRO: %s", e, exc_info=True)
@@ -638,10 +699,12 @@ async def loop(app):
             await ciclo(type("Ctx", (), {"bot": app.bot})())
             ult = agora
         await asyncio.sleep(60)
+
 async def manter_vivo():
     while True:
         logging.info("💓 Ativo | %s", datetime.now(FUSO_BR).strftime("%d/%m as %H:%M"))
         await asyncio.sleep(300)
+
 async def principal():
     logging.info("🤖 Iniciando bot...")
     if not TELEGRAM_TOKEN or not SHOPEE_PASSWORD:
@@ -650,6 +713,7 @@ async def principal():
     logging.info("✅ Bot pronto!")
     asyncio.create_task(manter_vivo())
     await loop(app)
+
 def iniciar():
     try:
         asyncio.run(principal())
