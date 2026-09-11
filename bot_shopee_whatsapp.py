@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder
 
-print("VERSAO V42-BUSCA-INTELIGENTE")
+print("VERSAO V43-DADOS-VENDAS-AVALIACAO")
 
 # =========================
 # CONFIG
@@ -31,7 +31,7 @@ AVALIACAO_MIN = 3.5
 PRECO_MIN = 5
 PRECO_MAX = 10000
 COMISSAO_MIN = 3
-VERSAO_RODIZIO = 42
+VERSAO_RODIZIO = 43
 LIMITE_POR_FAMILIA = 1
 MAX_PAGINA_BUSCA = 4
 TIPOS_ORDEM = [1, 2, 3, 4, 5]
@@ -118,7 +118,7 @@ def normalizar(texto):
 
 def horario_valido():
     agora = datetime.now(FUSO_BR).time()
-    return dt_time(5, 30) <= agora <= dt_time(21, 45)
+    return dt_time(5, 30) <= agora <= dt_time(21, 30)
 
 def sem_acento(texto):
     mapa = str.maketrans("áàâãéèêíïóôõöúüçñ", "aaaaeeeiioooouucn")
@@ -129,21 +129,17 @@ def tem_palavra_proibida(texto):
     return any(p in nt for p in PALAVRAS_PROIBIDAS)
 
 def gerar_variacoes_busca(peca, modelo):
-    """Gera variações de busca para tentar encontrar mais resultados na API"""
     peca_n = sem_acento(peca.lower())
     modelo_n = sem_acento(modelo.lower())
-    
-    # Remove espaços entre letras e números do modelo → "XRE 300" → "XRE300"
     modelo_junto = re.sub(r'\s+(\d)', r'\1', modelo_n)
     
     variacoes = [
-        f"{peca_n} {modelo_n}",           # Original: "estator xre 300"
-        f"{peca_n} {modelo_junto}",       # Sem espaço: "estator xre300"
-        f"{modelo_n} {peca_n}",           # Invertida: "xre 300 estator"
-        f"{modelo_junto} {peca_n}",        # Invertida sem espaço: "xre300 estator"
+        f"{peca_n} {modelo_n}",
+        f"{peca_n} {modelo_junto}",
+        f"{modelo_n} {peca_n}",
+        f"{modelo_junto} {peca_n}",
     ]
     
-    # Adiciona termos comuns nos títulos da Shopee para peças específicas
     pecas_com_prefixo = {
         "estator": ["magneto", "completo", "bobina", "gerador"],
         "kit relacao": ["transmissao", "coroa e pinhao", "corrente"],
@@ -165,15 +161,12 @@ def gerar_variacoes_busca(peca, modelo):
                 ])
             break
     
-    # Remove duplicatas mantendo ordem
     vistas = set()
     unicas = []
     for v in variacoes:
         if v not in vistas:
             vistas.add(v)
             unicas.append(v)
-    
-    logging.info("🔍 Variações geradas para %s + %s: %s", peca, modelo, unicas[:3])
     return unicas
 
 GRUPO_SINONIMOS = {
@@ -270,17 +263,12 @@ def proxima_busca_moto(estado):
     
     logging.info("🏍️ Peca 1: [%s] | Modelo: %s", peca1, modelo1)
     logging.info("🏍️ Peca 2: [%s] | Modelo: %s", peca2, modelo2)
-    logging.info("🔄 Proximas pecas: [%s] e [%s]", 
-                 PECAS_MOTO[st["indice_peca"] % len(PECAS_MOTO)],
-                 PECAS_MOTO[(st["indice_peca"] + 1) % len(PECAS_MOTO)])
-    
     return peca1, modelo1, peca2, modelo2, estado
 
 # =========================
-# 🔍 BUSCA COM VARIAÇÕES INTELIGENTES — CORRIGIDO!
+# 🔍 BUSCA COM VARIAÇÕES
 # =========================
 def buscar_com_fallback(peca, modelo_inicial, estado, nicho="Moto"):
-    """Tenta VÁRIAS formas de busca antes de passar para o próximo modelo"""
     st = estado["Moto"]
     idx_inicial = MOTOS.index(modelo_inicial) if modelo_inicial in MOTOS else 0
     
@@ -288,12 +276,9 @@ def buscar_com_fallback(peca, modelo_inicial, estado, nicho="Moto"):
         idx_modelo = (idx_inicial + deslocamento_modelo) % len(MOTOS)
         modelo = MOTOS[idx_modelo]
         
-        # ✅ GERA TODAS AS VARIAÇÕES DE BUSCA
         variacoes = gerar_variacoes_busca(peca, modelo)
-        
         for termo_busca in variacoes:
             logging.info("🔍 Tentando: %s", termo_busca)
-            
             resultados, estado = selecionar(nicho, termo_busca, 1, estado, 
                                             moto=True, peca=peca, modelo_moto=modelo)
             if resultados:
@@ -355,16 +340,29 @@ def identificar_familia(titulo):
             return f
     return "outros"
 
+# ✅ CORRIGIDO: Tratar dados nulos/vazios da API
 def pontuar_produto(p, termo="", modelo_moto=""):
     try:
-        vendas = int(p.get("sales", 0) or 0)
-        nota = float(p.get("ratingStar", 0) or 0)
+        vendas_val = p.get("sales")
+        vendas = int(vendas_val) if vendas_val is not None and vendas_val != "" else None
+        
+        nota_val = p.get("ratingStar")
+        nota = float(nota_val) if nota_val is not None and nota_val != "" else None
+        
         comissao = float(p.get("commissionRate", 0) or 0) * 100
         preco_str = p.get("priceMin", "0") or "0"
         preco = float(preco_str) / 1000 if isinstance(preco_str, (int, float)) else float(preco_str or "0")
+        
         pt = normalizar(termo)
         tp = normalizar(p.get("productName", ""))
-        pont = min(vendas/5, 30) + nota*3 + comissao*2
+        
+        pont = 0
+        if vendas is not None:
+            pont += min(vendas/5, 30)
+        if nota is not None:
+            pont += nota * 3
+        pont += comissao * 2
+        
         if 50 <= preco <= 500:
             pont += 8
         if pt:
@@ -379,9 +377,11 @@ def pontuar_produto(p, termo="", modelo_moto=""):
     except:
         return 0
 
+# ✅ CORRIGIDO: Só rejeitar se valor for explicitamente BAIXO, NÃO se vier vazio
 def avaliar_rejeicao(p):
     titulo = str(p.get("productName", "")).strip()
     link = str(p.get("offerLink") or p.get("productLink", "")).strip()
+    
     try:
         preco_str = p.get("priceMin", "0") or "0"
         preco = float(preco_str) / 1000 if isinstance(preco_str, (int, float)) else float(preco_str or "0")
@@ -391,8 +391,13 @@ def avaliar_rejeicao(p):
         comissao = float(p.get("commissionRate", "0") or "0") * 100
     except:
         comissao = 0
-    vendas = int(p.get("sales", 0) or 0)
-    nota = float(p.get("ratingStar", 0) or 0)
+    
+    # ✅ Agora só rejeita se o valor FORNECIDO for baixo
+    vendas_val = p.get("sales")
+    vendas = int(vendas_val) if vendas_val is not None and vendas_val != "" else None
+    
+    nota_val = p.get("ratingStar")
+    nota = float(nota_val) if nota_val is not None and nota_val != "" else None
     
     if tem_palavra_proibida(titulo):
         return "PROIBIDO (mousepad)"
@@ -408,9 +413,10 @@ def avaliar_rejeicao(p):
         return "preco_alto"
     if comissao < COMISSAO_MIN:
         return "comissao_baixa"
-    if vendas > 0 and vendas < VENDAS_MIN:
+    # ✅ Só exclui se vier valor e for baixo. Se vier vazio → ACEITA!
+    if vendas is not None and vendas > 0 and vendas < VENDAS_MIN:
         return "poucas_vendas"
-    if nota > 0 and nota < AVALIACAO_MIN:
+    if nota is not None and nota > 0 and nota < AVALIACAO_MIN:
         return "nota_baixa"
     if link in LINKS_CICLO_ATUAL or link in ULTIMOS_LINKS:
         return "link_repetido"
@@ -442,7 +448,7 @@ def buscar_produtos(termo, nicho):
         return []
 
 def selecionar(nicho, termo, qtd, estado, moto=False, peca=None, modelo_moto=""):
-    tcompleto = termo  # Já vem pronto das variações
+    tcompleto = termo
     res = buscar_produtos(tcompleto, nicho)
     val = []
     motivos = Counter()
@@ -563,12 +569,15 @@ def anexar_afiliado(link):
 def link_whatsai(texto):
     return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>', '', texto))}"
 
+# ✅ CORRIGIDO: Exibir "Não informado" quando dados não vierem
 def mensagem_whatsai(nome, preco, vendas, nota, comissao, link):
+    vendas_texto = vendas if vendas != "-" else "Não informado"
+    nota_texto = nota if nota != "-" else "Não informado"
     return (
         f"🔥 Produto: {nome}\n\n"
         f"💰 Preco: R$ {preco}\n"
-        f"📊 Vendas: {vendas}\n"
-        f"⭐ Avaliacao: {nota}\n"
+        f"📊 Vendas: {vendas_texto}\n"
+        f"⭐ Avaliacao: {nota_texto}\n"
         f"💼 Comissao: {comissao}%\n\n"
         f"🛒 Aproveite pelo link:\n{link}"
     )
@@ -591,6 +600,9 @@ def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False):
     ch = random.choice(CHAMADAS)
     etiqueta = "🎁 OFERTA DESTAQUE DA SEMANA!" if free else ""
     
+    vendas_texto = f"📊 Vendas: {vendas}" if vendas != "-" else "📊 Vendas: Não informado"
+    nota_texto = f"⭐ Avaliacao: {nota}" if nota != "-" else "⭐ Avaliacao: Não informado"
+    
     partes = []
     if etiqueta:
         partes.append(f"<b>{html.escape(etiqueta)}</b>")
@@ -598,8 +610,8 @@ def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False):
         f"{html.escape(ab)}", "",
         f"🔥 <b>Produto:</b> {html.escape(nome)}",
         f"💰 <b>Preco:</b> R$ {preco}",
-        f"📊 <b>Vendas:</b> {vendas}",
-        f"⭐ <b>Avaliacao:</b> {nota}",
+        vendas_texto,
+        nota_texto,
         f"💼 <b>Comissao:</b> {comissao}%", "",
         f"💡 {html.escape(gt)}",
         f"👉 {html.escape(ch)}", "",
@@ -673,14 +685,22 @@ async def ciclo(ctx):
                     preco = float(preco_str) / 1000 if isinstance(preco_str, (int, float)) else float(preco_str or "0")
                 except:
                     preco = 0
-                vendas = int(p.get("sales", 0) or 0)
-                nota_raw = float(p.get("ratingStar", 0) or 0)
-                nota = nota_raw if nota_raw > 0 else 0.0
+                
+                # ✅ Tratar valores nulos da API
+                vendas_val = p.get("sales")
+                vendas = int(vendas_val) if vendas_val is not None and vendas_val != "" else None
+                
+                nota_val = p.get("ratingStar")
+                nota = float(nota_val) if nota_val is not None and nota_val != "" else None
+                
                 comissao = round(float(p.get("commissionRate", 0) or 0) * 100, 2)
                 img = str(p.get("imageUrl", "")).strip()
                 prc = f"{preco:.2f}".replace(".", ",")
-                vnd = f"{vendas:,}".replace(",", ".")
-                nt = f"{nota:.1f}".replace(".", ",")
+                
+                # ✅ Formatar para exibição
+                vnd = f"{vendas:,}".replace(",", ".") if vendas is not None else "-"
+                nt = f"{nota:.1f}".replace(".", ",") if nota is not None else "-"
+                
                 txt_whats = mensagem_whatsai(titulo, prc, vnd, nt, comissao, link)
                 lk_whats = link_whatsai(txt_whats)
                 txt_tg = montar_tg(titulo, prc, vnd, nt, comissao, link, lk_whats, free=False)
@@ -709,14 +729,19 @@ async def ciclo(ctx):
                 preco = float(preco_str) / 1000 if isinstance(preco_str, (int, float)) else float(preco_str or "0")
             except:
                 preco = 0
-            vendas = int(produto_free.get("sales", 0) or 0)
-            nota_raw = float(produto_free.get("ratingStar", 0) or 0)
-            nota = nota_raw if nota_raw > 0 else 0.0
+            
+            vendas_val = produto_free.get("sales")
+            vendas = int(vendas_val) if vendas_val is not None and vendas_val != "" else None
+            
+            nota_val = produto_free.get("ratingStar")
+            nota = float(nota_val) if nota_val is not None and nota_val != "" else None
+            
             comissao = round(float(produto_free.get("commissionRate", 0) or 0) * 100, 2)
             img = str(produto_free.get("imageUrl", "")).strip()
             prc = f"{preco:.2f}".replace(".", ",")
-            vnd = f"{vendas:,}".replace(",", ".")
-            nt = f"{nota:.1f}".replace(".", ",")
+            vnd = f"{vendas:,}".replace(",", ".") if vendas is not None else "-"
+            nt = f"{nota:.1f}".replace(".", ",") if nota is not None else "-"
+            
             txt_whats = mensagem_whatsai(titulo, prc, vnd, nt, comissao, link)
             lk_whats = link_whatsai(txt_whats)
             txt_tg = montar_tg(titulo, prc, vnd, nt, comissao, link, lk_whats, free=True)
