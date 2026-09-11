@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder
 
-print("VERSAO V41-ROTACAO-MOTO-CORRIGIDA")
+print("VERSAO V42-BUSCA-INTELIGENTE")
 
 # =========================
 # CONFIG
@@ -31,7 +31,7 @@ AVALIACAO_MIN = 3.5
 PRECO_MIN = 5
 PRECO_MAX = 10000
 COMISSAO_MIN = 3
-VERSAO_RODIZIO = 41
+VERSAO_RODIZIO = 42
 LIMITE_POR_FAMILIA = 1
 MAX_PAGINA_BUSCA = 4
 TIPOS_ORDEM = [1, 2, 3, 4, 5]
@@ -64,12 +64,12 @@ PECAS_MOTO = [
     "embreagem completa", "disco de embreagem", "cabo de embreagem", "mola de embreagem", "jogo de juntas", "bucha da balança", "chave de seta",
     "bateria de moto", "filtro de oleo", "filtro de ar", "vela de ignicao", "corrente comando", "guarnição tampa de valvulas", "motor de arranque",
     "retentor", "junta de motor", "pistao e aneis", "cabecote", "burrinho de freio traseiro", "valvula de escape", "chave ignição", "escova do arranque",
-    "lampada de farol", "seta pisca", "buzina", "regulador de voltagem", "estator", "tampa lateral", "valvula admissão", "cdi",
+    "lampada de farol", "seta pisca", "buzina", "tampa lateral", "valvula admissão", "cdi",
     "pneu dianteiro", "pneu traseiro", "par pneu", "aro de roda", "camara de ar", "caixa direção", "caixa de marcha", "tencionador corrente comando",
     "cabo de acelerador", "manete de freio", "manete de embreagem", "pedal de freio", "pedal de marcha", "capa de banco", "guia de valvulas",
     "paralama dianteiro", "paralama traseiro", "bolha de farol", "protetor de motor", "sliders de protecao", "desmultiplicador",
     "punhos de guiador", "espelho retrovisor", "banco assento", "suporte de placa", "pegamao traseiro", "kit rolamentos",
-    "amortecedor dianteiro", "amortecedor traseiro", "retentor de bengala", "mola de suspensao", "vela iridium"
+    "amortecedor dianteiro", "amortecedor traseiro", "retentor de bengala", "mola de suspensao"
 ]
 
 MOTOS = [
@@ -128,9 +128,53 @@ def tem_palavra_proibida(texto):
     nt = normalizar(texto)
     return any(p in nt for p in PALAVRAS_PROIBIDAS)
 
-def variar_termo(termo):
-    base = sem_acento(termo.strip())
-    return base
+def gerar_variacoes_busca(peca, modelo):
+    """Gera variações de busca para tentar encontrar mais resultados na API"""
+    peca_n = sem_acento(peca.lower())
+    modelo_n = sem_acento(modelo.lower())
+    
+    # Remove espaços entre letras e números do modelo → "XRE 300" → "XRE300"
+    modelo_junto = re.sub(r'\s+(\d)', r'\1', modelo_n)
+    
+    variacoes = [
+        f"{peca_n} {modelo_n}",           # Original: "estator xre 300"
+        f"{peca_n} {modelo_junto}",       # Sem espaço: "estator xre300"
+        f"{modelo_n} {peca_n}",           # Invertida: "xre 300 estator"
+        f"{modelo_junto} {peca_n}",        # Invertida sem espaço: "xre300 estator"
+    ]
+    
+    # Adiciona termos comuns nos títulos da Shopee para peças específicas
+    pecas_com_prefixo = {
+        "estator": ["magneto", "completo", "bobina", "gerador"],
+        "kit relacao": ["transmissao", "coroa e pinhao", "corrente"],
+        "pneu": ["dianteiro", "traseiro", "par"],
+        "pastilha": ["freio", "dianteira", "traseira"],
+        "disco": ["freio", "dianteiro", "traseiro"],
+        "embreagem": ["completa", "disco", "kit"],
+        "filtro": ["oleo", "ar"],
+        "vela": ["ignicao", "iridium"],
+        "bateria": ["moto", "selada"],
+    }
+    
+    for palavra_chave, extras in pecas_com_prefixo.items():
+        if palavra_chave in peca_n:
+            for extra in extras:
+                variacoes.extend([
+                    f"{extra} {peca_n} {modelo_n}",
+                    f"{peca_n} {extra} {modelo_n}",
+                ])
+            break
+    
+    # Remove duplicatas mantendo ordem
+    vistas = set()
+    unicas = []
+    for v in variacoes:
+        if v not in vistas:
+            vistas.add(v)
+            unicas.append(v)
+    
+    logging.info("🔍 Variações geradas para %s + %s: %s", peca, modelo, unicas[:3])
+    return unicas
 
 GRUPO_SINONIMOS = {
     "smartwatch": {"smartwatch", "relogio inteligente"},
@@ -170,7 +214,7 @@ def carregar_json(caminho, padrao):
         return padrao
 
 # =========================
-# 🛵 GERENCIAMENTO DE ESTADO — ROTAÇÃO INTELIGENTE
+# 🛵 GERENCIAMENTO DE ESTADO
 # =========================
 def carregar_estado():
     estado = carregar_json(ARQUIVO_ESTADO, {})
@@ -182,7 +226,7 @@ def carregar_estado():
             "Moto": {
                 "data": hoje,
                 "indice_peca": 0,
-                "modelo_por_peca": {}  # {"kit relacao": indice_modelo, ...}
+                "modelo_por_peca": {}
             }
         }
         for p in PECAS_MOTO:
@@ -202,14 +246,12 @@ def salvar_historico(dados):
     salvar_json(ARQUIVO_HISTORICO, dados)
 
 # =========================
-# 🛵 ROTAÇÃO DE MOTO — CORRIGIDA!
+# 🛵 ROTAÇÃO DE MOTO
 # =========================
 def obter_proximo_modelo(estado, peca, deslocamento=0):
-    """Retorna próximo modelo NÃO repetido para aquela peça"""
     st = estado["Moto"]
     idx_atual = st["modelo_por_peca"].get(peca, 0)
     idx = (idx_atual + deslocamento) % len(MOTOS)
-    # Avança o contador para a próxima vez
     if deslocamento == 0:
         st["modelo_por_peca"][peca] = (idx_atual + 1) % len(MOTOS)
     return MOTOS[idx], idx
@@ -218,15 +260,12 @@ def proxima_busca_moto(estado):
     st = estado["Moto"]
     idx_peca = st["indice_peca"]
     
-    # ✅ PEÇA 1 e PEÇA 2 DIFERENTES no mesmo ciclo
     peca1 = PECAS_MOTO[idx_peca % len(PECAS_MOTO)]
     peca2 = PECAS_MOTO[(idx_peca + 1) % len(PECAS_MOTO)]
     
-    # ✅ MODELOS DIFERENTES para cada peça
     modelo1, _ = obter_proximo_modelo(estado, peca1, deslocamento=0)
     modelo2, _ = obter_proximo_modelo(estado, peca2, deslocamento=len(MOTOS)//2)
     
-    # ✅ Avança 2 peças para o PRÓXIMO ciclo → NÃO repete peça na sequência
     st["indice_peca"] = (idx_peca + 2) % len(PECAS_MOTO)
     
     logging.info("🏍️ Peca 1: [%s] | Modelo: %s", peca1, modelo1)
@@ -237,24 +276,33 @@ def proxima_busca_moto(estado):
     
     return peca1, modelo1, peca2, modelo2, estado
 
+# =========================
+# 🔍 BUSCA COM VARIAÇÕES INTELIGENTES — CORRIGIDO!
+# =========================
 def buscar_com_fallback(peca, modelo_inicial, estado, nicho="Moto"):
-    """Tenta buscar; se não achar, passa para o PRÓXIMO modelo automaticamente"""
+    """Tenta VÁRIAS formas de busca antes de passar para o próximo modelo"""
     st = estado["Moto"]
     idx_inicial = MOTOS.index(modelo_inicial) if modelo_inicial in MOTOS else 0
     
-    for tentativa in range(len(MOTOS)):
-        idx_modelo = (idx_inicial + tentativa) % len(MOTOS)
+    for deslocamento_modelo in range(len(MOTOS)):
+        idx_modelo = (idx_inicial + deslocamento_modelo) % len(MOTOS)
         modelo = MOTOS[idx_modelo]
-        termo_busca = f"{peca} {modelo}"
-        logging.info("🔍 Tentando: %s", termo_busca)
         
-        resultados, estado = selecionar(nicho, termo_busca, 1, estado, 
-                                        moto=True, peca=peca, modelo_moto=modelo)
-        if resultados:
-            logging.info("✅ Encontrado com %s!", modelo)
-            return resultados, estado
+        # ✅ GERA TODAS AS VARIAÇÕES DE BUSCA
+        variacoes = gerar_variacoes_busca(peca, modelo)
+        
+        for termo_busca in variacoes:
+            logging.info("🔍 Tentando: %s", termo_busca)
+            
+            resultados, estado = selecionar(nicho, termo_busca, 1, estado, 
+                                            moto=True, peca=peca, modelo_moto=modelo)
+            if resultados:
+                logging.info("✅ ENCONTRADO com: %s", termo_busca)
+                return resultados, estado
+        
+        logging.info("⚠️ Nenhuma variacao funcionou com %s → tentando proximo modelo...", modelo)
     
-    logging.warning("⚠️ Nenhum resultado para %s em TODOS os modelos!", peca)
+    logging.warning("❌ Nenhum resultado para %s em TODOS os modelos e variacoes!", peca)
     return [], estado
 
 # =========================
@@ -322,8 +370,9 @@ def pontuar_produto(p, termo="", modelo_moto=""):
         if pt:
             pont += 10 if pt in tp else sum(2 for x in pt.split() if x in tp)
         if modelo_moto:
-            nm = sem_acento(modelo_moto).lower()
-            if nm in tp:
+            nm = sem_acento(modelo_moto).lower().replace(" ", "")
+            nm_espaco = sem_acento(modelo_moto).lower()
+            if nm in tp or nm_espaco in tp:
                 pont += 25
                 logging.info("✨ PERFEITO: %s + %s → %s", termo, modelo_moto, p.get("productName","")[:50])
         return max(0, pont)
@@ -393,7 +442,7 @@ def buscar_produtos(termo, nicho):
         return []
 
 def selecionar(nicho, termo, qtd, estado, moto=False, peca=None, modelo_moto=""):
-    tcompleto = sem_acento(f"{peca} {modelo_moto}" if moto else termo)
+    tcompleto = termo  # Já vem pronto das variações
     res = buscar_produtos(tcompleto, nicho)
     val = []
     motivos = Counter()
@@ -438,7 +487,7 @@ def selecionar(nicho, termo, qtd, estado, moto=False, peca=None, modelo_moto="")
     return esc, estado
 
 # =========================
-# 🛵 OFERTAS GARANTIDAS — CORRIGIDO
+# 🛵 OFERTAS GARANTIDAS
 # =========================
 def obter_ofertas_garantidas(estado):
     global LINKS_CICLO_ATUAL, TERMOS_USADOS_CICLO
@@ -450,17 +499,14 @@ def obter_ofertas_garantidas(estado):
     logging.info("🏍️ Iniciando busca de ofertas de moto...")
     peca1, modelo1, peca2, modelo2, estado = proxima_busca_moto(estado)
     
-    # ✅ Busca PEÇA 1 com fallback de modelo
     its1, estado = buscar_com_fallback(peca1, modelo1, estado)
     sel.extend([("Moto", x) for x in its1])
     logging.info("🏍️ Moto 1 (%s): %s selecionados", peca1, len(its1))
     
-    # ✅ Busca PEÇA 2 com fallback de modelo
     its2, estado = buscar_com_fallback(peca2, modelo2, estado)
     sel.extend([("Moto", x) for x in its2])
     logging.info("🏍️ Moto 2 (%s): %s selecionados", peca2, len(its2))
     
-    # ✅ Completa com outros nichos se precisar
     tentativas = 0
     max_tentativas = 50
     while len(sel) < MIN_OFERTAS and tentativas < max_tentativas:
@@ -585,7 +631,7 @@ async def enviar_msg(ctx, txt, img, cid):
             return False
 
 # =========================
-# 🎁 CICLO PRINCIPAL — SORTEIO FREE CORRIGIDO!
+# 🎁 CICLO PRINCIPAL
 # =========================
 async def ciclo(ctx):
     try:
@@ -604,16 +650,13 @@ async def ciclo(ctx):
         
         logging.info("✅ Total: %s | Enviando %s para VIP", len(ofertas), len(ofertas))
         
-        # ✅ CORREÇÃO: TODAS as ofertas vão pro VIP! Nenhuma é removida!
-        ofertas_vip = ofertas.copy()  # ✅ 10 ofertas no VIP
+        ofertas_vip = ofertas.copy()
         
-        # ✅ SORTEIA 1 das 10 para o Free
         idx_free = random.randint(0, len(ofertas)-1)
         oferta_free = ofertas[idx_free]
         nicho_free, produto_free = oferta_free
         logging.info("🎁 Sorteado para FREE: %s | %s", produto_free.get("productName","")[:50], nicho_free)
         
-        # ✅ Envia TODAS as 10 para VIP
         await ctx.bot.send_message(CHAT_ID_DESTINO, text="🚨 <b>OFERTAS NOVAS CHEGARAM!</b>", parse_mode="HTML")
         await asyncio.sleep(5)
         
@@ -656,7 +699,6 @@ async def ciclo(ctx):
                 registrar_envio(item["hid"])
             await asyncio.sleep(40)
         
-        # ✅ Envia a SORTEADA para o Free
         logging.info("🎁 Enviando oferta destaque para grupo FREE")
         try:
             titulo = str(produto_free.get("productName", "")).strip()
