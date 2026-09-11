@@ -118,7 +118,7 @@ def normalizar(texto):
 
 def horario_valido():
     agora = datetime.now(FUSO_BR).time()
-    return dt_time(5, 30) <= agora <= dt_time(21, 30)
+    return dt_time(5, 30) <= agora <= dt_time(21, 45)
 
 def sem_acento(texto):
     mapa = str.maketrans("áàâãéèêíïóôõöúüçñ", "aaaaeeeiioooouucn")
