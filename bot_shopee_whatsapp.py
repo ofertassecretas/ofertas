@@ -89,11 +89,72 @@ MOTOS = [
 ]
 
 PRODUTOS_POR_NICHO = {
-    "Casa": ["fritadeira sem oleo", "aspirador", "liquidificador", "cafeteira", "panela eletrica", "ventilador", "batedeira", "lampada led"],
-    "Bebe": ["carrinho bebe", "berco", "brinquedo bebe", "roupa bebe", "cadeirinha bebe"],
-    "Eletronicos": ["smartwatch", "fone ouvido bluetooth", "caixa som bluetooth", "carregador", "cabo usb", "pendrive", "mouse", "teclado"],
-    "Moda Feminina": ["vestido", "blusa", "calca", "saia", "tenis feminino", "bolsa", "oculos sol"],
-    "Moda Masculina": ["camiseta", "bermuda", "calca jeans", "tenis masculino", "bone", "cinto"]
+    # ========== CASA — AGORA COMPLETO! ==========
+    "Casa": [
+        # Eletrodomésticos Grandes
+        "geladeira", "refrigerador", "geladeira frost free",
+        "fogão", "fogão 4 bocas", "fogão de embutir",
+        "máquina de lavar", "lava e seca", "secadora de roupas",
+        "forno elétrico", "forno de embutir", "micro-ondas",
+        "lava louça", "lava louças",
+        
+        # Móveis - Quarto
+        "cama de casal", "cama de solteiro", "cama box",
+        "guarda-roupa", "guarda roupa", "guarda roupas",
+        "cômoda", "criado mudo", "painel quarto",
+        
+        # Móveis - Sala
+        "sofá", "sofa retrátil", "mesa de centro",
+        "mesa de jantar", "conjunto sala", "rack",
+        "estante", "painel para tv", "poltrona",
+        
+        # Móveis - Cozinha
+        "pia de cozinha", "balcão de cozinha",
+        "armário de cozinha", "armário aéreo",
+        "armário de pia", "gabiente cozinha",
+        
+        # Eletrodomésticos Pequenos (mantidos + ampliados)
+        "fritadeira sem oleo", "air fryer", "aspirador de pó",
+        "liquidificador", "cafeteira", "panela eletrica",
+        "ventilador", "batedeira", "panela de pressão",
+        "torradeira", "ferro de passar", "lava e seca",
+        "exaustor cozinha", "filtro de água"
+    ],
+    
+    # ========== ELETRÔNICOS — AGORA COMPLETO! ==========
+    "Eletronicos": [
+        # Celulares
+        "celular", "smartphone", "aparelho celular",
+        "iphone", "samsung", "xiaomi", "motorola",
+        
+        # TV e Áudio
+        "tv", "televisão", "smart tv", "tv 4k", "tv led",
+        "caixa de som", "soundbar", "home theater",
+        "aparelho de som", "receptor tv", "antena digital",
+        
+        # Informática
+        "notebook", "computador", "pc gamer", "desktop",
+        "monitor", "impressora", "tablet", "ipad",
+        "teclado", "mouse", "webcam", "headset",
+        
+        # Outros Eletrônicos
+        "smartwatch", "relogio inteligente",
+        "fone ouvido bluetooth", "carregador",
+        "cabo usb", "pendrive", "hd externo",
+        "câmera de segurança", "drone", "roteador"
+    ],
+    
+    # ========== BEBÊ — MANTIDO + AMPLIADO ==========
+    "Bebe": [
+        "carrinho bebe", "berço", "berço montessoriano",
+        "brinquedo bebe", "roupa bebe", "cadeirinha bebe",
+        "cadeira de alimentação", "bebê conforto", "moisés",
+        "trocador bebe", "banheira bebe", "andador bebe"
+    ],
+    
+    # ========== MODA — MANTIDO ==========
+    "Moda Feminina": ["vestido", "blusa", "calça", "saia", "tenis feminino", "bolsa", "oculos sol"],
+    "Moda Masculina": ["camiseta", "bermuda", "calça jeans", "tenis masculino", "bone", "cinto"]
 }
 
 FAMILIAS_PRODUTOS = {
@@ -172,12 +233,18 @@ def gerar_variacoes_busca(peca, modelo):
 GRUPO_SINONIMOS = {
     "smartwatch": {"smartwatch", "relogio inteligente"},
     "airfryer": {"air fryer", "fritadeira sem oleo", "fritadeira eletrica"},
-    "fone": {"fone bluetooth", "fone ouvido", "fone sem fio"},
-    "caixa_som": {"caixa de som", "alto falante"},
-    "tv": {"smart tv", "televisao", "tv led"},
+    "fone": {"fone bluetooth", "fone ouvido", "fone sem fio", "fones"},
+    "caixa_som": {"caixa de som", "alto falante", "caixa som"},
+    "tv": {"smart tv", "televisao", "tv led", "tv 4k", "tv"},
     "notebook": {"notebook", "laptop"},
-    "tablet": {"tablet"},
-    "celular": {"celular", "smartphone"}
+    "tablet": {"tablet", "ipad"},
+    "celular": {"celular", "smartphone", "aparelho celular"},
+    "geladeira": {"geladeira", "refrigerador", "geladeira frost free"},
+    "fogao": {"fogão", "fogao", "fogão de embutir"},
+    "cama": {"cama", "cama box", "cama casal", "cama solteiro"},
+    "guarda_roupa": {"guarda-roupa", "guarda roupa", "guarda roupas"},
+    "mesa": {"mesa", "mesa de jantar", "mesa de centro"},
+    "computador": {"computador", "pc", "desktop", "pc gamer"}
 }
 
 MAPA_SINONIMOS = {normalizar(t): g for g, ts in GRUPO_SINONIMOS.items() for t in ts}
@@ -574,11 +641,10 @@ def mensagem_whatsai(nome, preco, vendas, nota, comissao, link):
     vendas_texto = vendas if vendas != "-" else "Não informado"
     nota_texto = nota if nota != "-" else "Não informado"
     return (
-        f"🔥 Produto: {nome}\n\n"
-        f"💰 Preco: R$ {preco}\n"
-        f"📊 Vendas: {vendas_texto}\n"
-        f"⭐ Avaliacao: {nota_texto}\n"
-        f"💼 Comissao: {comissao}%\n\n"
+        f"🔥 Produto: *{nome}*\n\n"
+        f"💰 Preço: *R$ {preco}*\n"
+        f"📊 Vendas: *{vendas_texto}*\n"
+        f"⭐ Avaliação: *{nota_texto}*\n\n"
         f"🛒 Aproveite pelo link:\n{link}"
     )
 
