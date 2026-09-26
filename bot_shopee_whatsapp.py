@@ -178,8 +178,17 @@ def normalizar(texto):
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", str(texto or "").lower().strip()))
 
 def horario_valido():
-    agora = datetime.now(FUSO_BR).time()
-    return dt_time(5, 30) <= agora <= dt_time(21, 30)
+    # Pega o horário REAL de Brasília, direto do fuso
+    agora = datetime.now(FUSO_BR)
+    hora = agora.hour
+    minuto = agora.minute
+    
+    # Converte tudo para minutos para comparar mais certo
+    total = hora * 60 + minuto
+    inicio = 5 * 60 + 30   # 05:30
+    fim = 21 * 60 + 30     # 21:30
+    
+    return inicio <= total <= fim
 
 def sem_acento(texto):
     mapa = str.maketrans("áàâãéèêíïóôõöúüçñ", "aaaaeeeiioooouucn")
