@@ -717,6 +717,85 @@ async def enviar_msg(ctx, txt, img, cid):
             logging.error("❌ Falha total envio: %s", e2)
             return False
 
+
+# =========================
+# 🔗 WEBHOOK CAKTO — TESTE
+# =========================
+CAKTO_WEBHOOK_SECRET = os.getenv("CAKTO_WEBHOOK_SECRET", "").strip()
+WEBHOOK_PORT = int(os.getenv("PORT", "8080"))
+
+async def webhook_cakto(reader, writer):
+    try:
+        request = await asyncio.wait_for(reader.read(1024 * 1024), timeout=10)
+        texto = request.decode("utf-8", errors="replace")
+        cabecalho, _, corpo = texto.partition("\r\n\r\n")
+        if not corpo:
+            cabecalho, _, corpo = texto.partition("\n\n")
+
+        linha = cabecalho.splitlines()[0] if cabecalho else ""
+        metodo = linha.split(" ")[0] if linha else ""
+
+        if metodo != "POST":
+            resposta = "HTTP/1.1 405 Method Not Allowed\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{\"ok\":false,\"error\":\"method_not_allowed\"}"
+            writer.write(resposta.encode())
+            await writer.drain()
+            return
+
+        try:
+            dados = json.loads(corpo)
+        except Exception:
+            logging.warning("⚠️ Webhook Cakto recebeu JSON invalido")
+            resposta = "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{\"ok\":false,\"error\":\"invalid_json\"}"
+            writer.write(resposta.encode())
+            await writer.drain()
+            return
+
+        # Nunca gravamos CPF, cartao ou outros dados sensiveis no log.
+        evento = dados.get("event")
+        itens = dados.get("data") or []
+        if isinstance(itens, dict):
+            itens = [itens]
+
+        logging.info("📩 Cakto recebido | evento=%s | itens=%s", evento, len(itens))
+        for item in itens:
+            cliente = item.get("customer") or {}
+            produto = item.get("product") or {}
+            oferta = item.get("offer") or {}
+            logging.info(
+                "🧾 Cakto teste | email=%s | produto=%s | oferta=%s | status=%s | valor=%s",
+                cliente.get("email", ""),
+                produto.get("name", ""),
+                oferta.get("name", ""),
+                item.get("status", ""),
+                item.get("amount", "")
+            )
+
+        resposta_body = json.dumps({"ok": True, "received": True}, ensure_ascii=False)
+        resposta = (
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: application/json; charset=utf-8\r\n"
+            "Connection: close\r\n"
+            f"Content-Length: {len(resposta_body.encode('utf-8'))}\r\n\r\n"
+            f"{resposta_body}"
+        )
+        writer.write(resposta.encode("utf-8"))
+        await writer.drain()
+    except Exception as e:
+        logging.error("❌ Erro webhook Cakto: %s", e, exc_info=True)
+    finally:
+        try:
+            writer.close()
+            await writer.wait_closed()
+        except Exception:
+            pass
+
+async def iniciar_webhook():
+    servidor = await asyncio.start_server(webhook_cakto, "0.0.0.0", WEBHOOK_PORT)
+    enderecos = ", ".join(str(s.getsockname()) for s in (servidor.sockets or []))
+    logging.info("🌐 Webhook Cakto ativo na porta %s | %s", WEBHOOK_PORT, enderecos)
+    async with servidor:
+        await servidor.serve_forever()
+
 # =========================
 # 🎁 CICLO PRINCIPAL
 # =========================
@@ -854,6 +933,7 @@ async def principal():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     logging.info("✅ Bot pronto!")
     asyncio.create_task(manter_vivo())
+    asyncio.create_task(iniciar_webhook())
     await loop(app)
 
 def iniciar():
