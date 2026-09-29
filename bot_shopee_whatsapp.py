@@ -4,7 +4,7 @@ from difflib import SequenceMatcher
 from datetime import datetime, time as dt_time, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
 print("VERSAO V43-DADOS-VENDAS-AVALIACAO")
 
@@ -49,9 +49,10 @@ PALAVRAS_PROIBIDAS = [
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # =========================
-# 🤖 ONBOARDING TELEGRAM
+# 🤖 ONBOARDING / CLIENTES
 # =========================
 CLIENTES_TELEGRAM = "clientes_telegram.json"
+CLIENTES_CAKTO = "clientes_cakto.json"
 
 def carregar_clientes_telegram():
     return carregar_json(CLIENTES_TELEGRAM, {})
@@ -59,28 +60,140 @@ def carregar_clientes_telegram():
 def salvar_clientes_telegram(dados):
     salvar_json(CLIENTES_TELEGRAM, dados)
 
+def carregar_clientes_cakto():
+    return carregar_json(CLIENTES_CAKTO, {})
+
+def salvar_clientes_cakto(dados):
+    salvar_json(CLIENTES_CAKTO, dados)
+
+def email_normalizado(email):
+    return (email or "").strip().lower()
+
+def classificar_plano(oferta):
+    texto = (oferta or "").lower()
+    if "seman" in texto:
+        return "semanal"
+    if "anual" in texto:
+        return "anual"
+    if "mensal" in texto:
+        return "mensal"
+    return "desconhecido"
+
+def status_ativo_cakto(evento, status):
+    texto = f"{evento or ''} {status or ''}".lower()
+    if any(x in texto for x in ["cancel", "refund", "reembolso", "chargeback", "cancelad"]):
+        return False
+    if any(x in texto for x in ["approved", "aprovad", "paid", "pago", "active", "ativo", "renew", "renov"]):
+        return True
+    return None
+
+def encontrar_cliente_por_telegram(telegram_id):
+    clientes = carregar_clientes_telegram()
+    return clientes.get(str(telegram_id), {})
+
+def encontrar_cakto_por_email(email):
+    return carregar_clientes_cakto().get(email_normalizado(email))
+
 async def comando_start(update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_user or not update.message:
         return
     user = update.effective_user
     clientes = carregar_clientes_telegram()
-    clientes[str(user.id)] = {
+    chave = str(user.id)
+    cliente = clientes.get(chave, {})
+    cliente.update({
         "telegram_id": user.id,
         "username": user.username or "",
         "nome": user.full_name or "",
         "ultimo_start": datetime.now(FUSO_BR).isoformat()
-    }
+    })
+    clientes[chave] = cliente
     salvar_clientes_telegram(clientes)
     nome = html.escape(user.first_name or "cliente")
-    await update.message.reply_text(
-        f"👋 Olá, <b>{nome}</b>!\n\n"
-        "Você chegou ao <b>Radar de Promoções VIP</b>. 🛒\n\n"
-        "Seu Telegram foi identificado com sucesso.\n\n"
-        "⚙️ Em breve vamos concluir sua configuração. "
-        "Por enquanto, você não precisa informar seu ID do Telegram.",
-        parse_mode="HTML"
-    )
+
+    if cliente.get("email_cakto") and cliente.get("ativo"):
+        texto = (
+            f"👋 Olá, <b>{nome}</b>!\n\n"
+            "✅ Seu Telegram já está vinculado ao Radar.\n\n"
+            "Agora podemos continuar a configuração do seu grupo."
+        )
+    else:
+        texto = (
+            f"👋 Olá, <b>{nome}</b>!\n\n"
+            "Você chegou ao <b>Radar de Promoções VIP</b>. 🛒\n\n"
+            "✅ Seu Telegram foi identificado com sucesso.\n\n"
+            "📧 Para localizar sua compra no Cakto, envie agora o "
+            "<b>e-mail usado na compra</b>."
+        )
+    await update.message.reply_text(texto, parse_mode="HTML")
     logging.info("🤖 /start recebido | telegram_id=%s | nome=%s", user.id, user.full_name)
+
+async def receber_dados_onboarding(update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user or not update.message:
+        return
+    if getattr(update.effective_chat, "type", "") != "private":
+        return
+
+    texto = (update.message.text or "").strip()
+    if not texto or texto.startswith("/"):
+        return
+
+    user_id = update.effective_user.id
+    clientes = carregar_clientes_telegram()
+    cliente = clientes.get(str(user_id), {})
+    email = email_normalizado(texto)
+
+    # Primeiro passo: vincular Telegram à compra Cakto pelo e-mail.
+    if not cliente.get("email_cakto"):
+        if "@" not in email or "." not in email.split("@")[-1]:
+            await update.message.reply_text("📧 Envie somente o e-mail usado na compra do Radar no Cakto.")
+            return
+
+        compra = encontrar_cakto_por_email(email)
+        if not compra:
+            await update.message.reply_text(
+                "❌ Não encontrei uma compra do Radar para esse e-mail.\n\n"
+                "Confira se é exatamente o mesmo e-mail usado no Cakto."
+            )
+            logging.warning("⚠️ E-mail sem compra Cakto | telegram_id=%s | email=%s", user_id, email)
+            return
+
+        if not compra.get("ativo"):
+            await update.message.reply_text("⚠️ Encontrei seu cadastro, mas a assinatura não está ativa no momento.")
+            return
+
+        cliente["email_cakto"] = email
+        cliente["plano"] = compra.get("plano", "desconhecido")
+        cliente["ativo"] = True
+        cliente["cakto_atualizado"] = compra.get("atualizado_em", "")
+        clientes[str(user_id)] = cliente
+        salvar_clientes_telegram(clientes)
+
+        await update.message.reply_text(
+            "🎉 <b>Compra localizada!</b>\n\n"
+            f"Plano: <b>{html.escape(cliente['plano'])}</b>\n"
+            "Telegram vinculado com sucesso.\n\n"
+            "Agora me envie seu <b>ID de afiliado Shopee</b>.",
+            parse_mode="HTML"
+        )
+        logging.info("🔗 Cliente vinculado | telegram_id=%s | plano=%s", user_id, cliente["plano"])
+        return
+
+    # Segundo passo: guardar o ID de afiliado Shopee.
+    if not cliente.get("afiliado_id"):
+        if not texto.isdigit() or not 6 <= len(texto) <= 20:
+            await update.message.reply_text("🛒 Envie somente o seu ID numérico de afiliado Shopee.")
+            return
+        cliente["afiliado_id"] = texto
+        cliente["atualizado_em"] = datetime.now(FUSO_BR).isoformat()
+        clientes[str(user_id)] = cliente
+        salvar_clientes_telegram(clientes)
+        await update.message.reply_text(
+            "✅ <b>ID de afiliado salvo!</b>\n\n"
+            "Agora o próximo passo será configurar o seu grupo do Telegram com <b>/configurar</b>.",
+            parse_mode="HTML"
+        )
+        logging.info("🛒 Afiliado salvo | telegram_id=%s | afiliado_id=%s", user_id, texto)
 
 
 ULTIMOS_LINKS = []
@@ -792,18 +905,44 @@ async def webhook_cakto(reader, writer):
             itens = [itens]
 
         logging.info("📩 Cakto recebido | evento=%s | itens=%s", evento, len(itens))
+        clientes_cakto = carregar_clientes_cakto()
         for item in itens:
             cliente = item.get("customer") or {}
             produto = item.get("product") or {}
             oferta = item.get("offer") or {}
+            email = email_normalizado(cliente.get("email", ""))
+            oferta_nome = oferta.get("name", "")
+            status = item.get("status", "")
+            ativo = status_ativo_cakto(evento, status)
+            if email and item.get("offer_type", "main") == "main":
+                registro = clientes_cakto.get(email, {})
+                registro.update({
+                    "email": email,
+                    "nome": cliente.get("name", ""),
+                    "telefone": cliente.get("phone", ""),
+                    "produto": produto.get("name", ""),
+                    "produto_id": produto.get("id", ""),
+                    "oferta": oferta_nome,
+                    "oferta_id": oferta.get("id", ""),
+                    "plano": classificar_plano(oferta_nome),
+                    "status": status,
+                    "evento": evento,
+                    "offer_type": item.get("offer_type", "main"),
+                    "subscription": item.get("subscription"),
+                    "subscription_period": item.get("subscription_period", ""),
+                    "atualizado_em": datetime.now(FUSO_BR).isoformat()
+                })
+                if ativo is not None:
+                    registro["ativo"] = ativo
+                else:
+                    registro["ativo"] = registro.get("ativo", False)
+                clientes_cakto[email] = registro
+
             logging.info(
-                "🧾 Cakto teste | email=%s | produto=%s | oferta=%s | status=%s | valor=%s",
-                cliente.get("email", ""),
-                produto.get("name", ""),
-                oferta.get("name", ""),
-                item.get("status", ""),
-                item.get("amount", "")
+                "🧾 Cakto | email=%s | produto=%s | oferta=%s | status=%s | ativo=%s",
+                email, produto.get("name", ""), oferta_nome, status, ativo
             )
+        salvar_clientes_cakto(clientes_cakto)
 
         resposta_body = json.dumps({"ok": True, "received": True}, ensure_ascii=False)
         resposta = (
@@ -967,6 +1106,7 @@ async def principal():
         raise RuntimeError("Configure TELEGRAM_TOKEN e SHOPEE_PASSWORD")
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", comando_start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, receber_dados_onboarding))
     await app.initialize()
     await app.start()
     await app.updater.start_polling()
