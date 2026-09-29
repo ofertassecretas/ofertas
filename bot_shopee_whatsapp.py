@@ -4,7 +4,7 @@ from difflib import SequenceMatcher
 from datetime import datetime, time as dt_time, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
-from telegram.ext import ApplicationBuilder
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 print("VERSAO V43-DADOS-VENDAS-AVALIACAO")
 
@@ -47,6 +47,41 @@ PALAVRAS_PROIBIDAS = [
 ]
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# =========================
+# 🤖 ONBOARDING TELEGRAM
+# =========================
+CLIENTES_TELEGRAM = "clientes_telegram.json"
+
+def carregar_clientes_telegram():
+    return carregar_json(CLIENTES_TELEGRAM, {})
+
+def salvar_clientes_telegram(dados):
+    salvar_json(CLIENTES_TELEGRAM, dados)
+
+async def comando_start(update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user or not update.message:
+        return
+    user = update.effective_user
+    clientes = carregar_clientes_telegram()
+    clientes[str(user.id)] = {
+        "telegram_id": user.id,
+        "username": user.username or "",
+        "nome": user.full_name or "",
+        "ultimo_start": datetime.now(FUSO_BR).isoformat()
+    }
+    salvar_clientes_telegram(clientes)
+    nome = html.escape(user.first_name or "cliente")
+    await update.message.reply_text(
+        f"👋 Olá, <b>{nome}</b>!\n\n"
+        "Você chegou ao <b>Radar de Promoções VIP</b>. 🛒\n\n"
+        "Seu Telegram foi identificado com sucesso.\n\n"
+        "⚙️ Em breve vamos concluir sua configuração. "
+        "Por enquanto, você não precisa informar seu ID do Telegram.",
+        parse_mode="HTML"
+    )
+    logging.info("🤖 /start recebido | telegram_id=%s | nome=%s", user.id, user.full_name)
+
 
 ULTIMOS_LINKS = []
 ULTIMOS_TITULOS = []
@@ -931,10 +966,19 @@ async def principal():
     if not TELEGRAM_TOKEN or not SHOPEE_PASSWORD:
         raise RuntimeError("Configure TELEGRAM_TOKEN e SHOPEE_PASSWORD")
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    logging.info("✅ Bot pronto!")
+    app.add_handler(CommandHandler("start", comando_start))
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    logging.info("✅ Bot pronto e recebendo comandos Telegram!")
     asyncio.create_task(manter_vivo())
     asyncio.create_task(iniciar_webhook())
-    await loop(app)
+    try:
+        await loop(app)
+    finally:
+        await app.updater.stop()
+        await app.stop()
+        await app.shutdown()
 
 def iniciar():
     try:
