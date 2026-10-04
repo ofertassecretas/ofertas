@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
-print("VERSAO V46-CAKTO-GRUPOS")
+print("VERSAO V47-CAKTO-GRUPOS-COMANDO-ROBUSTO")
 
 # =========================
 # CONFIG
@@ -268,24 +268,46 @@ async def localizar_admins_grupo(bot, chat_id):
         me = await bot.get_me()
         bot_admin = any(m.user and m.user.id == me.id for m in admins)
         cakto_admin = False
+        cakto_encontrado = ""
+
         for m in admins:
             if not m.user:
                 continue
             username = (m.user.username or "").lower().lstrip("@")
             nome = (m.user.full_name or "").lower()
-            if username == CAKTO_BOT_USERNAME.lower() or "cakto" in username or "cakto" in nome:
+            eh_cakto = (
+                username == CAKTO_BOT_USERNAME.lower()
+                or "cakto" in username
+                or "cakto" in nome
+            )
+            if eh_cakto:
                 cakto_admin = True
+                cakto_encontrado = f"@{username}" if username else nome
                 break
+
+        logging.info(
+            "🔎 Admins grupo | chat_id=%s | Radar=%s | Cakto=%s | identificado=%s",
+            chat_id, bot_admin, cakto_admin, cakto_encontrado or "nenhum"
+        )
         return bot_admin, cakto_admin
     except Exception as e:
-        logging.error("❌ Erro verificando administradores | chat_id=%s | %s", chat_id, e)
+        logging.error("❌ Erro verificando administradores | chat_id=%s | %s", chat_id, e, exc_info=True)
         return False, False
 
 async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_user or not update.effective_chat or not update.message:
+        logging.warning("⚠️ /configurar recebido sem user/chat/message completo")
         return
+
     chat = update.effective_chat
+    texto_comando = (update.message.text or "").strip()
+    bot_username = (getattr(context.bot, "username", "") or "").strip()
+    logging.info(
+        "⚙️ /configurar RECEBIDO | chat_id=%s | tipo=%s | usuario_id=%s | comando=%s | bot=@%s",
+        chat.id, chat.type, update.effective_user.id, texto_comando, bot_username
+    )
     if chat.type not in ("group", "supergroup"):
+        logging.warning("⚠️ /configurar veio de chat incorreto | chat_id=%s | tipo=%s", chat.id, chat.type)
         await update.message.reply_text(
             "⚠️ O comando <b>/configurar</b> deve ser enviado dentro do grupo que receberá as ofertas.",
             parse_mode="HTML"
@@ -299,9 +321,11 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     compra = encontrar_cakto_por_email(email) if email else None
 
     if not compra or not compra.get("ativo"):
+        logging.warning("⚠️ /configurar bloqueado | chat_id=%s | usuario_id=%s | compra_ativa=False", chat.id, user_id)
         await update.message.reply_text("⚠️ Sua assinatura não está ativa ou ainda não foi vinculada ao Telegram.")
         return
     if not cliente.get("afiliado_id"):
+        logging.warning("⚠️ /configurar bloqueado | chat_id=%s | usuario_id=%s | afiliado_nao_cadastrado", chat.id, user_id)
         await update.message.reply_text("⚠️ Primeiro conclua seu cadastro no privado do bot com seu ID de afiliado Shopee.")
         return
 
@@ -1353,6 +1377,11 @@ async def manter_vivo():
         logging.info("💓 Ativo | %s", datetime.now(FUSO_BR).strftime("%d/%m as %H:%M"))
         await asyncio.sleep(300)
 
+async def erro_telegram(update, context):
+    erro = getattr(context, "error", None)
+    logging.error("❌ Erro no processamento Telegram | tipo_update=%s | erro=%s", type(update).__name__, erro, exc_info=erro)
+
+
 async def principal():
     logging.info("🤖 Iniciando bot...")
     if not TELEGRAM_TOKEN or not SHOPEE_PASSWORD:
@@ -1360,7 +1389,17 @@ async def principal():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", comando_start))
     app.add_handler(CommandHandler("configurar", comando_configurar))
+
+    # Fallback: aceita explicitamente /configurar e /configurar@bot_username.
+    # Isso evita depender somente do CommandHandler para a etapa de configuracao no grupo.
+    app.add_handler(
+        MessageHandler(
+            filters.Regex(r"^/configurar(?:@[A-Za-z0-9_]+)?(?:\s.*)?$"),
+            comando_configurar
+        )
+    )
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, receber_dados_onboarding))
+    app.add_error_handler(erro_telegram)
     await app.initialize()
     await app.start()
     await app.updater.start_polling()
@@ -1384,5 +1423,3 @@ def iniciar():
 
 if __name__ == "__main__":
     iniciar()
-
-
