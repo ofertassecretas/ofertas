@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
-print("VERSAO V43-DADOS-VENDAS-AVALIACAO")
+print("VERSAO V46-CAKTO-GRUPOS")
 
 # =========================
 # CONFIG
@@ -17,6 +17,12 @@ SHOPEE_APP_ID = "18349740277"
 CHAT_ID_DESTINO = -1003848415150
 CHAT_ID_FREE = -1003886228244
 AFILIADO_ID = "18349740277"
+CAKTO_BOT_USERNAME = (os.getenv("CAKTO_BOT_USERNAME") or "CaktoBot").strip().lstrip("@")
+PLANOS_CAKTO_PRODUTOS = {
+    "3092f5b9-4520-4def-8ca7-9bd3401890a5": "semanal",
+    "2005e842-e78e-4093-a244-18ab2a180647": "mensal",
+    "f13e47fe-2e9e-474a-83b6-d8e7dd73160d": "anual",
+}
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
@@ -69,7 +75,7 @@ def salvar_clientes_cakto(dados):
 def email_normalizado(email):
     return (email or "").strip().lower()
 
-def classificar_plano(oferta):
+def classificar_plano(oferta="", preco=None, periodo=None):
     texto = (oferta or "").lower()
     if "seman" in texto:
         return "semanal"
@@ -77,6 +83,26 @@ def classificar_plano(oferta):
         return "anual"
     if "mensal" in texto:
         return "mensal"
+    try:
+        valor = float(preco or 0)
+        if abs(valor - 7.90) < 0.02:
+            return "semanal"
+        if abs(valor - 19.90) < 0.02:
+            return "mensal"
+        if abs(valor - 199.90) < 0.02:
+            return "anual"
+    except Exception:
+        pass
+    try:
+        dias = int(periodo or 0)
+        if dias == 7:
+            return "semanal"
+        if 28 <= dias <= 31:
+            return "mensal"
+        if 360 <= dias <= 370:
+            return "anual"
+    except Exception:
+        pass
     return "desconhecido"
 
 def status_ativo_cakto(evento, status):
@@ -92,7 +118,24 @@ def encontrar_cliente_por_telegram(telegram_id):
     return clientes.get(str(telegram_id), {})
 
 def encontrar_cakto_por_email(email):
-    return carregar_clientes_cakto().get(email_normalizado(email))
+    registro = carregar_clientes_cakto().get(email_normalizado(email))
+    if not registro:
+        return None
+    produto_id = str(registro.get("produto_id", ""))
+    plano_id = PLANOS_CAKTO_PRODUTOS.get(produto_id)
+    if plano_id and registro.get("plano") != plano_id:
+        registro["plano"] = plano_id
+        dados = carregar_clientes_cakto()
+        dados[email_normalizado(email)] = registro
+        salvar_clientes_cakto(dados)
+    elif registro.get("plano") == "desconhecido":
+        plano = classificar_plano(registro.get("oferta", ""), registro.get("oferta_preco"), registro.get("subscription_period"))
+        if plano != "desconhecido":
+            registro["plano"] = plano
+            dados = carregar_clientes_cakto()
+            dados[email_normalizado(email)] = registro
+            salvar_clientes_cakto(dados)
+    return registro
 
 async def comando_start(update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_user or not update.message:
@@ -111,12 +154,31 @@ async def comando_start(update, context: ContextTypes.DEFAULT_TYPE):
     salvar_clientes_telegram(clientes)
     nome = html.escape(user.first_name or "cliente")
 
-    if cliente.get("email_cakto") and cliente.get("ativo"):
-        texto = (
-            f"👋 Olá, <b>{nome}</b>!\n\n"
-            "✅ Seu Telegram já está vinculado ao Radar.\n\n"
-            "Agora podemos continuar a configuração do seu grupo."
-        )
+    compra = encontrar_cakto_por_email(cliente.get("email_cakto")) if cliente.get("email_cakto") else None
+    if compra and compra.get("ativo"):
+        cliente["ativo"] = True
+        cliente["plano"] = compra.get("plano", cliente.get("plano", "desconhecido"))
+        clientes[chave] = cliente
+        salvar_clientes_telegram(clientes)
+        if cliente.get("afiliado_id") and cliente.get("chat_id"):
+            texto = (
+                f"👋 Olá, <b>{nome}</b>!\n\n"
+                "✅ Seu cadastro está ativo.\n"
+                f"📦 Plano: <b>{html.escape(cliente.get('plano', 'desconhecido'))}</b>\n\n"
+                "Seu grupo já está configurado. O Radar continuará enviando as ofertas automaticamente."
+            )
+        elif cliente.get("afiliado_id"):
+            texto = (
+                f"👋 Olá, <b>{nome}</b>!\n\n"
+                "✅ Seu Telegram está vinculado e seu ID de afiliado já foi salvo.\n\n"
+                "Agora adicione o Radar e o bot da Cakto como administradores do seu grupo e envie <b>/configurar</b> dentro dele."
+            )
+        else:
+            texto = (
+                f"👋 Olá, <b>{nome}</b>!\n\n"
+                "✅ Seu Telegram já está vinculado ao Radar.\n\n"
+                "Agora me envie seu <b>ID de afiliado Shopee</b>."
+            )
     else:
         texto = (
             f"👋 Olá, <b>{nome}</b>!\n\n"
@@ -190,10 +252,192 @@ async def receber_dados_onboarding(update, context: ContextTypes.DEFAULT_TYPE):
         salvar_clientes_telegram(clientes)
         await update.message.reply_text(
             "✅ <b>ID de afiliado salvo!</b>\n\n"
-            "Agora o próximo passo será configurar o seu grupo do Telegram com <b>/configurar</b>.",
+            "Agora falta só configurar o seu grupo.\n\n"
+            "1️⃣ Adicione <b>este Radar</b> como administrador.\n"
+            "2️⃣ Adicione também o <b>bot da Cakto</b> como administrador.\n"
+            "3️⃣ Dentro do seu grupo, envie <b>/configurar</b>.\n\n"
+            "Eu verificarei os dois administradores e vincularei o grupo automaticamente.",
             parse_mode="HTML"
         )
         logging.info("🛒 Afiliado salvo | telegram_id=%s | afiliado_id=%s", user_id, texto)
+
+
+async def localizar_admins_grupo(bot, chat_id):
+    try:
+        admins = await bot.get_chat_administrators(chat_id)
+        me = await bot.get_me()
+        bot_admin = any(m.user and m.user.id == me.id for m in admins)
+        cakto_admin = False
+        for m in admins:
+            if not m.user:
+                continue
+            username = (m.user.username or "").lower().lstrip("@")
+            nome = (m.user.full_name or "").lower()
+            if username == CAKTO_BOT_USERNAME.lower() or "cakto" in username or "cakto" in nome:
+                cakto_admin = True
+                break
+        return bot_admin, cakto_admin
+    except Exception as e:
+        logging.error("❌ Erro verificando administradores | chat_id=%s | %s", chat_id, e)
+        return False, False
+
+async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user or not update.effective_chat or not update.message:
+        return
+    chat = update.effective_chat
+    if chat.type not in ("group", "supergroup"):
+        await update.message.reply_text(
+            "⚠️ O comando <b>/configurar</b> deve ser enviado dentro do grupo que receberá as ofertas.",
+            parse_mode="HTML"
+        )
+        return
+
+    user_id = update.effective_user.id
+    clientes = carregar_clientes_telegram()
+    cliente = clientes.get(str(user_id), {})
+    email = cliente.get("email_cakto", "")
+    compra = encontrar_cakto_por_email(email) if email else None
+
+    if not compra or not compra.get("ativo"):
+        await update.message.reply_text("⚠️ Sua assinatura não está ativa ou ainda não foi vinculada ao Telegram.")
+        return
+    if not cliente.get("afiliado_id"):
+        await update.message.reply_text("⚠️ Primeiro conclua seu cadastro no privado do bot com seu ID de afiliado Shopee.")
+        return
+
+    try:
+        membro = await context.bot.get_chat_member(chat.id, user_id)
+        if membro.status not in ("administrator", "creator"):
+            await update.message.reply_text("⚠️ Só o comprador que é administrador do grupo pode concluir esta configuração.")
+            return
+    except Exception:
+        await update.message.reply_text("⚠️ Não consegui verificar suas permissões de administrador neste grupo.")
+        return
+
+    bot_admin, cakto_admin = await localizar_admins_grupo(context.bot, chat.id)
+    if not bot_admin and not cakto_admin:
+        await update.message.reply_text(
+            "⚠️ Ainda faltam os dois bots como administradores.\n\n"
+            "✅ Adicione <b>este Radar</b> como administrador.\n"
+            "✅ Adicione também o <b>bot da Cakto</b> como administrador.\n\n"
+            "Depois envie <b>/configurar</b> novamente.",
+            parse_mode="HTML"
+        )
+        return
+    if not bot_admin:
+        await update.message.reply_text(
+            "⚠️ O Radar ainda não está como administrador deste grupo.\n\n"
+            "Adicione este bot como administrador e envie <b>/configurar</b> novamente.",
+            parse_mode="HTML"
+        )
+        return
+    if not cakto_admin:
+        await update.message.reply_text(
+            "⚠️ O bot da Cakto ainda não está como administrador deste grupo.\n\n"
+            "Adicione o bot da Cakto como administrador e envie <b>/configurar</b> novamente.",
+            parse_mode="HTML"
+        )
+        return
+
+    cliente.update({
+        "chat_id": chat.id,
+        "grupo_nome": chat.title or "Grupo sem nome",
+        "grupo_username": getattr(chat, "username", "") or "",
+        "grupo_configurado": True,
+        "grupo_ativo": True,
+        "bot_admin": True,
+        "cakto_bot_admin": True,
+        "configurado_em": datetime.now(FUSO_BR).isoformat(),
+        "plano": compra.get("plano", cliente.get("plano", "desconhecido")),
+        "ativo": True,
+    })
+    clientes[str(user_id)] = cliente
+    salvar_clientes_telegram(clientes)
+
+    await update.message.reply_text(
+        "🎉 <b>GRUPO CONFIGURADO COM SUCESSO!</b>\n\n"
+        f"📦 Plano: <b>{html.escape(cliente.get('plano', 'desconhecido'))}</b>\n"
+        f"🔗 Shopee ID: <b>{html.escape(str(cliente.get('afiliado_id')))}</b>\n"
+        f"👥 Grupo: <b>{html.escape(chat.title or 'Grupo')}</b>\n\n"
+        "✅ Radar administrador\n"
+        "✅ CaktoBot administrador\n"
+        "🚀 A partir do próximo ciclo, as ofertas serão enviadas automaticamente aqui.",
+        parse_mode="HTML"
+    )
+    logging.info("✅ Grupo configurado | telegram_id=%s | chat_id=%s | grupo=%s", user_id, chat.id, chat.title)
+
+async def validar_cliente_grupo(bot, cliente):
+    if not cliente.get("grupo_configurado") or not cliente.get("chat_id"):
+        return False
+    email = cliente.get("email_cakto", "")
+    compra = encontrar_cakto_por_email(email) if email else None
+    if not compra or not compra.get("ativo") or not cliente.get("afiliado_id"):
+        return False
+    bot_admin, cakto_admin = await localizar_admins_grupo(bot, cliente["chat_id"])
+    return bool(bot_admin and cakto_admin)
+
+async def enviar_ofertas_clientes(ctx, ofertas):
+    clientes = carregar_clientes_telegram()
+    prontos = []
+    alterados = False
+    for chave, cliente in clientes.items():
+        if not cliente.get("grupo_configurado") or not cliente.get("chat_id"):
+            continue
+        if not cliente.get("email_cakto") or not cliente.get("afiliado_id"):
+            continue
+        ok = await validar_cliente_grupo(ctx.bot, cliente)
+        if not ok:
+            if cliente.get("grupo_ativo"):
+                cliente["grupo_ativo"] = False
+                alterados = True
+            logging.warning("⏸️ Cliente ignorado | telegram_id=%s | grupo=%s | assinatura/admins não válidos", chave, cliente.get("chat_id"))
+            continue
+        if not cliente.get("grupo_ativo"):
+            cliente["grupo_ativo"] = True
+            alterados = True
+        prontos.append(cliente)
+    if alterados:
+        salvar_clientes_telegram(clientes)
+
+    if not prontos:
+        return
+
+    logging.info("👥 Clientes ativos para envio: %s", len(prontos))
+    for cliente in prontos:
+        chat_id = cliente["chat_id"]
+        afiliado = cliente["afiliado_id"]
+        enviados = 0
+        for nicho, p in ofertas:
+            try:
+                titulo = str(p.get("productName", "")).strip()
+                lb = str(p.get("offerLink") or p.get("productLink", "")).strip()
+                if not titulo or not lb:
+                    continue
+                link = anexar_afiliado(lb, afiliado)
+                try:
+                    preco_str = p.get("priceMin", "0") or "0"
+                    preco = float(preco_str) / 1000 if isinstance(preco_str, (int, float)) else float(preco_str or "0")
+                except Exception:
+                    preco = 0
+                vendas_val = p.get("sales")
+                vendas = int(vendas_val) if vendas_val is not None and vendas_val != "" else None
+                nota_val = p.get("ratingStar")
+                nota = float(nota_val) if nota_val is not None and nota_val != "" else None
+                comissao = round(float(p.get("commissionRate", 0) or 0) * 100, 2)
+                img = str(p.get("imageUrl", "")).strip()
+                prc = f"{preco:.2f}".replace(".", ",")
+                vnd = f"{vendas:,}".replace(",", ".") if vendas is not None else "-"
+                nt = f"{nota:.1f}".replace(".", ",") if nota is not None else "-"
+                txt_whats = mensagem_whatsai(titulo, prc, vnd, nt, comissao, link)
+                lk_whats = link_whatsai(txt_whats)
+                txt_tg = montar_tg(titulo, prc, vnd, nt, comissao, link, lk_whats, free=False)
+                ok = await enviar_msg(ctx, txt_tg, img, chat_id)
+                if ok:
+                    enviados += 1
+                await asyncio.sleep(1)
+            except Exception as e:
+                logging.error("❌ Erro envio cliente | chat_id=%s | %s", chat_id, e)
+        logging.info("📤 Cliente concluído | chat_id=%s | ofertas=%s", chat_id, enviados)
 
 
 ULTIMOS_LINKS = []
@@ -781,11 +1025,11 @@ CHAMADAS = [
     "💰 Economia real!", "🛒 Nao perca!"
 ]
 
-def anexar_afiliado(link):
+def anexar_afiliado(link, afiliado_id=None):
     try:
         u = urlparse(link)
         p = parse_qs(u.query)
-        p["af_siteid"] = AFILIADO_ID
+        p["af_siteid"] = afiliado_id or AFILIADO_ID
         return urlunparse(u._replace(query=urlencode(p, doseq=True)))
     except:
         return link
@@ -912,6 +1156,8 @@ async def webhook_cakto(reader, writer):
             oferta = item.get("offer") or {}
             email = email_normalizado(cliente.get("email", ""))
             oferta_nome = oferta.get("name", "")
+            oferta_preco = oferta.get("price", item.get("price", ""))
+            periodo = item.get("subscription_period", "") or (item.get("subscription") or {}).get("recurrence_period", "")
             status = item.get("status", "")
             ativo = status_ativo_cakto(evento, status)
             if email and item.get("offer_type", "main") == "main":
@@ -924,7 +1170,8 @@ async def webhook_cakto(reader, writer):
                     "produto_id": produto.get("id", ""),
                     "oferta": oferta_nome,
                     "oferta_id": oferta.get("id", ""),
-                    "plano": classificar_plano(oferta_nome),
+                    "oferta_preco": oferta_preco,
+                    "plano": classificar_plano(oferta_nome, oferta_preco, periodo),
                     "status": status,
                     "evento": evento,
                     "offer_type": item.get("offer_type", "main"),
@@ -1046,6 +1293,12 @@ async def ciclo(ctx):
             if ok:
                 registrar_envio(item["hid"])
             await asyncio.sleep(40)
+
+        # Envia as mesmas ofertas aos grupos dos clientes ativos, usando o ID de afiliado de cada cliente.
+        try:
+            await enviar_ofertas_clientes(ctx, ofertas_vip)
+        except Exception as e:
+            logging.error("❌ Erro geral no envio para clientes: %s", e, exc_info=True)
         
         logging.info("🎁 Enviando oferta destaque para grupo FREE")
         try:
@@ -1106,6 +1359,7 @@ async def principal():
         raise RuntimeError("Configure TELEGRAM_TOKEN e SHOPEE_PASSWORD")
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", comando_start))
+    app.add_handler(CommandHandler("configurar", comando_configurar))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, receber_dados_onboarding))
     await app.initialize()
     await app.start()
@@ -1130,3 +1384,5 @@ def iniciar():
 
 if __name__ == "__main__":
     iniciar()
+
+
