@@ -1,4 +1,4 @@
-import asyncio, requests, logging, random, hashlib, time, json, os, html, re, tempfile
+import asyncio, requests, logging, random, hashlib, time, json, os, html, re, tempfile, secrets
 from collections import Counter
 from difflib import SequenceMatcher
 from datetime import datetime, time as dt_time, timedelta
@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
-print("VERSAO V49-CAKTO-GRUPOS-DIAGNOSTICO-REAL")
+print("VERSAO V51-CAKTO-CANAIS-CODIGO-CONFIGURACAO")
 
 # =========================
 # CONFIG
@@ -294,6 +294,67 @@ async def localizar_admins_grupo(bot, chat_id):
         logging.error("❌ Erro verificando administradores | chat_id=%s | %s", chat_id, e, exc_info=True)
         return False, False
 
+def gerar_codigo_configuracao():
+    return "RADAR-" + secrets.token_hex(3).upper()
+
+def salvar_codigo_configuracao(clientes, user_id, cliente):
+    codigo = gerar_codigo_configuracao()
+    cliente["codigo_configuracao"] = codigo
+    cliente["codigo_configuracao_expira"] = (datetime.now(FUSO_BR) + timedelta(minutes=30)).isoformat()
+    clientes[str(user_id)] = cliente
+    salvar_clientes_telegram(clientes)
+    return codigo
+
+def localizar_cliente_por_codigo(codigo):
+    codigo = (codigo or "").strip().upper()
+    if not codigo:
+        return None, None, None
+    clientes = carregar_clientes_telegram()
+    agora = datetime.now(FUSO_BR)
+    for chave, cliente in clientes.items():
+        if str(cliente.get("codigo_configuracao", "")).upper() != codigo:
+            continue
+        expira = cliente.get("codigo_configuracao_expira", "")
+        try:
+            if expira and datetime.fromisoformat(expira) < agora:
+                return None, None, "expirado"
+        except Exception:
+            return None, None, "invalido"
+        return chave, cliente, None
+    return None, None, "nao_encontrado"
+
+async def emitir_codigo_configuracao(update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user or not update.message:
+        return
+    user = update.effective_user
+    clientes = carregar_clientes_telegram()
+    cliente = clientes.get(str(user.id), {})
+    email = cliente.get("email_cakto", "")
+    compra = encontrar_cakto_por_email(email) if email else None
+
+    if not compra or not compra.get("ativo"):
+        await update.message.reply_text(
+            "⚠️ Sua assinatura não está ativa ou ainda não foi vinculada ao Telegram."
+        )
+        return
+    if not cliente.get("afiliado_id"):
+        await update.message.reply_text(
+            "⚠️ Primeiro conclua seu cadastro no privado do bot com seu ID de afiliado Shopee."
+        )
+        return
+
+    codigo = salvar_codigo_configuracao(clientes, user.id, cliente)
+    await update.message.reply_text(
+        "🔐 <b>Código de configuração gerado</b>\n\n"
+        f"<code>{codigo}</code>\n\n"
+        "⏱️ Este código vale por <b>30 minutos</b> e é de uso único.\n\n"
+        "Agora vá para o <b>canal/grupo que receberá as ofertas</b> e publique exatamente:\n\n"
+        f"<code>/configurar {codigo}</code>\n\n"
+        "✅ O Radar e o CaktoBot precisam estar como administradores."
+        , parse_mode="HTML"
+    )
+    logging.info("🔐 Código de configuração gerado | telegram_id=%s | expira_em=30min", user.id)
+
 async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     # V49: extracao robusta do update. Em vez de depender somente de
     # effective_message/effective_user, tambem usamos o dicionario bruto
@@ -304,27 +365,35 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         raw = {}
 
-    mensagem = getattr(update, "message", None) or getattr(update, "edited_message", None)
+    mensagem = (
+        getattr(update, "message", None)
+        or getattr(update, "edited_message", None)
+        or getattr(update, "channel_post", None)
+        or getattr(update, "edited_channel_post", None)
+    )
     if not mensagem:
         logging.warning(
-            "🚨 V49 /configurar SEM OBJETO MESSAGE | update=%s | chaves=%s | raw_message=%s | raw_chat=%s | raw_from=%s",
+            "🚨 V50 /configurar SEM OBJETO MESSAGE | update=%s | chaves=%s | raw_message=%s | raw_chat=%s | raw_from=%s",
             type(update).__name__, list(raw.keys()),
             bool(raw.get("message") or raw.get("edited_message")),
             bool((raw.get("message") or raw.get("edited_message") or {}).get("chat")),
             bool((raw.get("message") or raw.get("edited_message") or {}).get("from"))
         )
 
-    raw_msg = raw.get("message") or raw.get("edited_message") or {}
+    raw_msg = (raw.get("message") or raw.get("edited_message") or raw.get("channel_post") or raw.get("edited_channel_post") or {})
     raw_chat = raw_msg.get("chat") or {}
     raw_from = raw_msg.get("from") or {}
     raw_sender_chat = raw_msg.get("sender_chat") or {}
 
-    chat = getattr(update, "effective_chat", None)
-    if not chat and mensagem:
-        chat = getattr(mensagem, "chat", None)
-    chat_id = getattr(chat, "id", None) or raw_chat.get("id")
-    chat_type = getattr(chat, "type", None) or raw_chat.get("type", "")
-    chat_title = getattr(chat, "title", None) or raw_chat.get("title", "")
+    # V50: prioriza o chat que pertence diretamente à mensagem recebida.
+    # effective_chat é usado apenas como fallback, evitando classificar o comando
+    # pelo contexto errado quando uma atualização contém mais de um campo.
+    chat_mensagem = getattr(mensagem, "chat", None) if mensagem else None
+    chat_efetivo = getattr(update, "effective_chat", None)
+    chat = chat_mensagem or chat_efetivo
+    chat_id = getattr(chat_mensagem, "id", None) or getattr(chat_efetivo, "id", None) or raw_chat.get("id")
+    chat_type = getattr(chat_mensagem, "type", None) or getattr(chat_efetivo, "type", None) or raw_chat.get("type", "")
+    chat_title = getattr(chat_mensagem, "title", None) or getattr(chat_efetivo, "title", None) or raw_chat.get("title", "")
 
     usuario = getattr(update, "effective_user", None)
     if not usuario and mensagem:
@@ -343,15 +412,17 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     bot_username = (getattr(context.bot, "username", "") or "").strip()
 
     logging.info(
-        "⚙️ V49 /configurar RECEBIDO | chat_id=%s | tipo=%s | usuario_id=%s | sender_chat_id=%s | comando=%s | bot=@%s",
-        chat_id, chat_type, user_id, sender_chat_id,
-        texto_comando or "(sem texto)", bot_username
+        "⚙️ V50 /configurar RECEBIDO | update_id=%s | chat_mensagem_id=%s | chat_mensagem_tipo=%s | effective_chat_id=%s | effective_chat_tipo=%s | usuario_id=%s | sender_chat_id=%s | comando=%s | bot=@%s",
+        getattr(update, "update_id", None),
+        getattr(chat_mensagem, "id", None), getattr(chat_mensagem, "type", None),
+        getattr(chat_efetivo, "id", None), getattr(chat_efetivo, "type", None),
+        user_id, sender_chat_id, texto_comando or "(sem texto)", bot_username
     )
 
     # Se ainda nao conseguimos nem o chat, mostramos o update cru no log para
     # descobrir exatamente qual tipo de update o Telegram esta entregando.
     if not chat_id:
-        logging.warning("🚨 V49 UPDATE SEM CHAT | raw=%s", raw)
+        logging.warning("🚨 V50 UPDATE SEM CHAT | raw=%s", raw)
         return
 
     # A partir daqui, quando o objeto Message existe usamos reply_text normalmente.
@@ -363,17 +434,98 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await context.bot.send_message(chat_id=chat_id, text=texto, parse_mode=parse_mode)
         except Exception as e:
-            logging.error("❌ V49 falha ao responder | chat_id=%s | erro=%s", chat_id, e, exc_info=True)
+            logging.error("❌ V50 falha ao responder | chat_id=%s | erro=%s", chat_id, e, exc_info=True)
+
+    # CANAL: posts chegam como update.channel_post e normalmente não possuem
+    # usuário em "from". Por isso a configuração de canal usa um código único
+    # gerado no privado do bot. Isso evita vincular um canal ao cliente errado.
+    if chat_type == "channel":
+        partes = texto_comando.split() if texto_comando else []
+        codigo = partes[1].strip() if len(partes) >= 2 else ""
+        if not codigo:
+            await responder(
+                "⚠️ <b>Este destino é um canal do Telegram.</b>\n\n"
+                "No canal, a configuração precisa ser autorizada pelo código gerado no privado do Radar.\n\n"
+                "1️⃣ Abra a conversa privada com o Radar.\n"
+                "2️⃣ Envie <b>/configurar</b>.\n"
+                "3️⃣ Copie o código recebido.\n"
+                "4️⃣ Volte para este canal e publique:\n"
+                "<code>/configurar SEU_CODIGO</code>"
+            )
+            return
+
+        chave, cliente, erro_codigo = localizar_cliente_por_codigo(codigo)
+        if erro_codigo:
+            await responder("❌ Código de configuração inválido, expirado ou já utilizado. Gere um novo código no privado do Radar com <b>/configurar</b>.")
+            logging.warning("⚠️ Código de configuração rejeitado | chat_id=%s | motivo=%s", chat_id, erro_codigo)
+            return
+
+        email = cliente.get("email_cakto", "")
+        compra = encontrar_cakto_por_email(email) if email else None
+        if not compra or not compra.get("ativo"):
+            await responder("⚠️ A assinatura Cakto vinculada a este código não está ativa.")
+            return
+        if not cliente.get("afiliado_id"):
+            await responder("⚠️ O cadastro deste cliente ainda não possui ID de afiliado Shopee.")
+            return
+
+        bot_admin, cakto_admin = await localizar_admins_grupo(context.bot, chat_id)
+        logging.info("🔎 Canal verificado | chat_id=%s | Radar=%s | Cakto=%s", chat_id, bot_admin, cakto_admin)
+        if not bot_admin or not cakto_admin:
+            await responder(
+                "⚠️ <b>Quase lá!</b>\n\n"
+                + ("❌ O Radar ainda não está como administrador.\n" if not bot_admin else "")
+                + ("❌ O CaktoBot ainda não está como administrador.\n" if not cakto_admin else "")
+                + "\nAdicione os dois como administradores e publique novamente o comando com o mesmo código."
+            )
+            return
+
+        cliente.update({
+            "chat_id": chat_id,
+            "grupo_nome": chat_title or "Canal sem nome",
+            "grupo_username": getattr(chat, "username", "") or raw_chat.get("username", "") or "",
+            "grupo_configurado": True,
+            "grupo_ativo": True,
+            "bot_admin": True,
+            "cakto_bot_admin": True,
+            "tipo_destino": "channel",
+            "configurado_em": datetime.now(FUSO_BR).isoformat(),
+            "plano": compra.get("plano", cliente.get("plano", "desconhecido")),
+            "ativo": True,
+            "codigo_configuracao": "",
+            "codigo_configuracao_expira": "",
+        })
+        clientes = carregar_clientes_telegram()
+        clientes[str(chave)] = cliente
+        salvar_clientes_telegram(clientes)
+        await responder(
+            "🎉 <b>CANAL CONFIGURADO COM SUCESSO!</b>\n\n"
+            f"📦 Plano: <b>{html.escape(cliente.get('plano', 'desconhecido'))}</b>\n"
+            f"🔗 Shopee ID: <b>{html.escape(str(cliente.get('afiliado_id')))}</b>\n"
+            f"📢 Canal: <b>{html.escape(chat_title or 'Canal')}</b>\n\n"
+            "✅ Radar administrador\n"
+            "✅ CaktoBot administrador\n"
+            "🚀 A partir do próximo ciclo, as ofertas serão enviadas automaticamente aqui."
+        )
+        logging.info("✅ Canal configurado | telegram_id=%s | chat_id=%s | canal=%s", chave, chat_id, chat_title)
+        return
 
     if chat_type not in ("group", "supergroup"):
-        await responder("⚠️ O comando <b>/configurar</b> deve ser enviado dentro do grupo que receberá as ofertas.")
+        await responder("⚠️ O comando <b>/configurar</b> não chegou como grupo ou canal. Tipo detectado: <b>%s</b>." % html.escape(str(chat_type or "desconhecido")))
+        return
+
+    # No privado, /configurar agora gera o código que autoriza a configuração
+    # de um canal. O canal não consegue informar qual administrador humano
+    # publicou o post, então o código faz essa ponte com segurança.
+    if chat_type == "private" and user_id:
+        await emitir_codigo_configuracao(update, context)
         return
 
     # Sem usuario identificavel, nao podemos vincular com seguranca o grupo a
     # uma compra Cakto. sender_chat indica normalmente envio em nome do grupo.
     if not user_id:
         logging.warning(
-            "⚠️ V49 /configurar sem usuario identificavel | chat_id=%s | sender_chat_id=%s",
+            "⚠️ V50 /configurar sem usuario identificavel | chat_id=%s | sender_chat_id=%s",
             chat_id, sender_chat_id
         )
         await responder(
@@ -1467,8 +1619,8 @@ async def principal():
     app.add_handler(CommandHandler("start", comando_start))
     app.add_handler(CommandHandler("configurar", comando_configurar))
 
-    # Fallback: aceita explicitamente /configurar e /configurar@bot_username.
-    # Isso evita depender somente do CommandHandler para a etapa de configuracao no grupo.
+    # Fallback explícito: mensagens normais, grupos e CHANNEL_POSTS.
+    # Em canais, o Telegram entrega o post como update.channel_post.
     app.add_handler(
         MessageHandler(
             filters.Regex(r"^/configurar(?:@[A-Za-z0-9_]+)?(?:\s.*)?$"),
