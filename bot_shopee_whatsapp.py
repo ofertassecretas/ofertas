@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
-print("VERSAO V51-CAKTO-CANAIS-CODIGO-CONFIGURACAO")
+print("VERSAO V52-CAKTO-CANAIS-CODIGO-CONFIGURACAO")
 
 # =========================
 # CONFIG
@@ -373,7 +373,7 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     )
     if not mensagem:
         logging.warning(
-            "🚨 V50 /configurar SEM OBJETO MESSAGE | update=%s | chaves=%s | raw_message=%s | raw_chat=%s | raw_from=%s",
+            "🚨 V52 /configurar SEM OBJETO MESSAGE | update=%s | chaves=%s | raw_message=%s | raw_chat=%s | raw_from=%s",
             type(update).__name__, list(raw.keys()),
             bool(raw.get("message") or raw.get("edited_message")),
             bool((raw.get("message") or raw.get("edited_message") or {}).get("chat")),
@@ -412,7 +412,7 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     bot_username = (getattr(context.bot, "username", "") or "").strip()
 
     logging.info(
-        "⚙️ V50 /configurar RECEBIDO | update_id=%s | chat_mensagem_id=%s | chat_mensagem_tipo=%s | effective_chat_id=%s | effective_chat_tipo=%s | usuario_id=%s | sender_chat_id=%s | comando=%s | bot=@%s",
+        "⚙️ V52 /configurar RECEBIDO | update_id=%s | chat_mensagem_id=%s | chat_mensagem_tipo=%s | effective_chat_id=%s | effective_chat_tipo=%s | usuario_id=%s | sender_chat_id=%s | comando=%s | bot=@%s",
         getattr(update, "update_id", None),
         getattr(chat_mensagem, "id", None), getattr(chat_mensagem, "type", None),
         getattr(chat_efetivo, "id", None), getattr(chat_efetivo, "type", None),
@@ -510,22 +510,24 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
         logging.info("✅ Canal configurado | telegram_id=%s | chat_id=%s | canal=%s", chave, chat_id, chat_title)
         return
 
-    if chat_type not in ("group", "supergroup"):
-        await responder("⚠️ O comando <b>/configurar</b> não chegou como grupo ou canal. Tipo detectado: <b>%s</b>." % html.escape(str(chat_type or "desconhecido")))
-        return
-
-    # No privado, /configurar agora gera o código que autoriza a configuração
-    # de um canal. O canal não consegue informar qual administrador humano
-    # publicou o post, então o código faz essa ponte com segurança.
+    # PRIVADO: /configurar gera o código que autoriza a configuração
+    # de um canal/grupo. Este bloco precisa vir ANTES da validação de
+    # group/supergroup, pois o comprador gera o código justamente no privado.
     if chat_type == "private" and user_id:
         await emitir_codigo_configuracao(update, context)
+        return
+
+    # CANAL já foi tratado acima. Qualquer outro tipo de chat não pode
+    # concluir a configuração desta forma.
+    if chat_type not in ("group", "supergroup"):
+        await responder("⚠️ O comando <b>/configurar</b> não chegou como grupo ou canal. Tipo detectado: <b>%s</b>." % html.escape(str(chat_type or "desconhecido")))
         return
 
     # Sem usuario identificavel, nao podemos vincular com seguranca o grupo a
     # uma compra Cakto. sender_chat indica normalmente envio em nome do grupo.
     if not user_id:
         logging.warning(
-            "⚠️ V50 /configurar sem usuario identificavel | chat_id=%s | sender_chat_id=%s",
+            "⚠️ V52 /configurar sem usuario identificavel | chat_id=%s | sender_chat_id=%s",
             chat_id, sender_chat_id
         )
         await responder(
@@ -1652,3 +1654,7 @@ def iniciar():
 
 if __name__ == "__main__":
     iniciar()
+
+
+
+
