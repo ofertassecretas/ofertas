@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
-print("VERSAO V47-CAKTO-GRUPOS-COMANDO-ROBUSTO")
+print("VERSAO V48-CAKTO-GRUPOS-ANONIMO-TRATADO")
 
 # =========================
 # CONFIG
@@ -295,26 +295,56 @@ async def localizar_admins_grupo(bot, chat_id):
         return False, False
 
 async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.effective_user or not update.effective_chat or not update.message:
-        logging.warning("⚠️ /configurar recebido sem user/chat/message completo")
+    chat = update.effective_chat
+    mensagem = update.message
+    texto_comando = ((mensagem.text if mensagem else '') or '').strip()
+
+    # O Telegram pode entregar comandos enviados por administradores anônimos
+    # sem effective_user. Nesse caso, não existe um ID seguro para vincular
+    # o grupo ao comprador da Cakto. O grupo ainda pode ser identificado,
+    # então respondemos no próprio grupo explicando o que precisa ser feito.
+    if not chat or not mensagem:
+        logging.warning(
+            "⚠️ /configurar recebido sem chat/mensagem | texto=%s",
+            texto_comando or "(sem texto)"
+        )
         return
 
-    chat = update.effective_chat
-    texto_comando = (update.message.text or "").strip()
     bot_username = (getattr(context.bot, "username", "") or "").strip()
+    usuario = update.effective_user
+    sender_chat = getattr(mensagem, "sender_chat", None)
+
     logging.info(
-        "⚙️ /configurar RECEBIDO | chat_id=%s | tipo=%s | usuario_id=%s | comando=%s | bot=@%s",
-        chat.id, chat.type, update.effective_user.id, texto_comando, bot_username
+        "⚙️ /configurar RECEBIDO | chat_id=%s | tipo=%s | usuario_id=%s | sender_chat_id=%s | comando=%s | bot=@%s",
+        chat.id, chat.type,
+        getattr(usuario, "id", None),
+        getattr(sender_chat, "id", None),
+        texto_comando, bot_username
     )
+
     if chat.type not in ("group", "supergroup"):
         logging.warning("⚠️ /configurar veio de chat incorreto | chat_id=%s | tipo=%s", chat.id, chat.type)
-        await update.message.reply_text(
+        await mensagem.reply_text(
             "⚠️ O comando <b>/configurar</b> deve ser enviado dentro do grupo que receberá as ofertas.",
             parse_mode="HTML"
         )
         return
 
-    user_id = update.effective_user.id
+    if not usuario:
+        logging.warning(
+            "⚠️ /configurar anônimo | chat_id=%s | sender_chat_id=%s | provavelmente administrador anônimo",
+            chat.id, getattr(sender_chat, "id", None)
+        )
+        await mensagem.reply_text(
+            "⚠️ <b>O Telegram não informou qual administrador enviou este comando.</b>\n\n"
+            "Isso acontece quando sua conta está usando <b>Permanecer anônimo</b> neste grupo.\n\n"
+            "👉 Abra as configurações do grupo → Administradores → seu usuário → desative <b>Permanecer anônimo</b>.\n\n"
+            "Depois envie novamente:\n<b>/configurar@%s</b>" % html.escape(bot_username or "promodasofertas_bot"),
+            parse_mode="HTML"
+        )
+        return
+
+    user_id = usuario.id
     clientes = carregar_clientes_telegram()
     cliente = clientes.get(str(user_id), {})
     email = cliente.get("email_cakto", "")
@@ -322,25 +352,32 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
 
     if not compra or not compra.get("ativo"):
         logging.warning("⚠️ /configurar bloqueado | chat_id=%s | usuario_id=%s | compra_ativa=False", chat.id, user_id)
-        await update.message.reply_text("⚠️ Sua assinatura não está ativa ou ainda não foi vinculada ao Telegram.")
+        await mensagem.reply_text("⚠️ Sua assinatura não está ativa ou ainda não foi vinculada ao Telegram.")
         return
+
     if not cliente.get("afiliado_id"):
         logging.warning("⚠️ /configurar bloqueado | chat_id=%s | usuario_id=%s | afiliado_nao_cadastrado", chat.id, user_id)
-        await update.message.reply_text("⚠️ Primeiro conclua seu cadastro no privado do bot com seu ID de afiliado Shopee.")
+        await mensagem.reply_text("⚠️ Primeiro conclua seu cadastro no privado do bot com seu ID de afiliado Shopee.")
         return
 
     try:
         membro = await context.bot.get_chat_member(chat.id, user_id)
         if membro.status not in ("administrator", "creator"):
-            await update.message.reply_text("⚠️ Só o comprador que é administrador do grupo pode concluir esta configuração.")
+            await mensagem.reply_text("⚠️ Só o comprador que é administrador do grupo pode concluir esta configuração.")
             return
-    except Exception:
-        await update.message.reply_text("⚠️ Não consegui verificar suas permissões de administrador neste grupo.")
+    except Exception as e:
+        logging.exception("❌ Falha verificando administrador | chat_id=%s | usuario_id=%s | erro=%s", chat.id, user_id, e)
+        await mensagem.reply_text("⚠️ Não consegui verificar suas permissões de administrador neste grupo.")
         return
 
     bot_admin, cakto_admin = await localizar_admins_grupo(context.bot, chat.id)
+    logging.info(
+        "🔎 Admins verificados | chat_id=%s | radar_admin=%s | cakto_admin=%s",
+        chat.id, bot_admin, cakto_admin
+    )
+
     if not bot_admin and not cakto_admin:
-        await update.message.reply_text(
+        await mensagem.reply_text(
             "⚠️ Ainda faltam os dois bots como administradores.\n\n"
             "✅ Adicione <b>este Radar</b> como administrador.\n"
             "✅ Adicione também o <b>bot da Cakto</b> como administrador.\n\n"
@@ -348,15 +385,17 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
         return
+
     if not bot_admin:
-        await update.message.reply_text(
+        await mensagem.reply_text(
             "⚠️ O Radar ainda não está como administrador deste grupo.\n\n"
             "Adicione este bot como administrador e envie <b>/configurar</b> novamente.",
             parse_mode="HTML"
         )
         return
+
     if not cakto_admin:
-        await update.message.reply_text(
+        await mensagem.reply_text(
             "⚠️ O bot da Cakto ainda não está como administrador deste grupo.\n\n"
             "Adicione o bot da Cakto como administrador e envie <b>/configurar</b> novamente.",
             parse_mode="HTML"
@@ -378,7 +417,7 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     clientes[str(user_id)] = cliente
     salvar_clientes_telegram(clientes)
 
-    await update.message.reply_text(
+    await mensagem.reply_text(
         "🎉 <b>GRUPO CONFIGURADO COM SUCESSO!</b>\n\n"
         f"📦 Plano: <b>{html.escape(cliente.get('plano', 'desconhecido'))}</b>\n"
         f"🔗 Shopee ID: <b>{html.escape(str(cliente.get('afiliado_id')))}</b>\n"
