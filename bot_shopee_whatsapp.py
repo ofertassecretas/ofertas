@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
-print("VERSAO V53-CAKTO-CANAIS-FLUXO-CORRIGIDO")
+print("VERSAO V54-CAKTO-CANAIS-ADMIN-DIAGNOSTICO")
 
 # =========================
 # CONFIG
@@ -263,6 +263,12 @@ async def receber_dados_onboarding(update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def localizar_admins_grupo(bot, chat_id):
+    """Verifica Radar e CaktoBot de forma robusta, inclusive em canais.
+
+    O Telegram pode devolver username/nome de formas diferentes para bots.
+    Por isso, além do username, analisamos first_name, last_name e full_name,
+    e registramos todos os administradores encontrados para diagnóstico real.
+    """
     try:
         admins = await bot.get_chat_administrators(chat_id)
         me = await bot.get_me()
@@ -270,28 +276,55 @@ async def localizar_admins_grupo(bot, chat_id):
         cakto_admin = False
         cakto_encontrado = ""
 
+        resumo_admins = []
+        alvo = CAKTO_BOT_USERNAME.lower().lstrip("@")
+
         for m in admins:
             if not m.user:
                 continue
-            username = (m.user.username or "").lower().lstrip("@")
-            nome = (m.user.full_name or "").lower()
-            eh_cakto = (
-                username == CAKTO_BOT_USERNAME.lower()
-                or "cakto" in username
-                or "cakto" in nome
+
+            u = m.user
+            username = (u.username or "").strip().lower().lstrip("@")
+            first_name = (u.first_name or "").strip().lower()
+            last_name = (u.last_name or "").strip().lower()
+            full_name = (u.full_name or "").strip().lower()
+            texto_identificacao = " ".join(
+                x for x in (username, first_name, last_name, full_name) if x
             )
+
+            resumo_admins.append(
+                f"id={u.id}|user=@{username or '-'}|nome={u.full_name or '-'}|bot={getattr(u, 'is_bot', False)}"
+            )
+
+            # Identificação ampla do CaktoBot. O nome mostrado no Telegram
+            # pode ser "Cakto", "Cakto Bot" ou ter username diferente.
+            eh_cakto = (
+                (alvo and alvo in texto_identificacao)
+                or "cakto" in texto_identificacao
+            )
+
             if eh_cakto:
                 cakto_admin = True
-                cakto_encontrado = f"@{username}" if username else nome
-                break
+                cakto_encontrado = (
+                    f"@{username}" if username else (u.full_name or u.first_name or str(u.id))
+                )
 
+        logging.info(
+            "🔎 ADMINISTRADORES ENCONTRADOS | chat_id=%s | total=%s | %s",
+            chat_id, len(resumo_admins), " || ".join(resumo_admins) if resumo_admins else "nenhum"
+        )
         logging.info(
             "🔎 Admins grupo | chat_id=%s | Radar=%s | Cakto=%s | identificado=%s",
             chat_id, bot_admin, cakto_admin, cakto_encontrado or "nenhum"
         )
+
         return bot_admin, cakto_admin
+
     except Exception as e:
-        logging.error("❌ Erro verificando administradores | chat_id=%s | %s", chat_id, e, exc_info=True)
+        logging.error(
+            "❌ Erro verificando administradores | chat_id=%s | %s",
+            chat_id, e, exc_info=True
+        )
         return False, False
 
 def gerar_codigo_configuracao():
