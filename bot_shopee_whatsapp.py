@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
-print("VERSAO V52-CAKTO-CANAIS-CODIGO-CONFIGURACAO")
+print("VERSAO V53-CAKTO-CANAIS-FLUXO-CORRIGIDO")
 
 # =========================
 # CONFIG
@@ -332,9 +332,23 @@ async def emitir_codigo_configuracao(update, context: ContextTypes.DEFAULT_TYPE)
     email = cliente.get("email_cakto", "")
     compra = encontrar_cakto_por_email(email) if email else None
 
+    # Se o Telegram ainda não foi vinculado à compra, não devemos tratar isso
+    # como assinatura inativa. Neste primeiro vínculo, o cliente precisa informar
+    # o mesmo e-mail usado no Cakto. Depois disso, /configurar poderá gerar o código.
+    if not email:
+        await update.message.reply_text(
+            "📧 <b>Antes de configurar o destino, preciso vincular sua compra.</b>\n\n"
+            "Envie agora o <b>e-mail usado na compra do Radar no Cakto</b>.\n\n"
+            "Assim que eu localizar sua assinatura, vou vincular seu Telegram e continuar a configuração automaticamente.",
+            parse_mode="HTML"
+        )
+        logging.info("🔗 /configurar aguardando e-mail Cakto | telegram_id=%s", user.id)
+        return
+
     if not compra or not compra.get("ativo"):
         await update.message.reply_text(
-            "⚠️ Sua assinatura não está ativa ou ainda não foi vinculada ao Telegram."
+            "⚠️ Não consegui validar uma assinatura ativa para o e-mail vinculado a este Telegram.\n\n"
+            "Se você acabou de comprar, confirme se está usando o mesmo e-mail informado no Cakto."
         )
         return
     if not cliente.get("afiliado_id"):
@@ -1654,7 +1668,6 @@ def iniciar():
 
 if __name__ == "__main__":
     iniciar()
-
 
 
 
