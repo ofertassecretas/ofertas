@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
-print("VERSAO V54-CAKTO-CANAIS-ADMIN-DIAGNOSTICO")
+print("VERSAO V55-CAKTO-CANAIS-CAKTO-NAO-BLOQUEIA")
 
 # =========================
 # CONFIG
@@ -252,11 +252,11 @@ async def receber_dados_onboarding(update, context: ContextTypes.DEFAULT_TYPE):
         salvar_clientes_telegram(clientes)
         await update.message.reply_text(
             "✅ <b>ID de afiliado salvo!</b>\n\n"
-            "Agora falta só configurar o seu grupo.\n\n"
+            "Agora falta só configurar o seu destino.\n\n"
             "1️⃣ Adicione <b>este Radar</b> como administrador.\n"
-            "2️⃣ Adicione também o <b>bot da Cakto</b> como administrador.\n"
-            "3️⃣ Dentro do seu grupo, envie <b>/configurar</b>.\n\n"
-            "Eu verificarei os dois administradores e vincularei o grupo automaticamente.",
+            "2️⃣ Mantenha também o <b>bot da Cakto</b> como administrador para o funcionamento da integração da Cakto.\n"
+            "3️⃣ Dentro do seu grupo/canal, envie <b>/configurar</b>.\n\n"
+            "Para ativar o Radar, a assinatura ativa e o Radar como administrador são os requisitos obrigatórios.",
             parse_mode="HTML"
         )
         logging.info("🛒 Afiliado salvo | telegram_id=%s | afiliado_id=%s", user_id, texto)
@@ -397,7 +397,8 @@ async def emitir_codigo_configuracao(update, context: ContextTypes.DEFAULT_TYPE)
         "⏱️ Este código vale por <b>30 minutos</b> e é de uso único.\n\n"
         "Agora vá para o <b>canal/grupo que receberá as ofertas</b> e publique exatamente:\n\n"
         f"<code>/configurar {codigo}</code>\n\n"
-        "✅ O Radar e o CaktoBot precisam estar como administradores."
+        "✅ O Radar precisa estar como administrador.\n"
+        "ℹ️ O CaktoBot pode permanecer como administrador para a integração da Cakto, mas não bloqueia a ativação do Radar."
         , parse_mode="HTML"
     )
     logging.info("🔐 Código de configuração gerado | telegram_id=%s | expira_em=30min", user.id)
@@ -420,7 +421,7 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     )
     if not mensagem:
         logging.warning(
-            "🚨 V52 /configurar SEM OBJETO MESSAGE | update=%s | chaves=%s | raw_message=%s | raw_chat=%s | raw_from=%s",
+            "🚨 V55 /configurar SEM OBJETO MESSAGE | update=%s | chaves=%s | raw_message=%s | raw_chat=%s | raw_from=%s",
             type(update).__name__, list(raw.keys()),
             bool(raw.get("message") or raw.get("edited_message")),
             bool((raw.get("message") or raw.get("edited_message") or {}).get("chat")),
@@ -459,7 +460,7 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     bot_username = (getattr(context.bot, "username", "") or "").strip()
 
     logging.info(
-        "⚙️ V52 /configurar RECEBIDO | update_id=%s | chat_mensagem_id=%s | chat_mensagem_tipo=%s | effective_chat_id=%s | effective_chat_tipo=%s | usuario_id=%s | sender_chat_id=%s | comando=%s | bot=@%s",
+        "⚙️ V55 /configurar RECEBIDO | update_id=%s | chat_mensagem_id=%s | chat_mensagem_tipo=%s | effective_chat_id=%s | effective_chat_tipo=%s | usuario_id=%s | sender_chat_id=%s | comando=%s | bot=@%s",
         getattr(update, "update_id", None),
         getattr(chat_mensagem, "id", None), getattr(chat_mensagem, "type", None),
         getattr(chat_efetivo, "id", None), getattr(chat_efetivo, "type", None),
@@ -518,12 +519,23 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
 
         bot_admin, cakto_admin = await localizar_admins_grupo(context.bot, chat_id)
         logging.info("🔎 Canal verificado | chat_id=%s | Radar=%s | Cakto=%s", chat_id, bot_admin, cakto_admin)
-        if not bot_admin or not cakto_admin:
+
+        # V55: o CaktoBot não bloqueia mais a configuração.
+        # A assinatura ativa é validada diretamente pelo cadastro recebido da Cakto
+        # e o Radar precisa ser administrador para conseguir publicar as ofertas.
+        # A API do Telegram pode não retornar o CaktoBot em getChatAdministrators
+        # mesmo quando ele aparece na interface do canal.
+        if not cakto_admin:
+            logging.warning(
+                "⚠️ CaktoBot não retornado pela API do Telegram | chat_id=%s | "
+                "prosseguindo porque assinatura Cakto está ativa e Radar é administrador",
+                chat_id
+            )
+
+        if not bot_admin:
             await responder(
-                "⚠️ <b>Quase lá!</b>\n\n"
-                + ("❌ O Radar ainda não está como administrador.\n" if not bot_admin else "")
-                + ("❌ O CaktoBot ainda não está como administrador.\n" if not cakto_admin else "")
-                + "\nAdicione os dois como administradores e publique novamente o comando com o mesmo código."
+                "⚠️ <b>O Radar ainda não está como administrador deste canal.</b>\n\n"
+                "Adicione este Radar como administrador e publique novamente o comando com o mesmo código."
             )
             return
 
@@ -534,7 +546,7 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
             "grupo_configurado": True,
             "grupo_ativo": True,
             "bot_admin": True,
-            "cakto_bot_admin": True,
+            "cakto_bot_admin": bool(cakto_admin),
             "tipo_destino": "channel",
             "configurado_em": datetime.now(FUSO_BR).isoformat(),
             "plano": compra.get("plano", cliente.get("plano", "desconhecido")),
@@ -551,8 +563,8 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
             f"🔗 Shopee ID: <b>{html.escape(str(cliente.get('afiliado_id')))}</b>\n"
             f"📢 Canal: <b>{html.escape(chat_title or 'Canal')}</b>\n\n"
             "✅ Radar administrador\n"
-            "✅ CaktoBot administrador\n"
-            "🚀 A partir do próximo ciclo, as ofertas serão enviadas automaticamente aqui."
+            + ("✅ CaktoBot administrador\n" if cakto_admin else "ℹ️ CaktoBot não retornado pela API do Telegram — não bloqueia a ativação\n")
+            + "🚀 A partir do próximo ciclo, as ofertas serão enviadas automaticamente aqui."
         )
         logging.info("✅ Canal configurado | telegram_id=%s | chat_id=%s | canal=%s", chave, chat_id, chat_title)
         return
@@ -574,7 +586,7 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     # uma compra Cakto. sender_chat indica normalmente envio em nome do grupo.
     if not user_id:
         logging.warning(
-            "⚠️ V52 /configurar sem usuario identificavel | chat_id=%s | sender_chat_id=%s",
+            "⚠️ V55 /configurar sem usuario identificavel | chat_id=%s | sender_chat_id=%s",
             chat_id, sender_chat_id
         )
         await responder(
@@ -616,15 +628,6 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
         chat_id, bot_admin, cakto_admin
     )
 
-    if not bot_admin and not cakto_admin:
-        await responder(
-            "⚠️ Ainda faltam os dois bots como administradores.\n\n"
-            "✅ Adicione <b>este Radar</b> como administrador.\n"
-            "✅ Adicione também o <b>bot da Cakto</b> como administrador.\n\n"
-            "Depois envie <b>/configurar</b> novamente."
-        )
-        return
-
     if not bot_admin:
         await responder(
             "⚠️ O Radar ainda não está como administrador deste grupo.\n\n"
@@ -633,11 +636,11 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if not cakto_admin:
-        await responder(
-            "⚠️ O bot da Cakto ainda não está como administrador deste grupo.\n\n"
-            "Adicione o bot da Cakto como administrador e envie <b>/configurar</b> novamente."
+        logging.warning(
+            "⚠️ CaktoBot não retornado pela API do Telegram | chat_id=%s | "
+            "prosseguindo com a configuração porque assinatura Cakto está ativa e Radar é administrador",
+            chat_id
         )
-        return
 
     cliente.update({
         "chat_id": chat_id,
@@ -660,8 +663,8 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
         f"🔗 Shopee ID: <b>{html.escape(str(cliente.get('afiliado_id')))}</b>\n"
         f"👥 Grupo: <b>{html.escape(chat_title or 'Grupo')}</b>\n\n"
         "✅ Radar administrador\n"
-        "✅ CaktoBot administrador\n"
-        "🚀 A partir do próximo ciclo, as ofertas serão enviadas automaticamente aqui."
+        + ("✅ CaktoBot administrador\n" if cakto_admin else "ℹ️ CaktoBot não retornado pela API do Telegram — não bloqueia a ativação\n")
+        + "🚀 A partir do próximo ciclo, as ofertas serão enviadas automaticamente aqui."
     )
     logging.info("✅ Grupo configurado | telegram_id=%s | chat_id=%s | grupo=%s", user_id, chat_id, chat_title)
     global LINKS_CICLO_ATUAL, TERMOS_USADOS_CICLO
@@ -676,7 +679,15 @@ async def validar_cliente_grupo(bot, cliente):
     if not compra or not compra.get("ativo") or not cliente.get("afiliado_id"):
         return False
     bot_admin, cakto_admin = await localizar_admins_grupo(bot, cliente["chat_id"])
-    return bool(bot_admin and cakto_admin)
+    if not cakto_admin:
+        logging.warning(
+            "⚠️ CaktoBot não retornado pela API | chat_id=%s | "
+            "cliente continua válido porque assinatura Cakto está ativa e Radar é administrador",
+            cliente.get("chat_id")
+        )
+    # V55: somente a assinatura ativa + Radar administrador são obrigatórios
+    # para o envio. O CaktoBot não é mais uma trava técnica do Radar.
+    return bool(bot_admin)
 
 async def enviar_ofertas_clientes(ctx, ofertas):
     clientes = carregar_clientes_telegram()
