@@ -6,7 +6,14 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
-print("VERSAO V55-CAKTO-CANAIS-CAKTO-NAO-BLOQUEIA")
+try:
+    import psycopg2
+    from psycopg2.extras import Json
+except Exception:
+    psycopg2 = None
+    Json = None
+
+print("VERSAO V57-CAKTO-CANAIS-DADOS-PERSISTENTES")
 
 # =========================
 # CONFIG
@@ -18,6 +25,7 @@ CHAT_ID_DESTINO = -1003848415150
 CHAT_ID_FREE = -1003886228244
 AFILIADO_ID = "18349740277"
 CAKTO_BOT_USERNAME = (os.getenv("CAKTO_BOT_USERNAME") or "CaktoBot").strip().lstrip("@")
+DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
 PLANOS_CAKTO_PRODUTOS = {
     "3092f5b9-4520-4def-8ca7-9bd3401890a5": "semanal",
     "2005e842-e78e-4093-a244-18ab2a180647": "mensal",
@@ -59,17 +67,115 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 # =========================
 CLIENTES_TELEGRAM = "clientes_telegram.json"
 CLIENTES_CAKTO = "clientes_cakto.json"
+DB_PRONTA = False
+DB_AVISO_EMITIDO = False
+
+def _db_conectar():
+    if not DATABASE_URL or psycopg2 is None:
+        return None
+    return psycopg2.connect(DATABASE_URL, connect_timeout=10)
+
+def inicializar_banco_persistente():
+    """Cria as tabelas e migra o JSON local apenas se a tabela estiver vazia."""
+    global DB_PRONTA, DB_AVISO_EMITIDO
+    if not DATABASE_URL:
+        logging.warning("⚠️ DATABASE_URL não configurada — clientes continuam no JSON local")
+        return
+    if psycopg2 is None:
+        logging.error("❌ psycopg2 não instalado — configure psycopg2-binary no requirements.txt")
+        return
+    try:
+        with _db_conectar() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS radar_clientes_telegram (
+                        chave TEXT PRIMARY KEY,
+                        dados JSONB NOT NULL,
+                        atualizado_em TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS radar_clientes_cakto (
+                        chave TEXT PRIMARY KEY,
+                        dados JSONB NOT NULL,
+                        atualizado_em TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                cur.execute("SELECT COUNT(*) FROM radar_clientes_telegram")
+                vazio_tg = cur.fetchone()[0] == 0
+                cur.execute("SELECT COUNT(*) FROM radar_clientes_cakto")
+                vazio_ck = cur.fetchone()[0] == 0
+                if vazio_tg:
+                    locais = carregar_json(CLIENTES_TELEGRAM, {})
+                    for chave, dados in locais.items():
+                        cur.execute(
+                            "INSERT INTO radar_clientes_telegram (chave, dados) VALUES (%s, %s) ON CONFLICT (chave) DO NOTHING",
+                            (str(chave), Json(dados))
+                        )
+                    if locais:
+                        logging.info("🗄️ Migração inicial: %s cliente(s) Telegram para o banco", len(locais))
+                if vazio_ck:
+                    locais = carregar_json(CLIENTES_CAKTO, {})
+                    for chave, dados in locais.items():
+                        cur.execute(
+                            "INSERT INTO radar_clientes_cakto (chave, dados) VALUES (%s, %s) ON CONFLICT (chave) DO NOTHING",
+                            (str(chave), Json(dados))
+                        )
+                    if locais:
+                        logging.info("🗄️ Migração inicial: %s registro(s) Cakto para o banco", len(locais))
+        DB_PRONTA = True
+        logging.info("🗄️ Banco persistente PostgreSQL ativo para clientes")
+    except Exception as e:
+        logging.error("❌ Falha iniciando banco persistente: %s", e, exc_info=True)
+        DB_PRONTA = False
+
+def _db_carregar(tabela):
+    try:
+        with _db_conectar() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT chave, dados FROM {tabela}")
+                return {str(chave): (dados or {}) for chave, dados in cur.fetchall()}
+    except Exception as e:
+        logging.error("❌ Falha lendo %s: %s", tabela, e)
+        return None
+
+def _db_salvar(tabela, dados):
+    try:
+        with _db_conectar() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"DELETE FROM {tabela}")
+                for chave, registro in dados.items():
+                    cur.execute(
+                        f"INSERT INTO {tabela} (chave, dados, atualizado_em) VALUES (%s, %s, NOW())",
+                        (str(chave), Json(registro))
+                    )
+        return True
+    except Exception as e:
+        logging.error("❌ Falha salvando %s: %s", tabela, e)
+        return False
 
 def carregar_clientes_telegram():
+    if DB_PRONTA:
+        dados = _db_carregar("radar_clientes_telegram")
+        if dados is not None:
+            return dados
     return carregar_json(CLIENTES_TELEGRAM, {})
 
 def salvar_clientes_telegram(dados):
+    if DB_PRONTA and _db_salvar("radar_clientes_telegram", dados):
+        return
     salvar_json(CLIENTES_TELEGRAM, dados)
 
 def carregar_clientes_cakto():
+    if DB_PRONTA:
+        dados = _db_carregar("radar_clientes_cakto")
+        if dados is not None:
+            return dados
     return carregar_json(CLIENTES_CAKTO, {})
 
 def salvar_clientes_cakto(dados):
+    if DB_PRONTA and _db_salvar("radar_clientes_cakto", dados):
+        return
     salvar_json(CLIENTES_CAKTO, dados)
 
 def email_normalizado(email):
@@ -649,7 +755,7 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
         "grupo_configurado": True,
         "grupo_ativo": True,
         "bot_admin": True,
-        "cakto_bot_admin": True,
+        "cakto_bot_admin": bool(cakto_admin),
         "configurado_em": datetime.now(FUSO_BR).isoformat(),
         "plano": compra.get("plano", cliente.get("plano", "desconhecido")),
         "ativo": True,
@@ -1396,9 +1502,10 @@ def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False):
         f"💡 {html.escape(gt)}",
         f"👉 {html.escape(ch)}", "",
         f'<a href="{html.escape(link)}">🛒 COMPRAR AGORA</a>\n\n'
-        f'<a href="{lk_whats}">📲 Compartilhar no WhatsApp</a>\n\n'
-        f'<a href="{LINK_GRUPO_OFERTAS}">👥 Entrar no grupo de ofertas</a>'
+        f'<a href="{lk_whats}">📲 Compartilhar no WhatsApp</a>'
     ])
+    if free:
+        partes.append(f'<a href="{html.escape(LINK_GRUPO_OFERTAS)}">👥 Entrar no grupo de ofertas</a>')
     return "\n".join(partes)
 
 async def enviar_msg(ctx, txt, img, cid):
@@ -1675,6 +1782,7 @@ async def principal():
     logging.info("🤖 Iniciando bot...")
     if not TELEGRAM_TOKEN or not SHOPEE_PASSWORD:
         raise RuntimeError("Configure TELEGRAM_TOKEN e SHOPEE_PASSWORD")
+    inicializar_banco_persistente()
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", comando_start))
     app.add_handler(CommandHandler("configurar", comando_configurar))
