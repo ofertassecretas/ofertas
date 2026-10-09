@@ -1,17 +1,20 @@
 import sys
 import subprocess
 
-# === INSTALA PSYCOPG2 SE NÃO ESTIVER INSTALADO ===
+# === INSTALA PSYCOPG2 — FORÇA VERSÃO PRONTA ===
 try:
     import psycopg2
 except ImportError:
-    print("🔧 Instalando psycopg2-binary automaticamente...")
+    print("🔧 Instalando psycopg2-binary (versão pronta)...")
     subprocess.check_call([
-        sys.executable, "-m", "pip", "install", 
-        "--no-cache-dir", "psycopg2-binary==2.9.9"
+        sys.executable, "-m", "pip", "install",
+        "--only-binary", "psycopg2-binary",  # ← NÃO deixa compilar!
+        "--no-cache-dir",
+        "psycopg2-binary>=2.9,<3"
     ])
     import psycopg2
     print("✅ psycopg2-binary instalado com SUCESSO!")
+# ============================================
 # =================================================
 
 # A PARTIR DAQUI CONTINUA O SEU CÓDIGO NORMAL
