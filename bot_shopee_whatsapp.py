@@ -1,3 +1,23 @@
+import sys
+import subprocess
+
+# === INSTALA PSYCOPG2 SE NÃO ESTIVER INSTALADO ===
+try:
+    import psycopg2
+except ImportError:
+    print("🔧 Instalando psycopg2-binary automaticamente...")
+    subprocess.check_call([
+        sys.executable, "-m", "pip", "install", 
+        "--no-cache-dir", "psycopg2-binary==2.9.9"
+    ])
+    import psycopg2
+    print("✅ psycopg2-binary instalado com SUCESSO!")
+# =================================================
+
+# A PARTIR DAQUI CONTINUA O SEU CÓDIGO NORMAL
+import os
+from urllib.parse import urlparse
+# ... resto das importações
 import os
 
 # ==== DIAGNÓSTICO — COLA AQUI MESMO ====
