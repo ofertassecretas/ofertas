@@ -21,14 +21,16 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
+print("VERSAO V57-CAKTO-CANAIS-DADOS-PERSISTENTES")
+
 try:
     import psycopg2
     from psycopg2.extras import Json
-except Exception:
+    print("✅ psycopg2 carregado com sucesso")
+except Exception as e:
+    print(f"⚠️ Erro ao carregar psycopg2: {type(e).__name__}: {e}")
     psycopg2 = None
     Json = None
-
-print("VERSAO V57-CAKTO-CANAIS-DADOS-PERSISTENTES")
 
 # =========================
 # CONFIG
