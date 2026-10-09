@@ -25,14 +25,11 @@ CHAT_ID_DESTINO = -1003848415150
 CHAT_ID_FREE = -1003886228244
 AFILIADO_ID = "18349740277"
 CAKTO_BOT_USERNAME = (os.getenv("CAKTO_BOT_USERNAME") or "CaktoBot").strip().lstrip("@")
-DATABASE_URL = os.getenv("URL_DO_BANCO_DE_DADOS") or os.getenv("DATABASE_URL")
+# TROCA ESTA LINHA:
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Só define se tiver valor, senão deixa vazio sem quebrar
-if DATABASE_URL:
-    os.environ["DATABASE_URL"] = DATABASE_URL
-    print("✅ URL do banco carregada com sucesso")
-else:
-    print("⚠️ Variável URL_DO_BANCO_DE_DADOS não encontrada — verificando no Railway...")
+# POR ESTA:
+DATABASE_URL = os.getenv("URL_DO_BANCO_DE_DADOS")
 PLANOS_CAKTO_PRODUTOS = {
     "3092f5b9-4520-4def-8ca7-9bd3401890a5": "semanal",
     "2005e842-e78e-4093-a244-18ab2a180647": "mensal",
