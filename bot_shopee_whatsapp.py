@@ -44,7 +44,7 @@ CAKTO_BOT_USERNAME = (os.getenv("CAKTO_BOT_USERNAME") or "CaktoBot").strip().lst
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 # POR ESTA:
-DATABASE_URL = os.getenv("URL_DO_BANCO_DE_DADOS")
+DATABASE_URL = os.getenv("DATABASE_URL")
 PLANOS_CAKTO_PRODUTOS = {
     "3092f5b9-4520-4def-8ca7-9bd3401890a5": "semanal",
     "2005e842-e78e-4093-a244-18ab2a180647": "mensal",
