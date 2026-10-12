@@ -1,29 +1,4 @@
-import sys
-import subprocess
-
-# === INSTALA PSYCOPG2 — FORÇA VERSÃO PRONTA ===
-try:
-    import psycopg2
-except ImportError:
-    print("🔧 Instalando psycopg2-binary (versão pronta)...")
-    subprocess.check_call([
-        sys.executable, "-m", "pip", "install",
-        "--only-binary", "psycopg2-binary",  # ← NÃO deixa compilar!
-        "--no-cache-dir",
-        "psycopg2-binary>=2.9,<3"
-    ])
-    import psycopg2
-    print("✅ psycopg2-binary instalado com SUCESSO!")
-# ============================================
-# =================================================
-
-# A PARTIR DAQUI CONTINUA O SEU CÓDIGO NORMAL
-import os
-from urllib.parse import urlparse
-# ... resto das importações
-import os
-
-# ==== DIAGNÓSTICO — COLA AQUI MESMO ====
+# ==== DIAGNÓSTICO — EXECUTA PRIMEIRO ====
 print("=" * 50)
 print("🔍 VERIFICANDO VARIÁVEIS DE AMBIENTE...")
 print(f"URL_DO_BANCO_DE_DADOS = {repr(os.getenv('URL_DO_BANCO_DE_DADOS'))}")
@@ -31,11 +6,6 @@ print(f"DATABASE_URL = {repr(os.getenv('DATABASE_URL'))}")
 print("=" * 50)
 # ======================================
 
-# AQUI CONTINUA O RESTO DO SEU CÓDIGO
-import asyncio
-import requests
-import logging
-# ... e assim por diante
 import asyncio, requests, logging, random, hashlib, time, json, os, html, re, tempfile, secrets
 from collections import Counter
 from difflib import SequenceMatcher
@@ -56,7 +26,7 @@ except Exception as e:
     Json = None
 
 # =========================
-# CONFIG
+# CONFIG — CORRIGIDO
 # =========================
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "").strip()
@@ -65,11 +35,15 @@ CHAT_ID_DESTINO = -1003848415150
 CHAT_ID_FREE = -1003886228244
 AFILIADO_ID = "18349740277"
 CAKTO_BOT_USERNAME = (os.getenv("CAKTO_BOT_USERNAME") or "CaktoBot").strip().lstrip("@")
-# TROCA ESTA LINHA:
-DATABASE_URL = os.getenv("DATABASE_URL")
 
-# POR ESTA:
-DATABASE_URL = os.getenv("DATABASE_URL")
+# ✅ Leitura e conversão automática da URL do banco
+_raw_db_url = os.getenv("DATABASE_URL") or os.getenv("URL_DO_BANCO_DE_DADOS")
+if _raw_db_url:
+    DATABASE_URL = _raw_db_url.replace("postgresql://", "postgres://")
+    print(f"✅ URL do banco pronta: {DATABASE_URL[:35]}...")
+else:
+    DATABASE_URL = None
+    print("⚠️ Nenhuma variável de banco encontrada!")
 PLANOS_CAKTO_PRODUTOS = {
     "3092f5b9-4520-4def-8ca7-9bd3401890a5": "semanal",
     "2005e842-e78e-4093-a244-18ab2a180647": "mensal",
@@ -116,8 +90,14 @@ DB_AVISO_EMITIDO = False
 
 def _db_conectar():
     if not DATABASE_URL or psycopg2 is None:
+        logging.warning("⚠️ Banco indisponível — DATABASE_URL=%s | psycopg2=%s",
+                        bool(DATABASE_URL), psycopg2 is not None)
         return None
-    return psycopg2.connect(DATABASE_URL, connect_timeout=10)
+    try:
+        return psycopg2.connect(DATABASE_URL, connect_timeout=10)
+    except Exception as e:
+        logging.error("❌ Falha na conexão com o banco: %s", e)
+        return None
 
 def inicializar_banco_persistente():
     """Cria as tabelas e migra o JSON local apenas se a tabela estiver vazia."""
