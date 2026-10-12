@@ -2,5 +2,5 @@ python-telegram-bot[job-queue]==21.6
 requests
 beautifulsoup4
 lxml
-
+psycopg2-binary>=2.9,<3
 
