@@ -1,18 +1,19 @@
-# ==== DIAGNÓSTICO — EXECUTA PRIMEIRO ====
-print("=" * 50)
-print("🔍 VERIFICANDO VARIÁVEIS DE AMBIENTE...")
-print(f"URL_DO_BANCO_DE_DADOS = {repr(os.getenv('URL_DO_BANCO_DE_DADOS'))}")
-print(f"DATABASE_URL = {repr(os.getenv('DATABASE_URL'))}")
-print("=" * 50)
-# ======================================
-
-import asyncio, requests, logging, random, hashlib, time, json, os, html, re, tempfile, secrets
+# PRIMEIRO — TODOS OS IMPORTS
+import os
+import asyncio, requests, logging, random, hashlib, time, json, html, re, tempfile, secrets
 from collections import Counter
 from difflib import SequenceMatcher
 from datetime import datetime, time as dt_time, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+
+# AGORA SIM — DEPOIS DOS IMPORTS, roda o diagnóstico
+print("=" * 50)
+print("🔍 VERIFICANDO VARIÁVEIS DE AMBIENTE...")
+print(f"URL_DO_BANCO_DE_DADOS = {repr(os.getenv('URL_DO_BANCO_DE_DADOS'))}")
+print(f"DATABASE_URL = {repr(os.getenv('DATABASE_URL'))}")
+print("=" * 50)
 
 print("VERSAO V57-CAKTO-CANAIS-DADOS-PERSISTENTES")
 
