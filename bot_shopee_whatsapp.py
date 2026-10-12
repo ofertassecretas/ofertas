@@ -37,11 +37,13 @@ CHAT_ID_FREE = -1003886228244
 AFILIADO_ID = "18349740277"
 CAKTO_BOT_USERNAME = (os.getenv("CAKTO_BOT_USERNAME") or "CaktoBot").strip().lstrip("@")
 
-# ✅ Leitura e conversão automática da URL do banco
-_raw_db_url = os.getenv("DATABASE_URL") or os.getenv("URL_DO_BANCO_DE_DADOS")
+# ✅ Leitura ajustada — PRIORIZA URL_DO_BANCO_DE_DADOS (Railway)
+_raw_db_url = os.getenv("URL_DO_BANCO_DE_DADOS") or os.getenv("DATABASE_URL")
 if _raw_db_url:
+    # Corrige o esquema: postgresql:// → postgres://
     DATABASE_URL = _raw_db_url.replace("postgresql://", "postgres://")
-    print(f"✅ URL do banco pronta: {DATABASE_URL[:35]}...")
+    print(f"✅ URL do banco encontrada e pronta!")
+    print(f"🔗 Fim da URL: ...{DATABASE_URL[-25:]}")
 else:
     DATABASE_URL = None
     print("⚠️ Nenhuma variável de banco encontrada!")
