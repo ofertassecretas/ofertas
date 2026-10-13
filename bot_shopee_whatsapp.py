@@ -15,7 +15,7 @@ print(f"URL_DO_BANCO_DE_DADOS configurada = {bool(os.getenv('URL_DO_BANCO_DE_DAD
 print(f"DATABASE_URL configurada = {bool(os.getenv('DATABASE_URL'))}")
 print("=" * 50)
 
-print("VERSAO V57-CAKTO-CANAIS-DADOS-PERSISTENTES")
+print("VERSAO V58-VALIDADE-AVISOS-CAKTO")
 
 try:
     import psycopg2
@@ -52,6 +52,12 @@ PLANOS_CAKTO_PRODUTOS = {
     "2005e842-e78e-4093-a244-18ab2a180647": "mensal",
     "f13e47fe-2e9e-474a-83b6-d8e7dd73160d": "anual",
 }
+LINKS_PAGAMENTO_PLANOS = {
+    "semanal": "https://pay.cakto.com.br/8kimcbi_1156536",
+    "mensal": "https://pay.cakto.com.br/rzwuzen_1156485",
+    "anual": "https://pay.cakto.com.br/tikburq_1156549",
+}
+DIAS_POR_PLANO = {"semanal": 7, "mensal": 30, "anual": 365}
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
@@ -239,11 +245,141 @@ def classificar_plano(oferta="", preco=None, periodo=None):
 
 def status_ativo_cakto(evento, status):
     texto = f"{evento or ''} {status or ''}".lower()
-    if any(x in texto for x in ["cancel", "refund", "reembolso", "chargeback", "cancelad"]):
+    if any(x in texto for x in ["cancel", "refund", "reembolso", "chargeback", "cancelad", "inactive", "inativo", "expired", "expirad", "vencid"]):
         return False
     if any(x in texto for x in ["approved", "aprovad", "paid", "pago", "active", "ativo", "renew", "renov"]):
         return True
     return None
+
+def ler_data_iso(valor):
+    if not valor:
+        return None
+    try:
+        data = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
+        if data.tzinfo is None:
+            data = data.replace(tzinfo=FUSO_BR)
+        return data.astimezone(FUSO_BR)
+    except Exception:
+        return None
+
+def data_pagamento(item):
+    for campo in ("approved_at", "paid_at", "payment_date", "created_at", "updated_at", "date_created"):
+        data = ler_data_iso(item.get(campo))
+        if data:
+            return data
+    return datetime.now(FUSO_BR)
+
+def assinatura_ativa(registro):
+    if not registro or not registro.get("ativo"):
+        return False
+    vencimento = ler_data_iso(registro.get("vence_em"))
+    # Registros antigos sem vencimento são migrados pelo verificador periódico.
+    return vencimento is None or vencimento > datetime.now(FUSO_BR)
+
+def formatar_data_br(data):
+    return data.astimezone(FUSO_BR).strftime("%d/%m/%Y às %H:%M")
+
+def mensagem_vencimento(plano, dias, vencimento):
+    prazo = "em menos de 24 horas" if dias == 1 else f"em aproximadamente {dias} dias"
+    return (
+        "⏰ <b>Seu Radar está perto de vencer!</b>\n\n"
+        f"Seu plano <b>{html.escape(plano.capitalize())}</b> vence {prazo} "
+        f"(<b>{formatar_data_br(vencimento)}</b>).\n\n"
+        "Para não ficar sem receber ofertas, renove ou aproveite para mudar de plano:\n\n"
+        f"🗓️ <a href=\"{LINKS_PAGAMENTO_PLANOS['semanal']}\">Plano semanal</a>\n"
+        f"📅 <a href=\"{LINKS_PAGAMENTO_PLANOS['mensal']}\">Plano mensal</a>\n"
+        f"🏆 <a href=\"{LINKS_PAGAMENTO_PLANOS['anual']}\">Plano anual</a>\n\n"
+        "Se já renovou, pode ignorar este aviso."
+    )
+
+async def verificar_vencimentos(bot):
+    """Envia lembretes privados em 3, 2 e 1 dia e bloqueia planos vencidos."""
+    cakto = carregar_clientes_cakto()
+    telegram = carregar_clientes_telegram()
+    agora = datetime.now(FUSO_BR)
+    mudou_cakto = False
+    mudou_telegram = False
+
+    for email, registro in cakto.items():
+        if not registro.get("ativo"):
+            continue
+        plano = registro.get("plano", "desconhecido")
+        vencimento = ler_data_iso(registro.get("vence_em"))
+        if not vencimento:
+            # Compatibilidade com clientes cadastrados antes do controle de validade.
+            inicio = ler_data_iso(registro.get("aprovado_em") or registro.get("atualizado_em"))
+            dias_plano = DIAS_POR_PLANO.get(plano)
+            if inicio and dias_plano:
+                vencimento = inicio + timedelta(days=dias_plano)
+                registro["vence_em"] = vencimento.isoformat()
+                mudou_cakto = True
+            else:
+                logging.warning("⚠️ Sem vencimento calculável para cadastro Cakto (plano=%s)", plano)
+                continue
+
+        if vencimento <= agora:
+            registro["ativo"] = False
+            registro["status"] = "expired"
+            registro["vencido_em"] = agora.isoformat()
+            mudou_cakto = True
+            for chave, cliente in telegram.items():
+                if email_normalizado(cliente.get("email_cakto")) == email and cliente.get("ativo", True):
+                    cliente["ativo"] = False
+                    cliente["grupo_ativo"] = False
+                    mudou_telegram = True
+                    tid = cliente.get("telegram_id") or chave
+                    try:
+                        await bot.send_message(
+                            chat_id=int(tid),
+                            text=("⛔ <b>Seu plano do Radar venceu.</b>\n\n"
+                                  "As ofertas foram pausadas porque não identificamos uma renovação aprovada. "
+                                  "Escolha um plano para reativar o recebimento:\n\n"
+                                  f"🗓️ <a href=\"{LINKS_PAGAMENTO_PLANOS['semanal']}\">Plano semanal</a>\n"
+                                  f"📅 <a href=\"{LINKS_PAGAMENTO_PLANOS['mensal']}\">Plano mensal</a>\n"
+                                  f"🏆 <a href=\"{LINKS_PAGAMENTO_PLANOS['anual']}\">Plano anual</a>"),
+                            parse_mode="HTML", disable_web_page_preview=True
+                        )
+                    except Exception as e:
+                        logging.info("ℹ️ Aviso de vencimento não enviado no privado | tipo=%s", type(e).__name__)
+            continue
+
+        segundos = (vencimento - agora).total_seconds()
+        dias_restantes = max(1, int((segundos + 86399) // 86400))
+        if dias_restantes not in (1, 2, 3):
+            continue
+        enviados = registro.get("avisos_vencimento_enviados", [])
+        chave_aviso = f"{vencimento.date().isoformat()}:{dias_restantes}"
+        if chave_aviso in enviados:
+            continue
+        for chave, cliente in telegram.items():
+            if email_normalizado(cliente.get("email_cakto")) != email:
+                continue
+            tid = cliente.get("telegram_id") or chave
+            try:
+                await bot.send_message(
+                    chat_id=int(tid),
+                    text=mensagem_vencimento(plano, dias_restantes, vencimento),
+                    parse_mode="HTML", disable_web_page_preview=True
+                )
+                enviados.append(chave_aviso)
+                registro["avisos_vencimento_enviados"] = enviados[-30:]
+                mudou_cakto = True
+            except Exception as e:
+                logging.info("ℹ️ Lembrete de vencimento não enviado no privado | tipo=%s", type(e).__name__)
+            break
+
+    if mudou_cakto:
+        salvar_clientes_cakto(cakto)
+    if mudou_telegram:
+        salvar_clientes_telegram(telegram)
+
+async def rotina_vencimentos(bot):
+    while True:
+        try:
+            await verificar_vencimentos(bot)
+        except Exception as e:
+            logging.error("❌ Erro na rotina de vencimentos | tipo=%s", type(e).__name__, exc_info=True)
+        await asyncio.sleep(3600)
 
 def encontrar_cliente_por_telegram(telegram_id):
     clientes = carregar_clientes_telegram()
@@ -287,7 +423,7 @@ async def comando_start(update, context: ContextTypes.DEFAULT_TYPE):
     nome = html.escape(user.first_name or "cliente")
 
     compra = encontrar_cakto_por_email(cliente.get("email_cakto")) if cliente.get("email_cakto") else None
-    if compra and compra.get("ativo"):
+    if compra and assinatura_ativa(compra):
         cliente["ativo"] = True
         cliente["plano"] = compra.get("plano", cliente.get("plano", "desconhecido"))
         clientes[chave] = cliente
@@ -352,7 +488,7 @@ async def receber_dados_onboarding(update, context: ContextTypes.DEFAULT_TYPE):
             logging.warning("⚠️ E-mail sem compra Cakto | telegram_id=%s | email=%s", user_id, email)
             return
 
-        if not compra.get("ativo"):
+        if not assinatura_ativa(compra):
             await update.message.reply_text("⚠️ Encontrei seu cadastro, mas a assinatura não está ativa no momento.")
             return
 
@@ -510,7 +646,7 @@ async def emitir_codigo_configuracao(update, context: ContextTypes.DEFAULT_TYPE)
         logging.info("🔗 /configurar aguardando e-mail Cakto | telegram_id=%s", user.id)
         return
 
-    if not compra or not compra.get("ativo"):
+    if not compra or not assinatura_ativa(compra):
         await update.message.reply_text(
             "⚠️ Não consegui validar uma assinatura ativa para o e-mail vinculado a este Telegram.\n\n"
             "Se você acabou de comprar, confirme se está usando o mesmo e-mail informado no Cakto."
@@ -642,7 +778,7 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
 
         email = cliente.get("email_cakto", "")
         compra = encontrar_cakto_por_email(email) if email else None
-        if not compra or not compra.get("ativo"):
+        if not compra or not assinatura_ativa(compra):
             await responder("⚠️ A assinatura Cakto vinculada a este código não está ativa.")
             return
         if not cliente.get("afiliado_id"):
@@ -734,7 +870,7 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     email = cliente.get("email_cakto", "")
     compra = encontrar_cakto_por_email(email) if email else None
 
-    if not compra or not compra.get("ativo"):
+    if not compra or not assinatura_ativa(compra):
         logging.warning("⚠️ /configurar bloqueado | chat_id=%s | usuario_id=%s | compra_ativa=False", chat_id, user_id)
         await responder("⚠️ Sua assinatura não está ativa ou ainda não foi vinculada ao Telegram.")
         return
@@ -808,7 +944,7 @@ async def validar_cliente_grupo(bot, cliente):
         return False
     email = cliente.get("email_cakto", "")
     compra = encontrar_cakto_por_email(email) if email else None
-    if not compra or not compra.get("ativo") or not cliente.get("afiliado_id"):
+    if not compra or not assinatura_ativa(compra) or not cliente.get("afiliado_id"):
         return False
     bot_admin, cakto_admin = await localizar_admins_grupo(bot, cliente["chat_id"])
     if not cakto_admin:
@@ -1617,7 +1753,7 @@ async def webhook_cakto(reader, writer):
                     "oferta": oferta_nome,
                     "oferta_id": oferta.get("id", ""),
                     "oferta_preco": oferta_preco,
-                    "plano": classificar_plano(oferta_nome, oferta_preco, periodo),
+                    "plano": PLANOS_CAKTO_PRODUTOS.get(str(produto.get("id", "")), classificar_plano(oferta_nome, oferta_preco, periodo)),
                     "status": status,
                     "evento": evento,
                     "offer_type": item.get("offer_type", "main"),
@@ -1629,6 +1765,37 @@ async def webhook_cakto(reader, writer):
                     registro["ativo"] = ativo
                 else:
                     registro["ativo"] = registro.get("ativo", False)
+
+                # Só um pagamento aprovado/renovação confirmada prorroga a validade.
+                texto_evento = f"{evento or ''} {status or ''}".lower()
+                pagamento_confirmado = ativo is True and any(
+                    termo in texto_evento for termo in ("approved", "aprovad", "paid", "pago", "renew", "renov")
+                )
+                plano_atual = registro.get("plano", "desconhecido")
+                duracao = DIAS_POR_PLANO.get(plano_atual)
+                if pagamento_confirmado and duracao:
+                    evento_unico = str(
+                        item.get("transaction_id") or item.get("payment_id") or
+                        item.get("order_id") or item.get("id") or ""
+                    ).strip()
+                    processados = registro.get("pagamentos_processados", [])
+                    if evento_unico and evento_unico not in processados:
+                        agora_pagamento = data_pagamento(item)
+                        vencimento_anterior = ler_data_iso(registro.get("vence_em"))
+                        base = vencimento_anterior if vencimento_anterior and vencimento_anterior > agora_pagamento else agora_pagamento
+                        novo_vencimento = base + timedelta(days=duracao)
+                        registro["aprovado_em"] = agora_pagamento.isoformat()
+                        registro["vence_em"] = novo_vencimento.isoformat()
+                        registro["ativo"] = True
+                        registro.pop("vencido_em", None)
+                        registro["pagamentos_processados"] = (processados + [evento_unico])[-50:]
+                        registro["avisos_vencimento_enviados"] = []
+                    elif not evento_unico and not registro.get("vence_em"):
+                        # Fallback para payloads sem identificador de pagamento.
+                        agora_pagamento = data_pagamento(item)
+                        registro["aprovado_em"] = agora_pagamento.isoformat()
+                        registro["vence_em"] = (agora_pagamento + timedelta(days=duracao)).isoformat()
+                        registro["ativo"] = True
                 clientes_cakto[email] = registro
 
             logging.info(
@@ -1828,6 +1995,7 @@ async def principal():
     await app.updater.start_polling()
     logging.info("✅ Bot pronto e recebendo comandos Telegram!")
     asyncio.create_task(manter_vivo())
+    asyncio.create_task(rotina_vencimentos(app.bot))
     asyncio.create_task(iniciar_webhook())
     try:
         await loop(app)
