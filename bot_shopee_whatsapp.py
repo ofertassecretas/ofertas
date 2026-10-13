@@ -1,4 +1,4 @@
-# PRIMEIRO â€” TODOS OS IMPORTS
+# PRIMEIRO — TODOS OS IMPORTS
 import os
 import asyncio, requests, logging, random, hashlib, time, json, html, re, tempfile, secrets
 from collections import Counter
@@ -8,9 +8,9 @@ from zoneinfo import ZoneInfo
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse, quote
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
-# AGORA SIM â€” DEPOIS DOS IMPORTS, roda o diagnÃ³stico
+# AGORA SIM — DEPOIS DOS IMPORTS, roda o diagnóstico
 print("=" * 50)
-print("ðŸ” VERIFICANDO VARIÃVEIS DE AMBIENTE...")
+print("🔍 VERIFICANDO VARIÁVEIS DE AMBIENTE...")
 print(f"URL_DO_BANCO_DE_DADOS configurada = {bool(os.getenv('URL_DO_BANCO_DE_DADOS'))}")
 print(f"DATABASE_URL configurada = {bool(os.getenv('DATABASE_URL'))}")
 print("=" * 50)
@@ -20,14 +20,14 @@ print("VERSAO V57-CAKTO-CANAIS-DADOS-PERSISTENTES")
 try:
     import psycopg2
     from psycopg2.extras import Json
-    print("âœ… psycopg2 carregado com sucesso")
+    print("✅ psycopg2 carregado com sucesso")
 except Exception as e:
-    print(f"âš ï¸ Erro ao carregar psycopg2: {type(e).__name__}: {e}")
+    print(f"⚠️ Erro ao carregar psycopg2: {type(e).__name__}: {e}")
     psycopg2 = None
     Json = None
 
 # =========================
-# CONFIG â€” CORRIGIDO
+# CONFIG — CORRIGIDO
 # =========================
 TELEGRAM_TOKEN = (os.getenv("TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
 SHOPEE_PASSWORD = os.getenv("SHOPEE_PASSWORD", "").strip()
@@ -37,16 +37,16 @@ CHAT_ID_FREE = -1003886228244
 AFILIADO_ID = "18349740277"
 CAKTO_BOT_USERNAME = (os.getenv("CAKTO_BOT_USERNAME") or "CaktoBot").strip().lstrip("@")
 
-# âœ… Leitura ajustada â€” PRIORIZA URL_DO_BANCO_DE_DADOS (Railway)
+# ✅ Leitura ajustada — PRIORIZA URL_DO_BANCO_DE_DADOS (Railway)
 _raw_db_url = os.getenv("URL_DO_BANCO_DE_DADOS") or os.getenv("DATABASE_URL")
 if _raw_db_url:
-    # Corrige o esquema: postgresql:// â†’ postgres://
+    # Corrige o esquema: postgresql:// → postgres://
     DATABASE_URL = _raw_db_url.replace("postgresql://", "postgres://")
-    print(f"âœ… URL do banco encontrada e pronta!")
-    print("ðŸ”— EndereÃ§o do banco carregado (credenciais ocultas).")
+    print(f"✅ URL do banco encontrada e pronta!")
+    print("🔗 Endereço do banco carregado (credenciais ocultas).")
 else:
     DATABASE_URL = None
-    print("âš ï¸ Nenhuma variÃ¡vel de banco encontrada!")
+    print("⚠️ Nenhuma variável de banco encontrada!")
 PLANOS_CAKTO_PRODUTOS = {
     "3092f5b9-4520-4def-8ca7-9bd3401890a5": "semanal",
     "2005e842-e78e-4093-a244-18ab2a180647": "mensal",
@@ -75,7 +75,7 @@ FUSO_BR = ZoneInfo("America/Sao_Paulo")
 ARQUIVO_ESTADO = "estado_buscas.json"
 ARQUIVO_HISTORICO = "historico_envios.json"
 
-# ðŸš« PALAVRAS PROIBIDAS
+# 🚫 PALAVRAS PROIBIDAS
 PALAVRAS_PROIBIDAS = [
     "mousepad", "mouse pad", "tapete de mouse", "almofada de mouse",
     "mouse", "pad mouse", "pad para mouse"
@@ -84,7 +84,7 @@ PALAVRAS_PROIBIDAS = [
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # =========================
-# ðŸ¤– ONBOARDING / CLIENTES
+# 🤖 ONBOARDING / CLIENTES
 # =========================
 CLIENTES_TELEGRAM = "clientes_telegram.json"
 CLIENTES_CAKTO = "clientes_cakto.json"
@@ -93,22 +93,22 @@ DB_AVISO_EMITIDO = False
 
 def _db_conectar():
     if not DATABASE_URL or psycopg2 is None:
-        logging.warning("âš ï¸ Banco indisponÃ­vel â€” DATABASE_URL configurada: %s | psycopg2 disponÃ­vel: %s" % (bool(DATABASE_URL), psycopg2 is not None))
+        logging.warning("⚠️ Banco indisponível — DATABASE_URL configurada: %s | psycopg2 disponível: %s" % (bool(DATABASE_URL), psycopg2 is not None))
         return None
     try:
         return psycopg2.connect(DATABASE_URL, connect_timeout=10)
     except Exception as e:
-        logging.error("âŒ Falha na conexÃ£o com o banco: %s", e)
+        logging.error("❌ Falha na conexão com o banco: %s", e)
         return None
 
 def inicializar_banco_persistente():
     """Cria as tabelas e migra o JSON local apenas se a tabela estiver vazia."""
     global DB_PRONTA, DB_AVISO_EMITIDO
     if not DATABASE_URL:
-        logging.warning("âš ï¸ DATABASE_URL nÃ£o configurada â€” clientes continuam no JSON local")
+        logging.warning("⚠️ DATABASE_URL não configurada — clientes continuam no JSON local")
         return
     if psycopg2 is None:
-        logging.error("âŒ psycopg2 nÃ£o instalado â€” configure psycopg2-binary no requirements.txt")
+        logging.error("❌ psycopg2 não instalado — configure psycopg2-binary no requirements.txt")
         return
     try:
         with _db_conectar() as conn:
@@ -139,7 +139,7 @@ def inicializar_banco_persistente():
                             (str(chave), Json(dados))
                         )
                     if locais:
-                        logging.info("ðŸ—„ï¸ MigraÃ§Ã£o inicial: %s cliente(s) Telegram para o banco", len(locais))
+                        logging.info("🗄️ Migração inicial: %s cliente(s) Telegram para o banco", len(locais))
                 if vazio_ck:
                     locais = carregar_json(CLIENTES_CAKTO, {})
                     for chave, dados in locais.items():
@@ -148,11 +148,11 @@ def inicializar_banco_persistente():
                             (str(chave), Json(dados))
                         )
                     if locais:
-                        logging.info("ðŸ—„ï¸ MigraÃ§Ã£o inicial: %s registro(s) Cakto para o banco", len(locais))
+                        logging.info("🗄️ Migração inicial: %s registro(s) Cakto para o banco", len(locais))
         DB_PRONTA = True
-        logging.info("ðŸ—„ï¸ Banco persistente PostgreSQL ativo para clientes")
+        logging.info("🗄️ Banco persistente PostgreSQL ativo para clientes")
     except Exception as e:
-        logging.error("âŒ Falha iniciando banco persistente: %s", e, exc_info=True)
+        logging.error("❌ Falha iniciando banco persistente: %s", e, exc_info=True)
         DB_PRONTA = False
 
 def _db_carregar(tabela):
@@ -162,7 +162,7 @@ def _db_carregar(tabela):
                 cur.execute(f"SELECT chave, dados FROM {tabela}")
                 return {str(chave): (dados or {}) for chave, dados in cur.fetchall()}
     except Exception as e:
-        logging.error("âŒ Falha lendo %s: %s", tabela, e)
+        logging.error("❌ Falha lendo %s: %s", tabela, e)
         return None
 
 def _db_salvar(tabela, dados):
@@ -177,7 +177,7 @@ def _db_salvar(tabela, dados):
                     )
         return True
     except Exception as e:
-        logging.error("âŒ Falha salvando %s: %s", tabela, e)
+        logging.error("❌ Falha salvando %s: %s", tabela, e)
         return False
 
 def carregar_clientes_telegram():
@@ -294,33 +294,33 @@ async def comando_start(update, context: ContextTypes.DEFAULT_TYPE):
         salvar_clientes_telegram(clientes)
         if cliente.get("afiliado_id") and cliente.get("chat_id"):
             texto = (
-                f"ðŸ‘‹ OlÃ¡, <b>{nome}</b>!\n\n"
-                "âœ… Seu cadastro estÃ¡ ativo.\n"
-                f"ðŸ“¦ Plano: <b>{html.escape(cliente.get('plano', 'desconhecido'))}</b>\n\n"
-                "Seu grupo jÃ¡ estÃ¡ configurado. O Radar continuarÃ¡ enviando as ofertas automaticamente."
+                f"👋 Olá, <b>{nome}</b>!\n\n"
+                "✅ Seu cadastro está ativo.\n"
+                f"📦 Plano: <b>{html.escape(cliente.get('plano', 'desconhecido'))}</b>\n\n"
+                "Seu grupo já está configurado. O Radar continuará enviando as ofertas automaticamente."
             )
         elif cliente.get("afiliado_id"):
             texto = (
-                f"ðŸ‘‹ OlÃ¡, <b>{nome}</b>!\n\n"
-                "âœ… Seu Telegram estÃ¡ vinculado e seu ID de afiliado jÃ¡ foi salvo.\n\n"
+                f"👋 Olá, <b>{nome}</b>!\n\n"
+                "✅ Seu Telegram está vinculado e seu ID de afiliado já foi salvo.\n\n"
                 "Agora adicione o Radar e o bot da Cakto como administradores do seu grupo e envie <b>/configurar</b> dentro dele."
             )
         else:
             texto = (
-                f"ðŸ‘‹ OlÃ¡, <b>{nome}</b>!\n\n"
-                "âœ… Seu Telegram jÃ¡ estÃ¡ vinculado ao Radar.\n\n"
+                f"👋 Olá, <b>{nome}</b>!\n\n"
+                "✅ Seu Telegram já está vinculado ao Radar.\n\n"
                 "Agora me envie seu <b>ID de afiliado Shopee</b>."
             )
     else:
         texto = (
-            f"ðŸ‘‹ OlÃ¡, <b>{nome}</b>!\n\n"
-            "VocÃª chegou ao <b>Radar de PromoÃ§Ãµes VIP</b>. ðŸ›’\n\n"
-            "âœ… Seu Telegram foi identificado com sucesso.\n\n"
-            "ðŸ“§ Para localizar sua compra no Cakto, envie agora o "
+            f"👋 Olá, <b>{nome}</b>!\n\n"
+            "Você chegou ao <b>Radar de Promoções VIP</b>. 🛒\n\n"
+            "✅ Seu Telegram foi identificado com sucesso.\n\n"
+            "📧 Para localizar sua compra no Cakto, envie agora o "
             "<b>e-mail usado na compra</b>."
         )
     await update.message.reply_text(texto, parse_mode="HTML")
-    logging.info("ðŸ¤– /start recebido | telegram_id=%s | nome=%s", user.id, user.full_name)
+    logging.info("🤖 /start recebido | telegram_id=%s | nome=%s", user.id, user.full_name)
 
 async def receber_dados_onboarding(update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_user or not update.message:
@@ -337,23 +337,23 @@ async def receber_dados_onboarding(update, context: ContextTypes.DEFAULT_TYPE):
     cliente = clientes.get(str(user_id), {})
     email = email_normalizado(texto)
 
-    # Primeiro passo: vincular Telegram Ã  compra Cakto pelo e-mail.
+    # Primeiro passo: vincular Telegram à compra Cakto pelo e-mail.
     if not cliente.get("email_cakto"):
         if "@" not in email or "." not in email.split("@")[-1]:
-            await update.message.reply_text("ðŸ“§ Envie somente o e-mail usado na compra do Radar no Cakto.")
+            await update.message.reply_text("📧 Envie somente o e-mail usado na compra do Radar no Cakto.")
             return
 
         compra = encontrar_cakto_por_email(email)
         if not compra:
             await update.message.reply_text(
-                "âŒ NÃ£o encontrei uma compra do Radar para esse e-mail.\n\n"
-                "Confira se Ã© exatamente o mesmo e-mail usado no Cakto."
+                "❌ Não encontrei uma compra do Radar para esse e-mail.\n\n"
+                "Confira se é exatamente o mesmo e-mail usado no Cakto."
             )
-            logging.warning("âš ï¸ E-mail sem compra Cakto | telegram_id=%s | email=%s", user_id, email)
+            logging.warning("⚠️ E-mail sem compra Cakto | telegram_id=%s | email=%s", user_id, email)
             return
 
         if not compra.get("ativo"):
-            await update.message.reply_text("âš ï¸ Encontrei seu cadastro, mas a assinatura nÃ£o estÃ¡ ativa no momento.")
+            await update.message.reply_text("⚠️ Encontrei seu cadastro, mas a assinatura não está ativa no momento.")
             return
 
         cliente["email_cakto"] = email
@@ -364,42 +364,42 @@ async def receber_dados_onboarding(update, context: ContextTypes.DEFAULT_TYPE):
         salvar_clientes_telegram(clientes)
 
         await update.message.reply_text(
-            "ðŸŽ‰ <b>Compra localizada!</b>\n\n"
+            "🎉 <b>Compra localizada!</b>\n\n"
             f"Plano: <b>{html.escape(cliente['plano'])}</b>\n"
             "Telegram vinculado com sucesso.\n\n"
             "Agora me envie seu <b>ID de afiliado Shopee</b>.",
             parse_mode="HTML"
         )
-        logging.info("ðŸ”— Cliente vinculado | telegram_id=%s | plano=%s", user_id, cliente["plano"])
+        logging.info("🔗 Cliente vinculado | telegram_id=%s | plano=%s", user_id, cliente["plano"])
         return
 
     # Segundo passo: guardar o ID de afiliado Shopee.
     if not cliente.get("afiliado_id"):
         if not texto.isdigit() or not 6 <= len(texto) <= 20:
-            await update.message.reply_text("ðŸ›’ Envie somente o seu ID numÃ©rico de afiliado Shopee.")
+            await update.message.reply_text("🛒 Envie somente o seu ID numérico de afiliado Shopee.")
             return
         cliente["afiliado_id"] = texto
         cliente["atualizado_em"] = datetime.now(FUSO_BR).isoformat()
         clientes[str(user_id)] = cliente
         salvar_clientes_telegram(clientes)
         await update.message.reply_text(
-            "âœ… <b>ID de afiliado salvo!</b>\n\n"
-            "Agora falta sÃ³ configurar o seu destino.\n\n"
-            "1ï¸âƒ£ Adicione <b>este Radar</b> como administrador.\n"
-            "2ï¸âƒ£ Mantenha tambÃ©m o <b>bot da Cakto</b> como administrador para o funcionamento da integraÃ§Ã£o da Cakto.\n"
-            "3ï¸âƒ£ Dentro do seu grupo/canal, envie <b>/configurar</b>.\n\n"
-            "Para ativar o Radar, a assinatura ativa e o Radar como administrador sÃ£o os requisitos obrigatÃ³rios.",
+            "✅ <b>ID de afiliado salvo!</b>\n\n"
+            "Agora falta só configurar o seu destino.\n\n"
+            "1️⃣ Adicione <b>este Radar</b> como administrador.\n"
+            "2️⃣ Mantenha também o <b>bot da Cakto</b> como administrador para o funcionamento da integração da Cakto.\n"
+            "3️⃣ Dentro do seu grupo/canal, envie <b>/configurar</b>.\n\n"
+            "Para ativar o Radar, a assinatura ativa e o Radar como administrador são os requisitos obrigatórios.",
             parse_mode="HTML"
         )
-        logging.info("ðŸ›’ Afiliado salvo | telegram_id=%s | afiliado_id=%s", user_id, texto)
+        logging.info("🛒 Afiliado salvo | telegram_id=%s | afiliado_id=%s", user_id, texto)
 
 
 async def localizar_admins_grupo(bot, chat_id):
     """Verifica Radar e CaktoBot de forma robusta, inclusive em canais.
 
     O Telegram pode devolver username/nome de formas diferentes para bots.
-    Por isso, alÃ©m do username, analisamos first_name, last_name e full_name,
-    e registramos todos os administradores encontrados para diagnÃ³stico real.
+    Por isso, além do username, analisamos first_name, last_name e full_name,
+    e registramos todos os administradores encontrados para diagnóstico real.
     """
     try:
         admins = await bot.get_chat_administrators(chat_id)
@@ -428,7 +428,7 @@ async def localizar_admins_grupo(bot, chat_id):
                 f"id={u.id}|user=@{username or '-'}|nome={u.full_name or '-'}|bot={getattr(u, 'is_bot', False)}"
             )
 
-            # IdentificaÃ§Ã£o ampla do CaktoBot. O nome mostrado no Telegram
+            # Identificação ampla do CaktoBot. O nome mostrado no Telegram
             # pode ser "Cakto", "Cakto Bot" ou ter username diferente.
             eh_cakto = (
                 (alvo and alvo in texto_identificacao)
@@ -442,11 +442,11 @@ async def localizar_admins_grupo(bot, chat_id):
                 )
 
         logging.info(
-            "ðŸ”Ž ADMINISTRADORES ENCONTRADOS | chat_id=%s | total=%s | %s",
+            "🔎 ADMINISTRADORES ENCONTRADOS | chat_id=%s | total=%s | %s",
             chat_id, len(resumo_admins), " || ".join(resumo_admins) if resumo_admins else "nenhum"
         )
         logging.info(
-            "ðŸ”Ž Admins grupo | chat_id=%s | Radar=%s | Cakto=%s | identificado=%s",
+            "🔎 Admins grupo | chat_id=%s | Radar=%s | Cakto=%s | identificado=%s",
             chat_id, bot_admin, cakto_admin, cakto_encontrado or "nenhum"
         )
 
@@ -454,7 +454,7 @@ async def localizar_admins_grupo(bot, chat_id):
 
     except Exception as e:
         logging.error(
-            "âŒ Erro verificando administradores | chat_id=%s | %s",
+            "❌ Erro verificando administradores | chat_id=%s | %s",
             chat_id, e, exc_info=True
         )
         return False, False
@@ -497,43 +497,43 @@ async def emitir_codigo_configuracao(update, context: ContextTypes.DEFAULT_TYPE)
     email = cliente.get("email_cakto", "")
     compra = encontrar_cakto_por_email(email) if email else None
 
-    # Se o Telegram ainda nÃ£o foi vinculado Ã  compra, nÃ£o devemos tratar isso
-    # como assinatura inativa. Neste primeiro vÃ­nculo, o cliente precisa informar
-    # o mesmo e-mail usado no Cakto. Depois disso, /configurar poderÃ¡ gerar o cÃ³digo.
+    # Se o Telegram ainda não foi vinculado à compra, não devemos tratar isso
+    # como assinatura inativa. Neste primeiro vínculo, o cliente precisa informar
+    # o mesmo e-mail usado no Cakto. Depois disso, /configurar poderá gerar o código.
     if not email:
         await update.message.reply_text(
-            "ðŸ“§ <b>Antes de configurar o destino, preciso vincular sua compra.</b>\n\n"
+            "📧 <b>Antes de configurar o destino, preciso vincular sua compra.</b>\n\n"
             "Envie agora o <b>e-mail usado na compra do Radar no Cakto</b>.\n\n"
-            "Assim que eu localizar sua assinatura, vou vincular seu Telegram e continuar a configuraÃ§Ã£o automaticamente.",
+            "Assim que eu localizar sua assinatura, vou vincular seu Telegram e continuar a configuração automaticamente.",
             parse_mode="HTML"
         )
-        logging.info("ðŸ”— /configurar aguardando e-mail Cakto | telegram_id=%s", user.id)
+        logging.info("🔗 /configurar aguardando e-mail Cakto | telegram_id=%s", user.id)
         return
 
     if not compra or not compra.get("ativo"):
         await update.message.reply_text(
-            "âš ï¸ NÃ£o consegui validar uma assinatura ativa para o e-mail vinculado a este Telegram.\n\n"
-            "Se vocÃª acabou de comprar, confirme se estÃ¡ usando o mesmo e-mail informado no Cakto."
+            "⚠️ Não consegui validar uma assinatura ativa para o e-mail vinculado a este Telegram.\n\n"
+            "Se você acabou de comprar, confirme se está usando o mesmo e-mail informado no Cakto."
         )
         return
     if not cliente.get("afiliado_id"):
         await update.message.reply_text(
-            "âš ï¸ Primeiro conclua seu cadastro no privado do bot com seu ID de afiliado Shopee."
+            "⚠️ Primeiro conclua seu cadastro no privado do bot com seu ID de afiliado Shopee."
         )
         return
 
     codigo = salvar_codigo_configuracao(clientes, user.id, cliente)
     await update.message.reply_text(
-        "ðŸ” <b>CÃ³digo de configuraÃ§Ã£o gerado</b>\n\n"
+        "🔐 <b>Código de configuração gerado</b>\n\n"
         f"<code>{codigo}</code>\n\n"
-        "â±ï¸ Este cÃ³digo vale por <b>30 minutos</b> e Ã© de uso Ãºnico.\n\n"
-        "Agora vÃ¡ para o <b>canal/grupo que receberÃ¡ as ofertas</b> e publique exatamente:\n\n"
+        "⏱️ Este código vale por <b>30 minutos</b> e é de uso único.\n\n"
+        "Agora vá para o <b>canal/grupo que receberá as ofertas</b> e publique exatamente:\n\n"
         f"<code>/configurar {codigo}</code>\n\n"
-        "âœ… O Radar precisa estar como administrador.\n"
-        "â„¹ï¸ O CaktoBot pode permanecer como administrador para a integraÃ§Ã£o da Cakto, mas nÃ£o bloqueia a ativaÃ§Ã£o do Radar."
+        "✅ O Radar precisa estar como administrador.\n"
+        "ℹ️ O CaktoBot pode permanecer como administrador para a integração da Cakto, mas não bloqueia a ativação do Radar."
         , parse_mode="HTML"
     )
-    logging.info("ðŸ” CÃ³digo de configuraÃ§Ã£o gerado | telegram_id=%s | expira_em=30min", user.id)
+    logging.info("🔐 Código de configuração gerado | telegram_id=%s | expira_em=30min", user.id)
 
 async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     # V49: extracao robusta do update. Em vez de depender somente de
@@ -553,7 +553,7 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     )
     if not mensagem:
         logging.warning(
-            "ðŸš¨ V55 /configurar SEM OBJETO MESSAGE | update=%s | chaves=%s | raw_message=%s | raw_chat=%s | raw_from=%s",
+            "🚨 V55 /configurar SEM OBJETO MESSAGE | update=%s | chaves=%s | raw_message=%s | raw_chat=%s | raw_from=%s",
             type(update).__name__, list(raw.keys()),
             bool(raw.get("message") or raw.get("edited_message")),
             bool((raw.get("message") or raw.get("edited_message") or {}).get("chat")),
@@ -565,9 +565,9 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     raw_from = raw_msg.get("from") or {}
     raw_sender_chat = raw_msg.get("sender_chat") or {}
 
-    # V50: prioriza o chat que pertence diretamente Ã  mensagem recebida.
-    # effective_chat Ã© usado apenas como fallback, evitando classificar o comando
-    # pelo contexto errado quando uma atualizaÃ§Ã£o contÃ©m mais de um campo.
+    # V50: prioriza o chat que pertence diretamente à mensagem recebida.
+    # effective_chat é usado apenas como fallback, evitando classificar o comando
+    # pelo contexto errado quando uma atualização contém mais de um campo.
     chat_mensagem = getattr(mensagem, "chat", None) if mensagem else None
     chat_efetivo = getattr(update, "effective_chat", None)
     chat = chat_mensagem or chat_efetivo
@@ -592,7 +592,7 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     bot_username = (getattr(context.bot, "username", "") or "").strip()
 
     logging.info(
-        "âš™ï¸ V55 /configurar RECEBIDO | update_id=%s | chat_mensagem_id=%s | chat_mensagem_tipo=%s | effective_chat_id=%s | effective_chat_tipo=%s | usuario_id=%s | sender_chat_id=%s | comando=%s | bot=@%s",
+        "⚙️ V55 /configurar RECEBIDO | update_id=%s | chat_mensagem_id=%s | chat_mensagem_tipo=%s | effective_chat_id=%s | effective_chat_tipo=%s | usuario_id=%s | sender_chat_id=%s | comando=%s | bot=@%s",
         getattr(update, "update_id", None),
         getattr(chat_mensagem, "id", None), getattr(chat_mensagem, "type", None),
         getattr(chat_efetivo, "id", None), getattr(chat_efetivo, "type", None),
@@ -602,7 +602,7 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     # Se ainda nao conseguimos nem o chat, mostramos o update cru no log para
     # descobrir exatamente qual tipo de update o Telegram esta entregando.
     if not chat_id:
-        logging.warning("ðŸš¨ V50 UPDATE SEM CHAT | raw=%s", raw)
+        logging.warning("🚨 V50 UPDATE SEM CHAT | raw=%s", raw)
         return
 
     # A partir daqui, quando o objeto Message existe usamos reply_text normalmente.
@@ -614,60 +614,60 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await context.bot.send_message(chat_id=chat_id, text=texto, parse_mode=parse_mode)
         except Exception as e:
-            logging.error("âŒ V50 falha ao responder | chat_id=%s | erro=%s", chat_id, e, exc_info=True)
+            logging.error("❌ V50 falha ao responder | chat_id=%s | erro=%s", chat_id, e, exc_info=True)
 
-    # CANAL: posts chegam como update.channel_post e normalmente nÃ£o possuem
-    # usuÃ¡rio em "from". Por isso a configuraÃ§Ã£o de canal usa um cÃ³digo Ãºnico
+    # CANAL: posts chegam como update.channel_post e normalmente não possuem
+    # usuário em "from". Por isso a configuração de canal usa um código único
     # gerado no privado do bot. Isso evita vincular um canal ao cliente errado.
     if chat_type == "channel":
         partes = texto_comando.split() if texto_comando else []
         codigo = partes[1].strip() if len(partes) >= 2 else ""
         if not codigo:
             await responder(
-                "âš ï¸ <b>Este destino Ã© um canal do Telegram.</b>\n\n"
-                "No canal, a configuraÃ§Ã£o precisa ser autorizada pelo cÃ³digo gerado no privado do Radar.\n\n"
-                "1ï¸âƒ£ Abra a conversa privada com o Radar.\n"
-                "2ï¸âƒ£ Envie <b>/configurar</b>.\n"
-                "3ï¸âƒ£ Copie o cÃ³digo recebido.\n"
-                "4ï¸âƒ£ Volte para este canal e publique:\n"
+                "⚠️ <b>Este destino é um canal do Telegram.</b>\n\n"
+                "No canal, a configuração precisa ser autorizada pelo código gerado no privado do Radar.\n\n"
+                "1️⃣ Abra a conversa privada com o Radar.\n"
+                "2️⃣ Envie <b>/configurar</b>.\n"
+                "3️⃣ Copie o código recebido.\n"
+                "4️⃣ Volte para este canal e publique:\n"
                 "<code>/configurar SEU_CODIGO</code>"
             )
             return
 
         chave, cliente, erro_codigo = localizar_cliente_por_codigo(codigo)
         if erro_codigo:
-            await responder("âŒ CÃ³digo de configuraÃ§Ã£o invÃ¡lido, expirado ou jÃ¡ utilizado. Gere um novo cÃ³digo no privado do Radar com <b>/configurar</b>.")
-            logging.warning("âš ï¸ CÃ³digo de configuraÃ§Ã£o rejeitado | chat_id=%s | motivo=%s", chat_id, erro_codigo)
+            await responder("❌ Código de configuração inválido, expirado ou já utilizado. Gere um novo código no privado do Radar com <b>/configurar</b>.")
+            logging.warning("⚠️ Código de configuração rejeitado | chat_id=%s | motivo=%s", chat_id, erro_codigo)
             return
 
         email = cliente.get("email_cakto", "")
         compra = encontrar_cakto_por_email(email) if email else None
         if not compra or not compra.get("ativo"):
-            await responder("âš ï¸ A assinatura Cakto vinculada a este cÃ³digo nÃ£o estÃ¡ ativa.")
+            await responder("⚠️ A assinatura Cakto vinculada a este código não está ativa.")
             return
         if not cliente.get("afiliado_id"):
-            await responder("âš ï¸ O cadastro deste cliente ainda nÃ£o possui ID de afiliado Shopee.")
+            await responder("⚠️ O cadastro deste cliente ainda não possui ID de afiliado Shopee.")
             return
 
         bot_admin, cakto_admin = await localizar_admins_grupo(context.bot, chat_id)
-        logging.info("ðŸ”Ž Canal verificado | chat_id=%s | Radar=%s | Cakto=%s", chat_id, bot_admin, cakto_admin)
+        logging.info("🔎 Canal verificado | chat_id=%s | Radar=%s | Cakto=%s", chat_id, bot_admin, cakto_admin)
 
-        # V55: o CaktoBot nÃ£o bloqueia mais a configuraÃ§Ã£o.
-        # A assinatura ativa Ã© validada diretamente pelo cadastro recebido da Cakto
+        # V55: o CaktoBot não bloqueia mais a configuração.
+        # A assinatura ativa é validada diretamente pelo cadastro recebido da Cakto
         # e o Radar precisa ser administrador para conseguir publicar as ofertas.
-        # A API do Telegram pode nÃ£o retornar o CaktoBot em getChatAdministrators
+        # A API do Telegram pode não retornar o CaktoBot em getChatAdministrators
         # mesmo quando ele aparece na interface do canal.
         if not cakto_admin:
             logging.warning(
-                "âš ï¸ CaktoBot nÃ£o retornado pela API do Telegram | chat_id=%s | "
-                "prosseguindo porque assinatura Cakto estÃ¡ ativa e Radar Ã© administrador",
+                "⚠️ CaktoBot não retornado pela API do Telegram | chat_id=%s | "
+                "prosseguindo porque assinatura Cakto está ativa e Radar é administrador",
                 chat_id
             )
 
         if not bot_admin:
             await responder(
-                "âš ï¸ <b>O Radar ainda nÃ£o estÃ¡ como administrador deste canal.</b>\n\n"
-                "Adicione este Radar como administrador e publique novamente o comando com o mesmo cÃ³digo."
+                "⚠️ <b>O Radar ainda não está como administrador deste canal.</b>\n\n"
+                "Adicione este Radar como administrador e publique novamente o comando com o mesmo código."
             )
             return
 
@@ -690,41 +690,41 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
         clientes[str(chave)] = cliente
         salvar_clientes_telegram(clientes)
         await responder(
-            "ðŸŽ‰ <b>CANAL CONFIGURADO COM SUCESSO!</b>\n\n"
-            f"ðŸ“¦ Plano: <b>{html.escape(cliente.get('plano', 'desconhecido'))}</b>\n"
-            f"ðŸ”— Shopee ID: <b>{html.escape(str(cliente.get('afiliado_id')))}</b>\n"
-            f"ðŸ“¢ Canal: <b>{html.escape(chat_title or 'Canal')}</b>\n\n"
-            "âœ… Radar administrador\n"
-            + ("âœ… CaktoBot administrador\n" if cakto_admin else "â„¹ï¸ CaktoBot nÃ£o retornado pela API do Telegram â€” nÃ£o bloqueia a ativaÃ§Ã£o\n")
-            + "ðŸš€ A partir do prÃ³ximo ciclo, as ofertas serÃ£o enviadas automaticamente aqui."
+            "🎉 <b>CANAL CONFIGURADO COM SUCESSO!</b>\n\n"
+            f"📦 Plano: <b>{html.escape(cliente.get('plano', 'desconhecido'))}</b>\n"
+            f"🔗 Shopee ID: <b>{html.escape(str(cliente.get('afiliado_id')))}</b>\n"
+            f"📢 Canal: <b>{html.escape(chat_title or 'Canal')}</b>\n\n"
+            "✅ Radar administrador\n"
+            + ("✅ CaktoBot administrador\n" if cakto_admin else "ℹ️ CaktoBot não retornado pela API do Telegram — não bloqueia a ativação\n")
+            + "🚀 A partir do próximo ciclo, as ofertas serão enviadas automaticamente aqui."
         )
-        logging.info("âœ… Canal configurado | telegram_id=%s | chat_id=%s | canal=%s", chave, chat_id, chat_title)
+        logging.info("✅ Canal configurado | telegram_id=%s | chat_id=%s | canal=%s", chave, chat_id, chat_title)
         return
 
-    # PRIVADO: /configurar gera o cÃ³digo que autoriza a configuraÃ§Ã£o
-    # de um canal/grupo. Este bloco precisa vir ANTES da validaÃ§Ã£o de
-    # group/supergroup, pois o comprador gera o cÃ³digo justamente no privado.
+    # PRIVADO: /configurar gera o código que autoriza a configuração
+    # de um canal/grupo. Este bloco precisa vir ANTES da validação de
+    # group/supergroup, pois o comprador gera o código justamente no privado.
     if chat_type == "private" and user_id:
         await emitir_codigo_configuracao(update, context)
         return
 
-    # CANAL jÃ¡ foi tratado acima. Qualquer outro tipo de chat nÃ£o pode
-    # concluir a configuraÃ§Ã£o desta forma.
+    # CANAL já foi tratado acima. Qualquer outro tipo de chat não pode
+    # concluir a configuração desta forma.
     if chat_type not in ("group", "supergroup"):
-        await responder("âš ï¸ O comando <b>/configurar</b> nÃ£o chegou como grupo ou canal. Tipo detectado: <b>%s</b>." % html.escape(str(chat_type or "desconhecido")))
+        await responder("⚠️ O comando <b>/configurar</b> não chegou como grupo ou canal. Tipo detectado: <b>%s</b>." % html.escape(str(chat_type or "desconhecido")))
         return
 
     # Sem usuario identificavel, nao podemos vincular com seguranca o grupo a
     # uma compra Cakto. sender_chat indica normalmente envio em nome do grupo.
     if not user_id:
         logging.warning(
-            "âš ï¸ V55 /configurar sem usuario identificavel | chat_id=%s | sender_chat_id=%s",
+            "⚠️ V55 /configurar sem usuario identificavel | chat_id=%s | sender_chat_id=%s",
             chat_id, sender_chat_id
         )
         await responder(
-            "âš ï¸ <b>O Telegram nÃ£o informou qual administrador enviou este comando.</b>\n\n"
-            "Isso normalmente acontece quando o administrador estÃ¡ usando <b>Permanecer anÃ´nimo</b>.\n\n"
-            "Desative essa opÃ§Ã£o para o seu usuÃ¡rio neste grupo e envie novamente:\n"
+            "⚠️ <b>O Telegram não informou qual administrador enviou este comando.</b>\n\n"
+            "Isso normalmente acontece quando o administrador está usando <b>Permanecer anônimo</b>.\n\n"
+            "Desative essa opção para o seu usuário neste grupo e envie novamente:\n"
             "<b>/configurar@%s</b>" % html.escape(bot_username or "promodasofertas_bot")
         )
         return
@@ -735,42 +735,42 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     compra = encontrar_cakto_por_email(email) if email else None
 
     if not compra or not compra.get("ativo"):
-        logging.warning("âš ï¸ /configurar bloqueado | chat_id=%s | usuario_id=%s | compra_ativa=False", chat_id, user_id)
-        await responder("âš ï¸ Sua assinatura nÃ£o estÃ¡ ativa ou ainda nÃ£o foi vinculada ao Telegram.")
+        logging.warning("⚠️ /configurar bloqueado | chat_id=%s | usuario_id=%s | compra_ativa=False", chat_id, user_id)
+        await responder("⚠️ Sua assinatura não está ativa ou ainda não foi vinculada ao Telegram.")
         return
 
     if not cliente.get("afiliado_id"):
-        logging.warning("âš ï¸ /configurar bloqueado | chat_id=%s | usuario_id=%s | afiliado_nao_cadastrado", chat_id, user_id)
-        await responder("âš ï¸ Primeiro conclua seu cadastro no privado do bot com seu ID de afiliado Shopee.")
+        logging.warning("⚠️ /configurar bloqueado | chat_id=%s | usuario_id=%s | afiliado_nao_cadastrado", chat_id, user_id)
+        await responder("⚠️ Primeiro conclua seu cadastro no privado do bot com seu ID de afiliado Shopee.")
         return
 
     try:
         membro = await context.bot.get_chat_member(chat_id, user_id)
         if membro.status not in ("administrator", "creator"):
-            await responder("âš ï¸ SÃ³ o comprador que Ã© administrador do grupo pode concluir esta configuraÃ§Ã£o.")
+            await responder("⚠️ Só o comprador que é administrador do grupo pode concluir esta configuração.")
             return
     except Exception as e:
-        logging.exception("âŒ Falha verificando administrador | chat_id=%s | usuario_id=%s | erro=%s", chat_id, user_id, e)
-        await responder("âš ï¸ NÃ£o consegui verificar suas permissÃµes de administrador neste grupo.")
+        logging.exception("❌ Falha verificando administrador | chat_id=%s | usuario_id=%s | erro=%s", chat_id, user_id, e)
+        await responder("⚠️ Não consegui verificar suas permissões de administrador neste grupo.")
         return
 
     bot_admin, cakto_admin = await localizar_admins_grupo(context.bot, chat_id)
     logging.info(
-        "ðŸ”Ž Admins verificados | chat_id=%s | radar_admin=%s | cakto_admin=%s",
+        "🔎 Admins verificados | chat_id=%s | radar_admin=%s | cakto_admin=%s",
         chat_id, bot_admin, cakto_admin
     )
 
     if not bot_admin:
         await responder(
-            "âš ï¸ O Radar ainda nÃ£o estÃ¡ como administrador deste grupo.\n\n"
+            "⚠️ O Radar ainda não está como administrador deste grupo.\n\n"
             "Adicione este bot como administrador e envie <b>/configurar</b> novamente."
         )
         return
 
     if not cakto_admin:
         logging.warning(
-            "âš ï¸ CaktoBot nÃ£o retornado pela API do Telegram | chat_id=%s | "
-            "prosseguindo com a configuraÃ§Ã£o porque assinatura Cakto estÃ¡ ativa e Radar Ã© administrador",
+            "⚠️ CaktoBot não retornado pela API do Telegram | chat_id=%s | "
+            "prosseguindo com a configuração porque assinatura Cakto está ativa e Radar é administrador",
             chat_id
         )
 
@@ -790,15 +790,15 @@ async def comando_configurar(update, context: ContextTypes.DEFAULT_TYPE):
     salvar_clientes_telegram(clientes)
 
     await responder(
-        "ðŸŽ‰ <b>GRUPO CONFIGURADO COM SUCESSO!</b>\n\n"
-        f"ðŸ“¦ Plano: <b>{html.escape(cliente.get('plano', 'desconhecido'))}</b>\n"
-        f"ðŸ”— Shopee ID: <b>{html.escape(str(cliente.get('afiliado_id')))}</b>\n"
-        f"ðŸ‘¥ Grupo: <b>{html.escape(chat_title or 'Grupo')}</b>\n\n"
-        "âœ… Radar administrador\n"
-        + ("âœ… CaktoBot administrador\n" if cakto_admin else "â„¹ï¸ CaktoBot nÃ£o retornado pela API do Telegram â€” nÃ£o bloqueia a ativaÃ§Ã£o\n")
-        + "ðŸš€ A partir do prÃ³ximo ciclo, as ofertas serÃ£o enviadas automaticamente aqui."
+        "🎉 <b>GRUPO CONFIGURADO COM SUCESSO!</b>\n\n"
+        f"📦 Plano: <b>{html.escape(cliente.get('plano', 'desconhecido'))}</b>\n"
+        f"🔗 Shopee ID: <b>{html.escape(str(cliente.get('afiliado_id')))}</b>\n"
+        f"👥 Grupo: <b>{html.escape(chat_title or 'Grupo')}</b>\n\n"
+        "✅ Radar administrador\n"
+        + ("✅ CaktoBot administrador\n" if cakto_admin else "ℹ️ CaktoBot não retornado pela API do Telegram — não bloqueia a ativação\n")
+        + "🚀 A partir do próximo ciclo, as ofertas serão enviadas automaticamente aqui."
     )
-    logging.info("âœ… Grupo configurado | telegram_id=%s | chat_id=%s | grupo=%s", user_id, chat_id, chat_title)
+    logging.info("✅ Grupo configurado | telegram_id=%s | chat_id=%s | grupo=%s", user_id, chat_id, chat_title)
     global LINKS_CICLO_ATUAL, TERMOS_USADOS_CICLO
     LINKS_CICLO_ATUAL.clear()
     TERMOS_USADOS_CICLO.clear()
@@ -813,12 +813,12 @@ async def validar_cliente_grupo(bot, cliente):
     bot_admin, cakto_admin = await localizar_admins_grupo(bot, cliente["chat_id"])
     if not cakto_admin:
         logging.warning(
-            "âš ï¸ CaktoBot nÃ£o retornado pela API | chat_id=%s | "
-            "cliente continua vÃ¡lido porque assinatura Cakto estÃ¡ ativa e Radar Ã© administrador",
+            "⚠️ CaktoBot não retornado pela API | chat_id=%s | "
+            "cliente continua válido porque assinatura Cakto está ativa e Radar é administrador",
             cliente.get("chat_id")
         )
-    # V55: somente a assinatura ativa + Radar administrador sÃ£o obrigatÃ³rios
-    # para o envio. O CaktoBot nÃ£o Ã© mais uma trava tÃ©cnica do Radar.
+    # V55: somente a assinatura ativa + Radar administrador são obrigatórios
+    # para o envio. O CaktoBot não é mais uma trava técnica do Radar.
     return bool(bot_admin)
 
 async def enviar_ofertas_clientes(ctx, ofertas):
@@ -835,7 +835,7 @@ async def enviar_ofertas_clientes(ctx, ofertas):
             if cliente.get("grupo_ativo"):
                 cliente["grupo_ativo"] = False
                 alterados = True
-            logging.warning("â¸ï¸ Cliente ignorado | telegram_id=%s | grupo=%s | assinatura/admins nÃ£o vÃ¡lidos", chave, cliente.get("chat_id"))
+            logging.warning("⏸️ Cliente ignorado | telegram_id=%s | grupo=%s | assinatura/admins não válidos", chave, cliente.get("chat_id"))
             continue
         if not cliente.get("grupo_ativo"):
             cliente["grupo_ativo"] = True
@@ -847,7 +847,7 @@ async def enviar_ofertas_clientes(ctx, ofertas):
     if not prontos:
         return
 
-    logging.info("ðŸ‘¥ Clientes ativos para envio: %s", len(prontos))
+    logging.info("👥 Clientes ativos para envio: %s", len(prontos))
     for cliente in prontos:
         chat_id = cliente["chat_id"]
         afiliado = cliente["afiliado_id"]
@@ -881,8 +881,8 @@ async def enviar_ofertas_clientes(ctx, ofertas):
                     enviados += 1
                 await asyncio.sleep(1)
             except Exception as e:
-                logging.error("âŒ Erro envio cliente | chat_id=%s | %s", chat_id, e)
-        logging.info("ðŸ“¤ Cliente concluÃ­do | chat_id=%s | ofertas=%s", chat_id, enviados)
+                logging.error("❌ Erro envio cliente | chat_id=%s | %s", chat_id, e)
+        logging.info("📤 Cliente concluído | chat_id=%s | ofertas=%s", chat_id, enviados)
 
 
 ULTIMOS_LINKS = []
@@ -893,16 +893,16 @@ LINKS_CICLO_ATUAL = set()
 TERMOS_USADOS_CICLO = set()
 
 # =========================
-# ðŸ›µ PEÃ‡AS E MODELOS
+# 🛵 PEÇAS E MODELOS
 # =========================
 PECAS_MOTO = [
-    "kit relacao", "estator", "kit cilindro", "painel completo", "guidÃ£o", "regulador de voltagem", "bucha amortecedor",
+    "kit relacao", "estator", "kit cilindro", "painel completo", "guidão", "regulador de voltagem", "bucha amortecedor",
     "pastilha de freio", "disco de freio", "lonas de freio", "vela iridium", "burrinho de freio", "bomba de combustivel", "bucha pro link",
-    "embreagem completa", "disco de embreagem", "cabo de embreagem", "mola de embreagem", "jogo de juntas", "bucha da balanÃ§a", "chave de seta",
-    "bateria de moto", "filtro de oleo", "filtro de ar", "vela de ignicao", "corrente comando", "guarniÃ§Ã£o tampa de valvulas", "motor de arranque",
-    "retentor", "junta de motor", "pistao e aneis", "cabecote", "burrinho de freio traseiro", "valvula de escape", "chave igniÃ§Ã£o", "escova do arranque",
-    "lampada de farol", "seta pisca", "buzina", "tampa lateral", "valvula admissÃ£o", "cdi",
-    "pneu dianteiro", "pneu traseiro", "par pneu", "aro de roda", "camara de ar", "caixa direÃ§Ã£o", "caixa de marcha", "tencionador corrente comando",
+    "embreagem completa", "disco de embreagem", "cabo de embreagem", "mola de embreagem", "jogo de juntas", "bucha da balança", "chave de seta",
+    "bateria de moto", "filtro de oleo", "filtro de ar", "vela de ignicao", "corrente comando", "guarnição tampa de valvulas", "motor de arranque",
+    "retentor", "junta de motor", "pistao e aneis", "cabecote", "burrinho de freio traseiro", "valvula de escape", "chave ignição", "escova do arranque",
+    "lampada de farol", "seta pisca", "buzina", "tampa lateral", "valvula admissão", "cdi",
+    "pneu dianteiro", "pneu traseiro", "par pneu", "aro de roda", "camara de ar", "caixa direção", "caixa de marcha", "tencionador corrente comando",
     "cabo de acelerador", "manete de freio", "manete de embreagem", "pedal de freio", "pedal de marcha", "capa de banco", "guia de valvulas",
     "paralama dianteiro", "paralama traseiro", "bolha de farol", "protetor de motor", "sliders de protecao", "desmultiplicador",
     "punhos de guiador", "espelho retrovisor", "banco assento", "suporte de placa", "pegamao traseiro", "kit rolamentos",
@@ -926,72 +926,72 @@ MOTOS = [
 ]
 
 PRODUTOS_POR_NICHO = {
-    # ========== CASA â€” AGORA COMPLETO! ==========
+    # ========== CASA — AGORA COMPLETO! ==========
     "Casa": [
-        # EletrodomÃ©sticos Grandes
+        # Eletrodomésticos Grandes
         "geladeira", "refrigerador", "geladeira frost free",
-        "fogÃ£o", "fogÃ£o 4 bocas", "fogÃ£o de embutir",
-        "mÃ¡quina de lavar", "lava e seca", "secadora de roupas",
-        "forno elÃ©trico", "forno de embutir", "micro-ondas",
-        "lava louÃ§a", "lava louÃ§as",
+        "fogão", "fogão 4 bocas", "fogão de embutir",
+        "máquina de lavar", "lava e seca", "secadora de roupas",
+        "forno elétrico", "forno de embutir", "micro-ondas",
+        "lava louça", "lava louças",
         
-        # MÃ³veis - Quarto
+        # Móveis - Quarto
         "cama de casal", "cama de solteiro", "cama box",
         "guarda-roupa", "guarda roupa", "guarda roupas",
-        "cÃ´moda", "criado mudo", "painel quarto",
+        "cômoda", "criado mudo", "painel quarto",
         
-        # MÃ³veis - Sala
-        "sofÃ¡", "sofa retrÃ¡til", "mesa de centro",
+        # Móveis - Sala
+        "sofá", "sofa retrátil", "mesa de centro",
         "mesa de jantar", "conjunto sala", "rack",
         "estante", "painel para tv", "poltrona",
         
-        # MÃ³veis - Cozinha
-        "pia de cozinha", "balcÃ£o de cozinha",
-        "armÃ¡rio de cozinha", "armÃ¡rio aÃ©reo",
-        "armÃ¡rio de pia", "gabiente cozinha",
+        # Móveis - Cozinha
+        "pia de cozinha", "balcão de cozinha",
+        "armário de cozinha", "armário aéreo",
+        "armário de pia", "gabiente cozinha",
         
-        # EletrodomÃ©sticos Pequenos (mantidos + ampliados)
-        "fritadeira sem oleo", "air fryer", "aspirador de pÃ³",
+        # Eletrodomésticos Pequenos (mantidos + ampliados)
+        "fritadeira sem oleo", "air fryer", "aspirador de pó",
         "liquidificador", "cafeteira", "panela eletrica",
-        "ventilador", "batedeira", "panela de pressÃ£o",
+        "ventilador", "batedeira", "panela de pressão",
         "torradeira", "ferro de passar", "lava e seca",
-        "exaustor cozinha", "filtro de Ã¡gua"
+        "exaustor cozinha", "filtro de água"
     ],
     
-    # ========== ELETRÃ”NICOS â€” AGORA COMPLETO! ==========
+    # ========== ELETRÔNICOS — AGORA COMPLETO! ==========
     "Eletronicos": [
         # Celulares
         "celular", "smartphone", "aparelho celular",
         "iphone", "samsung", "xiaomi", "motorola",
         
-        # TV e Ãudio
-        "tv", "televisÃ£o", "smart tv", "tv 4k", "tv led",
+        # TV e Áudio
+        "tv", "televisão", "smart tv", "tv 4k", "tv led",
         "caixa de som", "soundbar", "home theater",
         "aparelho de som", "receptor tv", "antena digital",
         
-        # InformÃ¡tica
+        # Informática
         "notebook", "computador", "pc gamer", "desktop",
         "monitor", "impressora", "tablet", "ipad",
         "teclado", "mouse", "webcam", "headset",
         
-        # Outros EletrÃ´nicos
+        # Outros Eletrônicos
         "smartwatch", "relogio inteligente",
         "fone ouvido bluetooth", "carregador",
         "cabo usb", "pendrive", "hd externo",
-        "cÃ¢mera de seguranÃ§a", "drone", "roteador"
+        "câmera de segurança", "drone", "roteador"
     ],
     
-    # ========== BEBÃŠ â€” MANTIDO + AMPLIADO ==========
+    # ========== BEBÊ — MANTIDO + AMPLIADO ==========
     "Bebe": [
-        "carrinho bebe", "berÃ§o", "berÃ§o montessoriano",
+        "carrinho bebe", "berço", "berço montessoriano",
         "brinquedo bebe", "roupa bebe", "cadeirinha bebe",
-        "cadeira de alimentaÃ§Ã£o", "bebÃª conforto", "moisÃ©s",
+        "cadeira de alimentação", "bebê conforto", "moisés",
         "trocador bebe", "banheira bebe", "andador bebe"
     ],
     
-    # ========== MODA â€” MANTIDO ==========
-    "Moda Feminina": ["vestido", "blusa", "calÃ§a", "saia", "tenis feminino", "bolsa", "oculos sol"],
-    "Moda Masculina": ["camiseta", "bermuda", "calÃ§a jeans", "tenis masculino", "bone", "cinto"]
+    # ========== MODA — MANTIDO ==========
+    "Moda Feminina": ["vestido", "blusa", "calça", "saia", "tenis feminino", "bolsa", "oculos sol"],
+    "Moda Masculina": ["camiseta", "bermuda", "calça jeans", "tenis masculino", "bone", "cinto"]
 }
 
 FAMILIAS_PRODUTOS = {
@@ -1009,13 +1009,13 @@ FAMILIAS_PRODUTOS = {
 }
 
 # =========================
-# FUNÃ‡Ã•ES AUXILIARES
+# FUNÇÕES AUXILIARES
 # =========================
 def normalizar(texto):
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", str(texto or "").lower().strip()))
 
 def horario_valido():
-    # Pega o horÃ¡rio REAL de BrasÃ­lia, direto do fuso
+    # Pega o horário REAL de Brasília, direto do fuso
     agora = datetime.now(FUSO_BR)
     hora = agora.hour
     minuto = agora.minute
@@ -1028,7 +1028,7 @@ def horario_valido():
     return inicio <= total <= fim
 
 def sem_acento(texto):
-    mapa = str.maketrans("Ã¡Ã Ã¢Ã£Ã©Ã¨ÃªÃ­Ã¯Ã³Ã´ÃµÃ¶ÃºÃ¼Ã§Ã±", "aaaaeeeiioooouucn")
+    mapa = str.maketrans("áàâãéèêíïóôõöúüçñ", "aaaaeeeiioooouucn")
     return texto.translate(mapa)
 
 def tem_palavra_proibida(texto):
@@ -1086,7 +1086,7 @@ GRUPO_SINONIMOS = {
     "tablet": {"tablet", "ipad"},
     "celular": {"celular", "smartphone", "aparelho celular"},
     "geladeira": {"geladeira", "refrigerador", "geladeira frost free"},
-    "fogao": {"fogÃ£o", "fogao", "fogÃ£o de embutir"},
+    "fogao": {"fogão", "fogao", "fogão de embutir"},
     "cama": {"cama", "cama box", "cama casal", "cama solteiro"},
     "guarda_roupa": {"guarda-roupa", "guarda roupa", "guarda roupas"},
     "mesa": {"mesa", "mesa de jantar", "mesa de centro"},
@@ -1120,12 +1120,12 @@ def carregar_json(caminho, padrao):
         return padrao
 
 # =========================
-# ðŸ›µ GERENCIAMENTO DE ESTADO
+# 🛵 GERENCIAMENTO DE ESTADO
 # =========================
 def carregar_estado():
     estado = carregar_json(ARQUIVO_ESTADO, {})
     if estado.get("versao_rodizio") != VERSAO_RODIZIO:
-        logging.info("ðŸ”„ Atualizando estado para versao %s...", VERSAO_RODIZIO)
+        logging.info("🔄 Atualizando estado para versao %s...", VERSAO_RODIZIO)
         hoje = datetime.now(FUSO_BR).strftime("%Y%m%d")
         estado = {
             "versao_rodizio": VERSAO_RODIZIO,
@@ -1139,7 +1139,7 @@ def carregar_estado():
             estado["Moto"]["modelo_por_peca"][p] = 0
         for nicho in PRODUTOS_POR_NICHO:
             estado[nicho] = {"indice": 0, "data": hoje}
-        logging.info("âœ… Estado atualizado!")
+        logging.info("✅ Estado atualizado!")
     return estado
 
 def salvar_estado(estado):
@@ -1152,7 +1152,7 @@ def salvar_historico(dados):
     salvar_json(ARQUIVO_HISTORICO, dados)
 
 # =========================
-# ðŸ›µ ROTAÃ‡ÃƒO DE MOTO
+# 🛵 ROTAÇÃO DE MOTO
 # =========================
 def obter_proximo_modelo(estado, peca, deslocamento=0):
     st = estado["Moto"]
@@ -1174,12 +1174,12 @@ def proxima_busca_moto(estado):
     
     st["indice_peca"] = (idx_peca + 2) % len(PECAS_MOTO)
     
-    logging.info("ðŸï¸ Peca 1: [%s] | Modelo: %s", peca1, modelo1)
-    logging.info("ðŸï¸ Peca 2: [%s] | Modelo: %s", peca2, modelo2)
+    logging.info("🏍️ Peca 1: [%s] | Modelo: %s", peca1, modelo1)
+    logging.info("🏍️ Peca 2: [%s] | Modelo: %s", peca2, modelo2)
     return peca1, modelo1, peca2, modelo2, estado
 
 # =========================
-# ðŸ” BUSCA COM VARIAÃ‡Ã•ES
+# 🔍 BUSCA COM VARIAÇÕES
 # =========================
 def buscar_com_fallback(peca, modelo_inicial, estado, nicho="Moto"):
     st = estado["Moto"]
@@ -1191,20 +1191,20 @@ def buscar_com_fallback(peca, modelo_inicial, estado, nicho="Moto"):
         
         variacoes = gerar_variacoes_busca(peca, modelo)
         for termo_busca in variacoes:
-            logging.info("ðŸ” Tentando: %s", termo_busca)
+            logging.info("🔍 Tentando: %s", termo_busca)
             resultados, estado = selecionar(nicho, termo_busca, 1, estado, 
                                             moto=True, peca=peca, modelo_moto=modelo)
             if resultados:
-                logging.info("âœ… ENCONTRADO com: %s", termo_busca)
+                logging.info("✅ ENCONTRADO com: %s", termo_busca)
                 return resultados, estado
         
-        logging.info("âš ï¸ Nenhuma variacao funcionou com %s â†’ tentando proximo modelo...", modelo)
+        logging.info("⚠️ Nenhuma variacao funcionou com %s → tentando proximo modelo...", modelo)
     
-    logging.warning("âŒ Nenhum resultado para %s em TODOS os modelos e variacoes!", peca)
+    logging.warning("❌ Nenhum resultado para %s em TODOS os modelos e variacoes!", peca)
     return [], estado
 
 # =========================
-# DEMAIS FUNÃ‡Ã•ES
+# DEMAIS FUNÇÕES
 # =========================
 def proximo_termo(nicho, estado):
     itens = PRODUTOS_POR_NICHO[nicho]
@@ -1213,7 +1213,7 @@ def proximo_termo(nicho, estado):
         t = itens[c["indice"] % len(itens)]
         c["indice"] += 1
         if termo_ja_usado(t):
-            logging.info("ðŸ›‘ Pulado: %s", t)
+            logging.info("🛑 Pulado: %s", t)
             continue
         TERMOS_USADOS_CICLO.add(t)
         return t, estado
@@ -1253,7 +1253,7 @@ def identificar_familia(titulo):
             return f
     return "outros"
 
-# âœ… CORRIGIDO: Tratar dados nulos/vazios da API
+# ✅ CORRIGIDO: Tratar dados nulos/vazios da API
 def pontuar_produto(p, termo="", modelo_moto=""):
     try:
         vendas_val = p.get("sales")
@@ -1285,12 +1285,12 @@ def pontuar_produto(p, termo="", modelo_moto=""):
             nm_espaco = sem_acento(modelo_moto).lower()
             if nm in tp or nm_espaco in tp:
                 pont += 25
-                logging.info("âœ¨ PERFEITO: %s + %s â†’ %s", termo, modelo_moto, p.get("productName","")[:50])
+                logging.info("✨ PERFEITO: %s + %s → %s", termo, modelo_moto, p.get("productName","")[:50])
         return max(0, pont)
     except:
         return 0
 
-# âœ… CORRIGIDO: SÃ³ rejeitar se valor for explicitamente BAIXO, NÃƒO se vier vazio
+# ✅ CORRIGIDO: Só rejeitar se valor for explicitamente BAIXO, NÃO se vier vazio
 def avaliar_rejeicao(p):
     titulo = str(p.get("productName", "")).strip()
     link = str(p.get("offerLink") or p.get("productLink", "")).strip()
@@ -1305,7 +1305,7 @@ def avaliar_rejeicao(p):
     except:
         comissao = 0
     
-    # âœ… Agora sÃ³ rejeita se o valor FORNECIDO for baixo
+    # ✅ Agora só rejeita se o valor FORNECIDO for baixo
     vendas_val = p.get("sales")
     vendas = int(vendas_val) if vendas_val is not None and vendas_val != "" else None
     
@@ -1326,7 +1326,7 @@ def avaliar_rejeicao(p):
         return "preco_alto"
     if comissao < COMISSAO_MIN:
         return "comissao_baixa"
-    # âœ… SÃ³ exclui se vier valor e for baixo. Se vier vazio â†’ ACEITA!
+    # ✅ Só exclui se vier valor e for baixo. Se vier vazio → ACEITA!
     if vendas is not None and vendas > 0 and vendas < VENDAS_MIN:
         return "poucas_vendas"
     if nota is not None and nota > 0 and nota < AVALIACAO_MIN:
@@ -1337,11 +1337,11 @@ def avaliar_rejeicao(p):
 
 def buscar_produtos(termo, nicho):
     termo_busca = sem_acento(termo.strip())
-    logging.info("ðŸ” Buscando em %s: %s", nicho, termo_busca)
+    logging.info("🔍 Buscando em %s: %s", nicho, termo_busca)
     ts = int(time.time())
     ordem = random.choice(TIPOS_ORDEM)
     pagina = random.randint(1, MAX_PAGINA_BUSCA)
-    logging.info(" â†³ Ordem=%s | Pagina=%s", ordem, pagina)
+    logging.info(" ↳ Ordem=%s | Pagina=%s", ordem, pagina)
     q = f'query {{productOfferV2(sortType:{ordem},page:{pagina},limit:50,keyword:{json.dumps(termo_busca,ensure_ascii=False)},isAMSOffer:true){{nodes{{productName,priceMin,priceMax,commissionRate,sales,ratingStar,productLink,offerLink,imageUrl,shopType}}}}}}'
     payload = json.dumps({"query": q}, ensure_ascii=False)
     assinatura = hashlib.sha256(f"{SHOPEE_APP_ID}{ts}{payload}{SHOPEE_PASSWORD}".encode()).hexdigest()
@@ -1354,10 +1354,10 @@ def buscar_produtos(termo, nicho):
             logging.error("API Erro: %s", d["errors"])
             return []
         p = (d.get("data", {}).get("productOfferV2", {}).get("nodes") or [])
-        logging.info("âœ… %s produtos encontrados", len(p))
+        logging.info("✅ %s produtos encontrados", len(p))
         return p
     except Exception as e:
-        logging.error("âŒ Falha busca: %s", e)
+        logging.error("❌ Falha busca: %s", e)
         return []
 
 def selecionar(nicho, termo, qtd, estado, moto=False, peca=None, modelo_moto=""):
@@ -1371,7 +1371,7 @@ def selecionar(nicho, termo, qtd, estado, moto=False, peca=None, modelo_moto="")
             motivos[m] += 1
         else:
             val.append(p)
-    logging.info("ðŸ“Š %s: %s brutos / %s validos", nicho, len(res), len(val))
+    logging.info("📊 %s: %s brutos / %s validos", nicho, len(res), len(val))
     if val:
         com_pont = [(p, pontuar_produto(p, peca if moto else termo, modelo_moto)) for p in val]
         pesos = [max(1, n**1.5) for _, n in com_pont]
@@ -1402,11 +1402,11 @@ def selecionar(nicho, termo, qtd, estado, moto=False, peca=None, modelo_moto="")
     del ULTIMOS_LINKS[:-300]
     del ULTIMOS_TITULOS[:-150]
     if motivos:
-        logging.info("ðŸ“‹ Excluidos: %s", dict(motivos))
+        logging.info("📋 Excluidos: %s", dict(motivos))
     return esc, estado
 
 # =========================
-# ðŸ›µ OFERTAS GARANTIDAS
+# 🛵 OFERTAS GARANTIDAS
 # =========================
 def obter_ofertas_garantidas(estado):
     global LINKS_CICLO_ATUAL, TERMOS_USADOS_CICLO
@@ -1415,16 +1415,16 @@ def obter_ofertas_garantidas(estado):
     sel = []
     lista_nichos = list(PRODUTOS_POR_NICHO.items())
     
-    logging.info("ðŸï¸ Iniciando busca de ofertas de moto...")
+    logging.info("🏍️ Iniciando busca de ofertas de moto...")
     peca1, modelo1, peca2, modelo2, estado = proxima_busca_moto(estado)
     
     its1, estado = buscar_com_fallback(peca1, modelo1, estado)
     sel.extend([("Moto", x) for x in its1])
-    logging.info("ðŸï¸ Moto 1 (%s): %s selecionados", peca1, len(its1))
+    logging.info("🏍️ Moto 1 (%s): %s selecionados", peca1, len(its1))
     
     its2, estado = buscar_com_fallback(peca2, modelo2, estado)
     sel.extend([("Moto", x) for x in its2])
-    logging.info("ðŸï¸ Moto 2 (%s): %s selecionados", peca2, len(its2))
+    logging.info("🏍️ Moto 2 (%s): %s selecionados", peca2, len(its2))
     
     tentativas = 0
     max_tentativas = 50
@@ -1444,9 +1444,9 @@ def obter_ofertas_garantidas(estado):
     
     if len(sel) >= MIN_OFERTAS:
         sel = sel[:MAX_OFERTAS]
-        logging.info("âœ… âœ… GARANTIDO: %s ofertas selecionadas", len(sel))
+        logging.info("✅ ✅ GARANTIDO: %s ofertas selecionadas", len(sel))
     else:
-        logging.warning("âš ï¸ Apenas %s ofertas apos %s tentativas", len(sel), tentativas)
+        logging.warning("⚠️ Apenas %s ofertas apos %s tentativas", len(sel), tentativas)
     return sel
 
 def obter_ofertas_shopee():
@@ -1456,18 +1456,18 @@ def obter_ofertas_shopee():
 # MENSAGENS E ENVIO
 # =========================
 ABERTURAS = [
-    "ðŸš¨ Isso nao aparece todo dia!", "ðŸ‘€ Olha o que encontreiâ€¦", "ðŸ”¥ Aproveita enquanto da!",
-    "ðŸ›‘ Para e olha!", "ðŸ¤¯ Dificil achar barato assim!", "âš ï¸ Pode sumir a qualquer horaâ€¦",
-    "ðŸ“‰ Caiu de preco!", "ðŸš€ Ta bombando!"
+    "🚨 Isso nao aparece todo dia!", "👀 Olha o que encontrei…", "🔥 Aproveita enquanto da!",
+    "🛑 Para e olha!", "🤯 Dificil achar barato assim!", "⚠️ Pode sumir a qualquer hora…",
+    "📉 Caiu de preco!", "🚀 Ta bombando!"
 ]
 GATILHOS = [
     "Bem abaixo do preco normal", "Avaliacoes excelentes", "Muita gente comprando",
     "Custo-beneficio otimo", "Quem compra recomenda", "Produto confiavel", "Saindo rapido"
 ]
 CHAMADAS = [
-    "ðŸ‘‡ Corre antes que acabe!", "âš¡ Clique antes de aumentar!", "ðŸš€ Estoque limitado!",
-    "ðŸ’¥ Oportunidade!", "ðŸŽ¯ Compre antes dos outros!", "â° Acaba hoje!",
-    "ðŸ’° Economia real!", "ðŸ›’ Nao perca!"
+    "👇 Corre antes que acabe!", "⚡ Clique antes de aumentar!", "🚀 Estoque limitado!",
+    "💥 Oportunidade!", "🎯 Compre antes dos outros!", "⏰ Acaba hoje!",
+    "💰 Economia real!", "🛒 Nao perca!"
 ]
 
 def anexar_afiliado(link, afiliado_id=None):
@@ -1482,16 +1482,16 @@ def anexar_afiliado(link, afiliado_id=None):
 def link_whatsai(texto):
     return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>', '', texto))}"
 
-# âœ… CORRIGIDO: Exibir "NÃ£o informado" quando dados nÃ£o vierem
+# ✅ CORRIGIDO: Exibir "Não informado" quando dados não vierem
 def mensagem_whatsai(nome, preco, vendas, nota, comissao, link):
-    vendas_texto = vendas if vendas != "-" else "NÃ£o informado"
-    nota_texto = nota if nota != "-" else "NÃ£o informado"
+    vendas_texto = vendas if vendas != "-" else "Não informado"
+    nota_texto = nota if nota != "-" else "Não informado"
     return (
-        f"ðŸ”¥ Produto: *{nome}*\n\n"
-        f"ðŸ’° PreÃ§o: *R$ {preco}*\n"
-        f"ðŸ“Š Vendas: *{vendas_texto}*\n"
-        f"â­ AvaliaÃ§Ã£o: *{nota_texto}*\n\n"
-        f"ðŸ›’ Aproveite pelo link:\n{link}"
+        f"🔥 Produto: *{nome}*\n\n"
+        f"💰 Preço: *R$ {preco}*\n"
+        f"📊 Vendas: *{vendas_texto}*\n"
+        f"⭐ Avaliação: *{nota_texto}*\n\n"
+        f"🛒 Aproveite pelo link:\n{link}"
     )
 
 def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False, incluir_link_grupo=False):
@@ -1510,54 +1510,54 @@ def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False, i
     GATILHOS_USADAS.add(gt)
     
     ch = random.choice(CHAMADAS)
-    etiqueta = "ðŸŽ OFERTA DESTAQUE DA SEMANA!" if free else ""
+    etiqueta = "🎁 OFERTA DESTAQUE DA SEMANA!" if free else ""
     
-    vendas_texto = f"ðŸ“Š Vendas: {vendas}" if vendas != "-" else "ðŸ“Š Vendas: NÃ£o informado"
-    nota_texto = f"â­ Avaliacao: {nota}" if nota != "-" else "â­ Avaliacao: NÃ£o informado"
+    vendas_texto = f"📊 Vendas: {vendas}" if vendas != "-" else "📊 Vendas: Não informado"
+    nota_texto = f"⭐ Avaliacao: {nota}" if nota != "-" else "⭐ Avaliacao: Não informado"
     
     partes = []
     if etiqueta:
         partes.append(f"<b>{html.escape(etiqueta)}</b>")
     partes.extend([
         f"{html.escape(ab)}", "",
-        f"ðŸ”¥ <b>Produto:</b> {html.escape(nome)}",
-        f"ðŸ’° <b>Preco:</b> R$ {preco}",
+        f"🔥 <b>Produto:</b> {html.escape(nome)}",
+        f"💰 <b>Preco:</b> R$ {preco}",
         vendas_texto,
         nota_texto,
-        f"ðŸ’¼ <b>Comissao:</b> {comissao}%", "",
-        f"ðŸ’¡ {html.escape(gt)}",
-        f"ðŸ‘‰ {html.escape(ch)}", "",
-        f'<a href="{html.escape(link)}">ðŸ›’ COMPRAR AGORA</a>\n\n'
-        f'<a href="{lk_whats}">ðŸ“² Compartilhar no WhatsApp</a>'
+        f"💼 <b>Comissao:</b> {comissao}%", "",
+        f"💡 {html.escape(gt)}",
+        f"👉 {html.escape(ch)}", "",
+        f'<a href="{html.escape(link)}">🛒 COMPRAR AGORA</a>\n\n'
+        f'<a href="{lk_whats}">📲 Compartilhar no WhatsApp</a>'
     ])
     if free or incluir_link_grupo:
-        partes.append(f'<a href="{html.escape(LINK_GRUPO_OFERTAS)}">ðŸ‘¥ Entrar no grupo de ofertas</a>')
+        partes.append(f'<a href="{html.escape(LINK_GRUPO_OFERTAS)}">👥 Entrar no grupo de ofertas</a>')
     return "\n".join(partes)
 
 async def enviar_msg(ctx, txt, img, cid):
     if not txt or not txt.strip():
-        logging.warning("âš ï¸ Texto vazio â€” nao enviado")
+        logging.warning("⚠️ Texto vazio — nao enviado")
         return False
     try:
         if img and img.strip():
             await ctx.bot.send_photo(cid, photo=img.strip(), caption=txt, parse_mode="HTML")
-            logging.info("ðŸ“¸ Foto+texto enviados")
+            logging.info("📸 Foto+texto enviados")
         else:
             await ctx.bot.send_message(cid, text=txt, parse_mode="HTML")
-            logging.info("ðŸ“ Apenas texto enviado")
+            logging.info("📝 Apenas texto enviado")
         return True
     except Exception as e:
-        logging.warning("âš ï¸ Erro envio: %s", e)
+        logging.warning("⚠️ Erro envio: %s", e)
         try:
             await ctx.bot.send_message(cid, text=txt, parse_mode="HTML")
             return True
         except Exception as e2:
-            logging.error("âŒ Falha total envio: %s", e2)
+            logging.error("❌ Falha total envio: %s", e2)
             return False
 
 
 # =========================
-# ðŸ”— WEBHOOK CAKTO â€” TESTE
+# 🔗 WEBHOOK CAKTO — TESTE
 # =========================
 CAKTO_WEBHOOK_SECRET = os.getenv("CAKTO_WEBHOOK_SECRET", "").strip()
 WEBHOOK_PORT = int(os.getenv("PORT", "8080"))
@@ -1582,7 +1582,7 @@ async def webhook_cakto(reader, writer):
         try:
             dados = json.loads(corpo)
         except Exception:
-            logging.warning("âš ï¸ Webhook Cakto recebeu JSON invalido")
+            logging.warning("⚠️ Webhook Cakto recebeu JSON invalido")
             resposta = "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{\"ok\":false,\"error\":\"invalid_json\"}"
             writer.write(resposta.encode())
             await writer.drain()
@@ -1594,7 +1594,7 @@ async def webhook_cakto(reader, writer):
         if isinstance(itens, dict):
             itens = [itens]
 
-        logging.info("ðŸ“© Cakto recebido | evento=%s | itens=%s", evento, len(itens))
+        logging.info("📩 Cakto recebido | evento=%s | itens=%s", evento, len(itens))
         clientes_cakto = carregar_clientes_cakto()
         for item in itens:
             cliente = item.get("customer") or {}
@@ -1632,7 +1632,7 @@ async def webhook_cakto(reader, writer):
                 clientes_cakto[email] = registro
 
             logging.info(
-                "ðŸ§¾ Cakto | email=%s | produto=%s | oferta=%s | status=%s | ativo=%s",
+                "🧾 Cakto | email=%s | produto=%s | oferta=%s | status=%s | ativo=%s",
                 email, produto.get("name", ""), oferta_nome, status, ativo
             )
         salvar_clientes_cakto(clientes_cakto)
@@ -1648,7 +1648,7 @@ async def webhook_cakto(reader, writer):
         writer.write(resposta.encode("utf-8"))
         await writer.drain()
     except Exception as e:
-        logging.error("âŒ Erro webhook Cakto: %s", e, exc_info=True)
+        logging.error("❌ Erro webhook Cakto: %s", e, exc_info=True)
     finally:
         try:
             writer.close()
@@ -1659,18 +1659,18 @@ async def webhook_cakto(reader, writer):
 async def iniciar_webhook():
     servidor = await asyncio.start_server(webhook_cakto, "0.0.0.0", WEBHOOK_PORT)
     enderecos = ", ".join(str(s.getsockname()) for s in (servidor.sockets or []))
-    logging.info("ðŸŒ Webhook Cakto ativo na porta %s | %s", WEBHOOK_PORT, enderecos)
+    logging.info("🌐 Webhook Cakto ativo na porta %s | %s", WEBHOOK_PORT, enderecos)
     async with servidor:
         await servidor.serve_forever()
 
 # =========================
-# ðŸŽ CICLO PRINCIPAL
+# 🎁 CICLO PRINCIPAL
 # =========================
 async def ciclo(ctx):
     try:
-        logging.info("========== ðŸ”„ INICIO ==========")
+        logging.info("========== 🔄 INICIO ==========")
         if not horario_valido():
-            logging.info("â¹ï¸ Fora do horario")
+            logging.info("⏹️ Fora do horario")
             return
         
         ABERTURAS_USADAS.clear()
@@ -1678,19 +1678,19 @@ async def ciclo(ctx):
         
         ofertas = obter_ofertas_shopee()
         if len(ofertas) < MIN_OFERTAS:
-            logging.warning("âš ï¸ Apenas %s ofertas validas. Minimo de %s exigido. Ciclo pulado.", len(ofertas), MIN_OFERTAS)
+            logging.warning("⚠️ Apenas %s ofertas validas. Minimo de %s exigido. Ciclo pulado.", len(ofertas), MIN_OFERTAS)
             return
         
-        logging.info("âœ… Total: %s | Enviando %s para VIP", len(ofertas), len(ofertas))
+        logging.info("✅ Total: %s | Enviando %s para VIP", len(ofertas), len(ofertas))
         
         ofertas_vip = ofertas.copy()
         
         idx_free = random.randint(0, len(ofertas)-1)
         oferta_free = ofertas[idx_free]
         nicho_free, produto_free = oferta_free
-        logging.info("ðŸŽ Sorteado para FREE: %s | %s", produto_free.get("productName","")[:50], nicho_free)
+        logging.info("🎁 Sorteado para FREE: %s | %s", produto_free.get("productName","")[:50], nicho_free)
         
-        await ctx.bot.send_message(CHAT_ID_DESTINO, text="ðŸš¨ <b>OFERTAS NOVAS CHEGARAM!</b>", parse_mode="HTML")
+        await ctx.bot.send_message(CHAT_ID_DESTINO, text="🚨 <b>OFERTAS NOVAS CHEGARAM!</b>", parse_mode="HTML")
         await asyncio.sleep(5)
         
         enviados = []
@@ -1707,7 +1707,7 @@ async def ciclo(ctx):
                 except:
                     preco = 0
                 
-                # âœ… Tratar valores nulos da API
+                # ✅ Tratar valores nulos da API
                 vendas_val = p.get("sales")
                 vendas = int(vendas_val) if vendas_val is not None and vendas_val != "" else None
                 
@@ -1718,7 +1718,7 @@ async def ciclo(ctx):
                 img = str(p.get("imageUrl", "")).strip()
                 prc = f"{preco:.2f}".replace(".", ",")
                 
-                # âœ… Formatar para exibiÃ§Ã£o
+                # ✅ Formatar para exibição
                 vnd = f"{vendas:,}".replace(",", ".") if vendas is not None else "-"
                 nt = f"{nota:.1f}".replace(".", ",") if nota is not None else "-"
                 
@@ -1728,13 +1728,13 @@ async def ciclo(ctx):
                 hid = hashlib.md5(f"{chave_titulo(titulo)}|{lb}".encode()).hexdigest()
                 enviados.append({"txt": txt_tg, "img": img, "hid": hid, "nicho": nicho})
             except Exception as e:
-                logging.error("âŒ Montagem: %s", e)
+                logging.error("❌ Montagem: %s", e)
         
         if len(enviados) < MIN_OFERTAS:
             return
         
         for item in enviados:
-            logging.info("ðŸ“¤ Enviando VIP: %s", item["nicho"])
+            logging.info("📤 Enviando VIP: %s", item["nicho"])
             ok = await enviar_msg(ctx, item["txt"], item["img"], CHAT_ID_DESTINO)
             if ok:
                 registrar_envio(item["hid"])
@@ -1744,9 +1744,9 @@ async def ciclo(ctx):
         try:
             await enviar_ofertas_clientes(ctx, ofertas_vip)
         except Exception as e:
-            logging.error("âŒ Erro geral no envio para clientes: %s", e, exc_info=True)
+            logging.error("❌ Erro geral no envio para clientes: %s", e, exc_info=True)
         
-        logging.info("ðŸŽ Enviando oferta destaque para grupo FREE")
+        logging.info("🎁 Enviando oferta destaque para grupo FREE")
         try:
             titulo = str(produto_free.get("productName", "")).strip()
             lb = str(produto_free.get("offerLink") or produto_free.get("productLink", "")).strip()
@@ -1776,36 +1776,36 @@ async def ciclo(ctx):
             ok = await enviar_msg(ctx, txt_tg, img, CHAT_ID_FREE)
             if ok:
                 registrar_envio(hid)
-                logging.info("âœ… Oferta FREE enviada!")
+                logging.info("✅ Oferta FREE enviada!")
         except Exception as e:
-            logging.error("âŒ Erro envio FREE: %s", e, exc_info=True)
+            logging.error("❌ Erro envio FREE: %s", e, exc_info=True)
         
-        logging.info("========== âœ… CONCLUIDO ==========")
+        logging.info("========== ✅ CONCLUIDO ==========")
     except Exception as e:
-        logging.error("âŒ ERRO: %s", e, exc_info=True)
+        logging.error("❌ ERRO: %s", e, exc_info=True)
 
 async def loop(app):
     ult = 0
     while True:
         agora = time.time()
         if agora - ult >= CHECK_INTERVAL:
-            logging.info("ðŸ”„ Iniciando ciclo de buscas...")
+            logging.info("🔄 Iniciando ciclo de buscas...")
             await ciclo(type("Ctx", (), {"bot": app.bot})())
             ult = agora
         await asyncio.sleep(60)
 
 async def manter_vivo():
     while True:
-        logging.info("ðŸ’“ Ativo | %s", datetime.now(FUSO_BR).strftime("%d/%m as %H:%M"))
+        logging.info("💓 Ativo | %s", datetime.now(FUSO_BR).strftime("%d/%m as %H:%M"))
         await asyncio.sleep(300)
 
 async def erro_telegram(update, context):
     erro = getattr(context, "error", None)
-    logging.error("âŒ Erro no processamento Telegram | tipo_update=%s | erro=%s", type(update).__name__, erro, exc_info=erro)
+    logging.error("❌ Erro no processamento Telegram | tipo_update=%s | erro=%s", type(update).__name__, erro, exc_info=erro)
 
 
 async def principal():
-    logging.info("ðŸ¤– Iniciando bot...")
+    logging.info("🤖 Iniciando bot...")
     if not TELEGRAM_TOKEN or not SHOPEE_PASSWORD:
         raise RuntimeError("Configure TELEGRAM_TOKEN e SHOPEE_PASSWORD")
     inicializar_banco_persistente()
@@ -1813,7 +1813,7 @@ async def principal():
     app.add_handler(CommandHandler("start", comando_start))
     app.add_handler(CommandHandler("configurar", comando_configurar))
 
-    # Fallback explÃ­cito: mensagens normais, grupos e CHANNEL_POSTS.
+    # Fallback explícito: mensagens normais, grupos e CHANNEL_POSTS.
     # Em canais, o Telegram entrega o post como update.channel_post.
     app.add_handler(
         MessageHandler(
@@ -1826,7 +1826,7 @@ async def principal():
     await app.initialize()
     await app.start()
     await app.updater.start_polling()
-    logging.info("âœ… Bot pronto e recebendo comandos Telegram!")
+    logging.info("✅ Bot pronto e recebendo comandos Telegram!")
     asyncio.create_task(manter_vivo())
     asyncio.create_task(iniciar_webhook())
     try:
@@ -1840,11 +1840,12 @@ def iniciar():
     try:
         asyncio.run(principal())
     except Exception as e:
-        logging.error("ðŸ”„ Reiniciando em 15s: %s", e)
+        logging.error("🔄 Reiniciando em 15s: %s", e)
         time.sleep(15)
         iniciar()
 
 if __name__ == "__main__":
     iniciar()
+        
             
         
