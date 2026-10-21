@@ -15,7 +15,7 @@ print(f"URL_DO_BANCO_DE_DADOS configurada = {bool(os.getenv('URL_DO_BANCO_DE_DAD
 print(f"DATABASE_URL configurada = {bool(os.getenv('DATABASE_URL'))}")
 print("=" * 50)
 
-print("VERSAO V58-VALIDADE-AVISOS-CAKTO")
+print("VERSAO V59-LOGS-AVISOS-DELAY-CLIENTES")
 
 try:
     import psycopg2
@@ -339,8 +339,9 @@ async def verificar_vencimentos(bot):
                                   f"🏆 <a href=\"{LINKS_PAGAMENTO_PLANOS['anual']}\">Plano anual</a>"),
                             parse_mode="HTML", disable_web_page_preview=True
                         )
+                        logging.info("⛔ Aviso de assinatura vencida enviado | telegram_id=%s | plano=%s", tid, plano)
                     except Exception as e:
-                        logging.info("ℹ️ Aviso de vencimento não enviado no privado | tipo=%s", type(e).__name__)
+                        logging.warning("❌ Falha ao enviar aviso de assinatura vencida | telegram_id=%s | tipo=%s", tid, type(e).__name__)
             continue
 
         segundos = (vencimento - agora).total_seconds()
@@ -364,8 +365,9 @@ async def verificar_vencimentos(bot):
                 enviados.append(chave_aviso)
                 registro["avisos_vencimento_enviados"] = enviados[-30:]
                 mudou_cakto = True
+                logging.info("✅ Lembrete de vencimento enviado | telegram_id=%s | plano=%s | dias_restantes=%s", tid, plano, dias_restantes)
             except Exception as e:
-                logging.info("ℹ️ Lembrete de vencimento não enviado no privado | tipo=%s", type(e).__name__)
+                logging.warning("❌ Falha ao enviar lembrete de vencimento | telegram_id=%s | dias_restantes=%s | tipo=%s", tid, dias_restantes, type(e).__name__)
             break
 
     if mudou_cakto:
@@ -988,7 +990,7 @@ async def enviar_ofertas_clientes(ctx, ofertas):
         chat_id = cliente["chat_id"]
         afiliado = cliente["afiliado_id"]
         enviados = 0
-        for nicho, p in ofertas:
+        for indice_oferta, (nicho, p) in enumerate(ofertas):
             try:
                 titulo = str(p.get("productName", "")).strip()
                 lb = str(p.get("offerLink") or p.get("productLink", "")).strip()
@@ -1015,9 +1017,11 @@ async def enviar_ofertas_clientes(ctx, ofertas):
                 ok = await enviar_msg(ctx, txt_tg, img, chat_id)
                 if ok:
                     enviados += 1
-                await asyncio.sleep(1)
+                    logging.info("📨 Oferta enviada ao cliente | chat_id=%s | oferta=%s/%s | nicho=%s", chat_id, indice_oferta + 1, len(ofertas), nicho)
+                if indice_oferta < len(ofertas) - 1:
+                    await asyncio.sleep(60)
             except Exception as e:
-                logging.error("❌ Erro envio cliente | chat_id=%s | %s", chat_id, e)
+                logging.error("❌ Erro envio cliente | chat_id=%s | tipo=%s", chat_id, type(e).__name__, exc_info=True)
         logging.info("📤 Cliente concluído | chat_id=%s | ofertas=%s", chat_id, enviados)
 
 
@@ -1790,12 +1794,17 @@ async def webhook_cakto(reader, writer):
                         registro.pop("vencido_em", None)
                         registro["pagamentos_processados"] = (processados + [evento_unico])[-50:]
                         registro["avisos_vencimento_enviados"] = []
+                        logging.info("🔄 Pagamento aprovado e assinatura atualizada | plano=%s | vencimento=%s", plano_atual, formatar_data_br(novo_vencimento))
                     elif not evento_unico and not registro.get("vence_em"):
                         # Fallback para payloads sem identificador de pagamento.
                         agora_pagamento = data_pagamento(item)
                         registro["aprovado_em"] = agora_pagamento.isoformat()
                         registro["vence_em"] = (agora_pagamento + timedelta(days=duracao)).isoformat()
                         registro["ativo"] = True
+                        registro["avisos_vencimento_enviados"] = []
+                        logging.info("🔄 Pagamento aprovado; validade inicial registrada | plano=%s | vencimento=%s", plano_atual, formatar_data_br(ler_data_iso(registro["vence_em"])))
+                    elif evento_unico and evento_unico in processados:
+                        logging.info("ℹ️ Evento de pagamento já processado; validade não duplicada | plano=%s", plano_atual)
                 clientes_cakto[email] = registro
 
             logging.info(
@@ -2014,6 +2023,9 @@ def iniciar():
 
 if __name__ == "__main__":
     iniciar()
+        
+            
+        
         
             
         
