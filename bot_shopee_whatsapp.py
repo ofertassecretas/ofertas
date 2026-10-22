@@ -15,7 +15,7 @@ print(f"URL_DO_BANCO_DE_DADOS configurada = {bool(os.getenv('URL_DO_BANCO_DE_DAD
 print(f"DATABASE_URL configurada = {bool(os.getenv('DATABASE_URL'))}")
 print("=" * 50)
 
-print("VERSAO V59-LOGS-AVISOS-DELAY-CLIENTES")
+print("VERSAO V60-FILA-PERSISTENTE-ESCALAVEL")
 
 try:
     import psycopg2
@@ -96,6 +96,10 @@ CLIENTES_TELEGRAM = "clientes_telegram.json"
 CLIENTES_CAKTO = "clientes_cakto.json"
 DB_PRONTA = False
 DB_AVISO_EMITIDO = False
+FILA_DB_PRONTA = False
+INTERVALO_GRUPO_ENVIO = 60       # segundos entre ofertas no mesmo grupo
+INTERVALO_GLOBAL_ENVIO = 0.2     # limite conservador global: no maximo ~5 tentativas/s
+MAX_TENTATIVAS_FILA = 8
 
 def _db_conectar():
     if not DATABASE_URL or psycopg2 is None:
@@ -209,6 +213,190 @@ def salvar_clientes_cakto(dados):
     if DB_PRONTA and _db_salvar("radar_clientes_cakto", dados):
         return
     salvar_json(CLIENTES_CAKTO, dados)
+
+def inicializar_fila_envios():
+    """Cria a fila persistente e o controle de intervalo por grupo no PostgreSQL."""
+    global FILA_DB_PRONTA
+    if not DB_PRONTA:
+        logging.error("❌ Fila V60 desativada: PostgreSQL não está pronto; clientes pagos não serão enviados em modo inseguro.")
+        FILA_DB_PRONTA = False
+        return
+    try:
+        with _db_conectar() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS radar_fila_envios (
+                        id BIGSERIAL PRIMARY KEY,
+                        lote_id TEXT NOT NULL,
+                        chat_id TEXT NOT NULL,
+                        cliente_id TEXT NOT NULL,
+                        ordem INTEGER NOT NULL,
+                        payload JSONB NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'pendente',
+                        tentativas INTEGER NOT NULL DEFAULT 0,
+                        disponivel_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        enviado_em TIMESTAMPTZ,
+                        ultimo_erro TEXT,
+                        UNIQUE (lote_id, chat_id, cliente_id, ordem)
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_radar_fila_pendente ON radar_fila_envios (status, disponivel_em, id)")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS radar_fila_grupos (
+                        chat_id TEXT PRIMARY KEY,
+                        proximo_envio TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                """)
+        FILA_DB_PRONTA = True
+        logging.info("🧵 Fila persistente V60 ativa | intervalo_grupo=%ss | limite_global_aprox=5 envios/s", INTERVALO_GRUPO_ENVIO)
+    except Exception as e:
+        FILA_DB_PRONTA = False
+        logging.error("❌ Não foi possível iniciar a fila persistente V60: %s", e, exc_info=True)
+
+
+def fila_tem_pendentes():
+    if not FILA_DB_PRONTA:
+        return False
+    try:
+        with _db_conectar() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM radar_fila_envios WHERE status='pendente'")
+                return cur.fetchone()[0] > 0
+    except Exception as e:
+        logging.error("❌ Falha consultando fila V60: %s", e)
+        return True  # falha fechada: não cria uma segunda fila por engano
+
+
+def adicionar_fila_envios(itens):
+    """Insere em lote. Se uma fila anterior ainda estiver pendente, ela é preservada."""
+    if not FILA_DB_PRONTA or not itens:
+        return False
+    lote_id = datetime.now(FUSO_BR).strftime("%Y%m%d%H%M%S%f")
+    try:
+        with _db_conectar() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM radar_fila_envios WHERE status='pendente'")
+                pendentes = cur.fetchone()[0]
+                if pendentes:
+                    logging.warning("⏳ Fila V60 já possui %s envios pendentes; novo lote não foi duplicado", pendentes)
+                    return False
+                linhas = []
+                grupos = set()
+                for item in itens:
+                    chat_id = str(item["chat_id"])
+                    cliente_id = str(item.get("cliente_id", ""))
+                    ordem = int(item["ordem"])
+                    linhas.append((lote_id, chat_id, cliente_id, ordem, Json(item["payload"])))
+                    grupos.add(chat_id)
+                cur.executemany("""
+                    INSERT INTO radar_fila_envios (lote_id, chat_id, cliente_id, ordem, payload)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (lote_id, chat_id, cliente_id, ordem) DO NOTHING
+                """, linhas)
+                for chat_id in grupos:
+                    cur.execute("""
+                        INSERT INTO radar_fila_grupos (chat_id, proximo_envio)
+                        VALUES (%s, NOW()) ON CONFLICT (chat_id) DO NOTHING
+                    """, (chat_id,))
+        logging.info("📥 Lote V60 enfileirado | clientes/grupos=%s | mensagens=%s | lote=%s", len({x['chat_id'] for x in itens}), len(itens), lote_id)
+        return True
+    except Exception as e:
+        logging.error("❌ Falha gravando lote na fila V60: %s", e, exc_info=True)
+        return False
+
+
+def obter_proximo_envio_fila():
+    if not FILA_DB_PRONTA:
+        return None
+    with _db_conectar() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT q.id, q.chat_id, q.payload, q.tentativas
+                FROM radar_fila_envios q
+                LEFT JOIN radar_fila_grupos g ON g.chat_id=q.chat_id
+                WHERE q.status='pendente'
+                  AND q.disponivel_em <= NOW()
+                  AND COALESCE(g.proximo_envio, NOW()) <= NOW()
+                ORDER BY q.id
+                LIMIT 1
+            """)
+            row = cur.fetchone()
+            if not row:
+                return None
+            return {"id": row[0], "chat_id": row[1], "payload": row[2] or {}, "tentativas": row[3]}
+
+
+def concluir_envio_fila(job, sucesso, erro=""):
+    """Confirma entrega ou agenda nova tentativa sem bloquear os demais grupos."""
+    try:
+        with _db_conectar() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO radar_fila_grupos (chat_id, proximo_envio)
+                    VALUES (%s, NOW()) ON CONFLICT (chat_id) DO NOTHING
+                """, (str(job["chat_id"]),))
+                cur.execute("""
+                    UPDATE radar_fila_grupos
+                    SET proximo_envio = NOW() + (%s * INTERVAL '1 second')
+                    WHERE chat_id=%s
+                """, (INTERVALO_GRUPO_ENVIO, str(job["chat_id"])))
+                if sucesso:
+                    cur.execute("""
+                        UPDATE radar_fila_envios
+                        SET status='enviado', enviado_em=NOW(), ultimo_erro=NULL
+                        WHERE id=%s AND status='pendente'
+                    """, (job["id"],))
+                else:
+                    tentativas = int(job.get("tentativas", 0)) + 1
+                    status = "falhou" if tentativas >= MAX_TENTATIVAS_FILA else "pendente"
+                    espera = min(60 * tentativas, 300)
+                    cur.execute("""
+                        UPDATE radar_fila_envios
+                        SET status=%s, tentativas=%s,
+                            disponivel_em=NOW() + (%s * INTERVAL '1 second'),
+                            ultimo_erro=%s
+                        WHERE id=%s AND status='pendente'
+                    """, (status, tentativas, espera, str(erro)[:1000], job["id"]))
+                    if status == "falhou":
+                        logging.error("🛑 Envio abandonado após %s tentativas | chat_id=%s | fila_id=%s", tentativas, job["chat_id"], job["id"])
+                    else:
+                        logging.warning("🔁 Reenvio agendado | tentativa=%s/%s | espera=%ss | chat_id=%s | fila_id=%s", tentativas, MAX_TENTATIVAS_FILA, espera, job["chat_id"], job["id"])
+        return True
+    except Exception as e:
+        logging.error("❌ Falha atualizando fila V60 | fila_id=%s | erro=%s", job.get("id"), e, exc_info=True)
+        return False
+
+
+async def rotina_fila_envios(bot):
+    """Worker único: fila persistente, ritmo global controlado e 60s entre posts por grupo."""
+    ctx = type("Ctx", (), {"bot": bot})()
+    logging.info("🧵 Trabalhador da fila V60 iniciado")
+    while True:
+        try:
+            if not FILA_DB_PRONTA:
+                await asyncio.sleep(10)
+                continue
+            job = obter_proximo_envio_fila()
+            if not job:
+                await asyncio.sleep(2)
+                continue
+            payload = job.get("payload") or {}
+            chat_id = str(payload.get("chat_id") or job.get("chat_id"))
+            destino = int(chat_id) if chat_id.lstrip("-").isdigit() else chat_id
+            logging.info("📤 Fila V60 | chat_id=%s | oferta=%s/%s | fila_id=%s", chat_id, payload.get("oferta_numero", "?"), payload.get("total_ofertas", "?"), job["id"])
+            ok = await enviar_msg(ctx, payload.get("texto", ""), payload.get("imagem", ""), destino)
+            if ok:
+                concluir_envio_fila(job, True)
+                logging.info("✅ Fila V60 enviada | chat_id=%s | fila_id=%s", chat_id, job["id"])
+                await asyncio.sleep(INTERVALO_GLOBAL_ENVIO)
+            else:
+                concluir_envio_fila(job, False, "enviar_msg retornou False")
+                await asyncio.sleep(1)
+        except Exception as e:
+            logging.error("❌ Erro no trabalhador da fila V60: %s", e, exc_info=True)
+            await asyncio.sleep(5)
+
 
 def email_normalizado(email):
     return (email or "").strip().lower()
@@ -960,9 +1148,18 @@ async def validar_cliente_grupo(bot, cliente):
     return bool(bot_admin)
 
 async def enviar_ofertas_clientes(ctx, ofertas):
+    """Valida clientes e enfileira mensagens personalizadas sem esperar o envio terminar."""
+    if not FILA_DB_PRONTA:
+        logging.error("⛔ Clientes pagos não enviados: fila persistente V60 indisponível. Verifique o PostgreSQL.")
+        return
+    if fila_tem_pendentes():
+        logging.info("⏳ Fila V60 anterior ainda está em andamento; preservando pendências e evitando duplicação.")
+        return
+
     clientes = carregar_clientes_telegram()
-    prontos = []
+    itens_fila = []
     alterados = False
+    total_ofertas = len(ofertas)
     for chave, cliente in clientes.items():
         if not cliente.get("grupo_configurado") or not cliente.get("chat_id"):
             continue
@@ -978,18 +1175,9 @@ async def enviar_ofertas_clientes(ctx, ofertas):
         if not cliente.get("grupo_ativo"):
             cliente["grupo_ativo"] = True
             alterados = True
-        prontos.append(cliente)
-    if alterados:
-        salvar_clientes_telegram(clientes)
 
-    if not prontos:
-        return
-
-    logging.info("👥 Clientes ativos para envio: %s", len(prontos))
-    for cliente in prontos:
-        chat_id = cliente["chat_id"]
+        chat_id = str(cliente["chat_id"])
         afiliado = cliente["afiliado_id"]
-        enviados = 0
         for indice_oferta, (nicho, p) in enumerate(ofertas):
             try:
                 titulo = str(p.get("productName", "")).strip()
@@ -1014,15 +1202,32 @@ async def enviar_ofertas_clientes(ctx, ofertas):
                 txt_whats = mensagem_whatsai(titulo, prc, vnd, nt, comissao, link)
                 lk_whats = link_whatsai(txt_whats)
                 txt_tg = montar_tg(titulo, prc, vnd, nt, comissao, link, lk_whats, free=False)
-                ok = await enviar_msg(ctx, txt_tg, img, chat_id)
-                if ok:
-                    enviados += 1
-                    logging.info("📨 Oferta enviada ao cliente | chat_id=%s | oferta=%s/%s | nicho=%s", chat_id, indice_oferta + 1, len(ofertas), nicho)
-                if indice_oferta < len(ofertas) - 1:
-                    await asyncio.sleep(60)
+                itens_fila.append({
+                    "chat_id": chat_id,
+                    "cliente_id": str(chave),
+                    "ordem": indice_oferta + 1,
+                    "payload": {
+                        "chat_id": chat_id,
+                        "cliente_id": str(chave),
+                        "texto": txt_tg,
+                        "imagem": img,
+                        "nicho": str(nicho),
+                        "oferta_numero": indice_oferta + 1,
+                        "total_ofertas": total_ofertas,
+                    },
+                })
             except Exception as e:
-                logging.error("❌ Erro envio cliente | chat_id=%s | tipo=%s", chat_id, type(e).__name__, exc_info=True)
-        logging.info("📤 Cliente concluído | chat_id=%s | ofertas=%s", chat_id, enviados)
+                logging.error("❌ Erro preparando oferta para fila | cliente=%s | oferta=%s | tipo=%s", chave, indice_oferta + 1, type(e).__name__, exc_info=True)
+
+    if alterados:
+        salvar_clientes_telegram(clientes)
+    if not itens_fila:
+        logging.info("ℹ️ V60: nenhum envio de cliente preparado neste ciclo.")
+        return
+    if adicionar_fila_envios(itens_fila):
+        logging.info("🧾 V60: ofertas dos clientes adicionadas à fila; o ciclo não aguardará todos os envios.")
+    else:
+        logging.error("❌ V60: não foi possível adicionar as ofertas à fila; confira as logs do PostgreSQL.")
 
 
 ULTIMOS_LINKS = []
@@ -1985,6 +2190,7 @@ async def principal():
     if not TELEGRAM_TOKEN or not SHOPEE_PASSWORD:
         raise RuntimeError("Configure TELEGRAM_TOKEN e SHOPEE_PASSWORD")
     inicializar_banco_persistente()
+    inicializar_fila_envios()
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", comando_start))
     app.add_handler(CommandHandler("configurar", comando_configurar))
@@ -2005,6 +2211,7 @@ async def principal():
     logging.info("✅ Bot pronto e recebendo comandos Telegram!")
     asyncio.create_task(manter_vivo())
     asyncio.create_task(rotina_vencimentos(app.bot))
+    asyncio.create_task(rotina_fila_envios(app.bot))
     asyncio.create_task(iniciar_webhook())
     try:
         await loop(app)
@@ -2023,6 +2230,8 @@ def iniciar():
 
 if __name__ == "__main__":
     iniciar()
+        
+            
         
             
         
