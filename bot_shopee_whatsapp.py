@@ -37,6 +37,11 @@ CHAT_ID_FREE = -1003886228244
 AFILIADO_ID = "18349740277"
 CAKTO_BOT_USERNAME = (os.getenv("CAKTO_BOT_USERNAME") or "CaktoBot").strip().lstrip("@")
 
+# IA de CTA: usada somente no VIP e nos grupos de assinantes pagos.
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+OPENAI_MODEL = (os.getenv("OPENAI_MODEL") or "gpt-6-luna").strip()
+OPENAI_TIMEOUT = 15
+
 # ✅ Leitura ajustada — PRIORIZA URL_DO_BANCO_DE_DADOS (Railway)
 _raw_db_url = os.getenv("URL_DO_BANCO_DE_DADOS") or os.getenv("DATABASE_URL")
 if _raw_db_url:
@@ -1147,6 +1152,79 @@ async def validar_cliente_grupo(bot, cliente):
     # para o envio. O CaktoBot não é mais uma trava técnica do Radar.
     return bool(bot_admin)
 
+async def gerar_cta_ia(nicho, titulo):
+    """Gera uma CTA curta via OpenAI; em falha, mantém o texto padrão do Radar."""
+    if not OPENAI_API_KEY:
+        return ""
+    prompt = (
+        "Crie uma única chamada para ação (CTA) curta para uma oferta da Shopee. "
+        "Escreva em português brasileiro, com tom humano, simples e natural. "
+        "Varie a abordagem e convide a pessoa a conferir a oferta. "
+        "Use no máximo dois emojis. Não invente desconto, urgência, estoque, avaliações, "
+        "vendas ou benefícios que não estejam comprovados. Retorne somente a CTA, "
+        "sem aspas, título ou explicações.\n\n"
+        f"Categoria: {str(nicho)[:80]}\nProduto: {str(titulo)[:250]}"
+    )
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    body = {
+        "model": OPENAI_MODEL,
+        "instructions": "Você é o redator de chamadas de ofertas do Radar de Promoções VIP.",
+        "input": prompt,
+        "max_output_tokens": 100,
+    }
+    try:
+        resposta = await asyncio.to_thread(
+            requests.post,
+            "https://api.openai.com/v1/responses",
+            headers=headers,
+            json=body,
+            timeout=OPENAI_TIMEOUT,
+        )
+        resposta.raise_for_status()
+        dados = resposta.json()
+        texto = str(dados.get("output_text") or "").strip()
+        if not texto:
+            partes = []
+            for item in dados.get("output", []):
+                for conteudo in item.get("content", []):
+                    if conteudo.get("type") == "output_text":
+                        partes.append(conteudo.get("text", ""))
+            texto = " ".join(partes).strip()
+        texto = re.sub(r"^['\"“”]+|['\"“”]+$", "", texto).strip()
+        texto = re.sub(r"\s+", " ", texto)
+        if not texto or len(texto) > 240:
+            logging.warning("🤖 CTA IA vazia ou longa demais; usando CTA padrão | produto=%s", str(titulo)[:80])
+            return ""
+        logging.info("🤖 CTA IA gerada | modelo=%s | categoria=%s", OPENAI_MODEL, str(nicho)[:50])
+        return texto
+    except Exception as e:
+        logging.warning("⚠️ IA indisponível; CTA padrão será usada | tipo=%s", type(e).__name__)
+        return ""
+
+
+async def gerar_ctas_ia(ofertas):
+    """Gera uma CTA por produto; o texto é reutilizado no VIP e em todos os pagos."""
+    if not OPENAI_API_KEY:
+        logging.warning("⚠️ OPENAI_API_KEY não configurada; VIP e pagos usarão CTA padrão")
+        return
+    tarefas = []
+    produtos = []
+    for nicho, produto in ofertas:
+        titulo = str(produto.get("productName", "")).strip()
+        if not titulo:
+            produto["_radar_cta_ia"] = ""
+            continue
+        produtos.append(produto)
+        tarefas.append(gerar_cta_ia(nicho, titulo))
+    if tarefas:
+        resultados = await asyncio.gather(*tarefas, return_exceptions=True)
+        for produto, cta in zip(produtos, resultados):
+            produto["_radar_cta_ia"] = cta if isinstance(cta, str) else ""
+
+
 async def enviar_ofertas_clientes(ctx, ofertas):
     """Valida clientes e enfileira mensagens personalizadas sem esperar o envio terminar."""
     if not FILA_DB_PRONTA:
@@ -1201,7 +1279,7 @@ async def enviar_ofertas_clientes(ctx, ofertas):
                 nt = f"{nota:.1f}".replace(".", ",") if nota is not None else "-"
                 txt_whats = mensagem_whatsai(titulo, prc, vnd, nt, comissao, link)
                 lk_whats = link_whatsai(txt_whats)
-                txt_tg = montar_tg(titulo, prc, vnd, nt, comissao, link, lk_whats, free=False)
+                txt_tg = montar_tg(titulo, prc, vnd, nt, comissao, link, lk_whats, free=False, cta_ia=p.get("_radar_cta_ia", ""))
                 itens_fila.append({
                     "chat_id": chat_id,
                     "cliente_id": str(chave),
@@ -1839,7 +1917,7 @@ def mensagem_whatsai(nome, preco, vendas, nota, comissao, link):
         f"🛒 Aproveite pelo link:\n{link}"
     )
 
-def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False, incluir_link_grupo=False):
+def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False, incluir_link_grupo=False, cta_ia=""):
     disponiveis_ab = [x for x in ABERTURAS if x not in ABERTURAS_USADAS]
     if not disponiveis_ab:
         ABERTURAS_USADAS.clear()
@@ -1871,7 +1949,7 @@ def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False, i
         nota_texto,
         f"💼 <b>Comissao:</b> {comissao}%", "",
         f"💡 {html.escape(gt)}",
-        f"👉 {html.escape(ch)}", "",
+        f"👉 {html.escape(cta_ia.strip() if cta_ia and not free else ch)}", "",
         f'<a href="{html.escape(link)}">🛒 COMPRAR AGORA</a>\n\n'
         f'<a href="{lk_whats}">📲 Compartilhar no WhatsApp</a>'
     ])
@@ -2065,6 +2143,10 @@ async def ciclo(ctx):
         logging.info("✅ Total: %s | Enviando %s para VIP", len(ofertas), len(ofertas))
         
         ofertas_vip = ofertas.copy()
+
+        # Uma CTA por produto, reutilizada no VIP e nos grupos pagos.
+        # O grupo FREE não usa esse texto e mantém a mensagem original.
+        await gerar_ctas_ia(ofertas_vip)
         
         idx_free = random.randint(0, len(ofertas)-1)
         oferta_free = ofertas[idx_free]
@@ -2105,7 +2187,7 @@ async def ciclo(ctx):
                 
                 txt_whats = mensagem_whatsai(titulo, prc, vnd, nt, comissao, link)
                 lk_whats = link_whatsai(txt_whats)
-                txt_tg = montar_tg(titulo, prc, vnd, nt, comissao, link, lk_whats, free=False, incluir_link_grupo=True)
+                txt_tg = montar_tg(titulo, prc, vnd, nt, comissao, link, lk_whats, free=False, incluir_link_grupo=True, cta_ia=p.get("_radar_cta_ia", ""))
                 hid = hashlib.md5(f"{chave_titulo(titulo)}|{lb}".encode()).hexdigest()
                 enviados.append({"txt": txt_tg, "img": img, "hid": hid, "nicho": nicho})
             except Exception as e:
@@ -2230,7 +2312,6 @@ def iniciar():
 
 if __name__ == "__main__":
     iniciar()
-        
             
         
             
