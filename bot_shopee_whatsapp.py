@@ -15,7 +15,7 @@ print(f"URL_DO_BANCO_DE_DADOS configurada = {bool(os.getenv('URL_DO_BANCO_DE_DAD
 print(f"DATABASE_URL configurada = {bool(os.getenv('DATABASE_URL'))}")
 print("=" * 50)
 
-print("VERSAO V63-CTA-IA-VALIDACAO-ROBUSTA")
+print("VERSAO V64-CTA-IA-DIAGNOSTICO-RETRY")
 
 try:
     import psycopg2
@@ -1153,35 +1153,32 @@ async def validar_cliente_grupo(bot, cliente):
     return bool(bot_admin)
 
 async def gerar_cta_ia(nicho, titulo):
-    """Gera uma CTA curta via OpenAI; em falha, mantém o texto padrão do Radar."""
+    """Gera CTA curta; identifica respostas incompletas e tenta novamente se necessário."""
     if not OPENAI_API_KEY:
         return ""
+
     prompt = (
-        "Escreva UMA CTA curta e convincente para divulgar este produto da Shopee, "
-        "em português brasileiro natural, como uma pessoa recomendando algo num grupo. "
-        "Seja específica: use o nome/tipo do produto e, quando fizer sentido, a utilidade "
-        "óbvia dele ou para quem serve, sem inventar características. A frase precisa "
-        "dar vontade de abrir o link, sem parecer propaganda automática. "
-        "EVITE frases genéricas como 'Confira na Shopee', 'Veja essa oferta' ou "
-        "'Confira se combina com você'. Não comece sempre do mesmo jeito; alterne "
-        "entre convite direto, pergunta curta, destaque do uso e recomendação prática. "
-        "Não repita o título inteiro se ficar estranho. Máximo de 18 palavras e 2 emojis. "
-        "Não invente desconto, urgência, estoque, qualidade, compatibilidade, resultados, "
-        "avaliações, vendas ou benefícios que não estejam confirmados pelo nome do produto. "
-        "Sem hashtags, aspas, título ou explicações: retorne somente a CTA.\n\n"
+        "Crie UMA chamada curta para divulgar este produto da Shopee em português brasileiro. "
+        "Use linguagem natural, específica e variada; fale do produto ou de seu uso provável "
+        "sem inventar características. Evite 'Confira na Shopee' e frases genéricas. "
+        "No máximo 18 palavras e 2 emojis. Não invente desconto, urgência, estoque, qualidade, "
+        "compatibilidade ou resultados. Retorne somente a chamada, sem aspas nem explicação.\n\n"
         f"Categoria: {str(nicho)[:80]}\nProduto: {str(titulo)[:250]}"
     )
     headers = {
         "Authorization": f"Bearer {OPENAI_API_KEY}",
         "Content-Type": "application/json",
     }
-    body = {
-        "model": OPENAI_MODEL,
-        "instructions": "Você é o redator de chamadas de ofertas do Radar de Promoções VIP.",
-        "input": prompt,
-        "max_output_tokens": 100,
-    }
-    try:
+
+    async def solicitar(limite_tokens):
+        body = {
+            "model": OPENAI_MODEL,
+            "instructions": "Você escreve chamadas comerciais curtas e naturais para o Radar de Promoções VIP.",
+            "input": prompt,
+            # O limite inclui tokens internos de raciocínio, não apenas o texto visível.
+            "max_output_tokens": limite_tokens,
+            "reasoning": {"effort": "low"},
+        }
         resposta = await asyncio.to_thread(
             requests.post,
             "https://api.openai.com/v1/responses",
@@ -1194,33 +1191,64 @@ async def gerar_cta_ia(nicho, titulo):
         texto = str(dados.get("output_text") or "").strip()
         if not texto:
             partes = []
-            for item in dados.get("output", []):
-                for conteudo in item.get("content", []):
+            tipos = []
+            for item in dados.get("output", []) or []:
+                tipos.append(str(item.get("type", "desconhecido")))
+                for conteudo in item.get("content", []) or []:
                     if conteudo.get("type") == "output_text":
-                        partes.append(conteudo.get("text", ""))
+                        partes.append(str(conteudo.get("text") or ""))
             texto = " ".join(partes).strip()
+        return dados, texto
+
+    try:
+        dados, texto = await solicitar(400)
+        status = str(dados.get("status") or "desconhecido")
+        detalhe = dados.get("incomplete_details") or {}
+        motivo = str(detalhe.get("reason") or "nenhum")
+
+        # Respostas incompletas/sem texto são tentadas uma segunda vez com mais espaço.
+        if not texto:
+            logging.warning(
+                "🤖 CTA IA incompleta; tentando novamente | status=%s | motivo=%s | produto=%s",
+                status, motivo, str(titulo)[:80]
+            )
+            dados, texto = await solicitar(800)
+            status = str(dados.get("status") or "desconhecido")
+            detalhe = dados.get("incomplete_details") or {}
+            motivo = str(detalhe.get("reason") or "nenhum")
+
         texto = re.sub(r"\s+", " ", texto).strip()
         texto = re.sub(r"^(?:CTA|chamada|sugestão)\s*[:：-]\s*", "", texto, flags=re.I)
         texto = re.sub(r"^['\"“”]+|['\"“”]+$", "", texto).strip()
-
-        # Se a IA acrescentar explicações, aproveita apenas a primeira frase.
         if len(texto) > 180:
             partes = re.split(r"(?<=[.!?])\s+", texto)
             if partes and partes[0].strip():
                 texto = partes[0].strip()
-        # Proteção final: texto comprido não deve descartar uma CTA aproveitável.
         if len(texto) > 180:
             corte = texto[:177].rsplit(" ", 1)[0].strip()
             texto = (corte or texto[:177].strip()) + "…"
         if not texto:
-            logging.warning("🤖 CTA IA vazia; usando CTA padrão | produto=%s", str(titulo)[:80])
+            saidas = dados.get("output") or []
+            tipos_saida = ",".join(str(item.get("type", "?")) for item in saidas) or "nenhuma"
+            uso = dados.get("usage") or {}
+            logging.warning(
+                "🤖 CTA IA sem texto após tentativa | status=%s | motivo=%s | tipos=%s | tokens_saida=%s | produto=%s",
+                status, motivo, tipos_saida, uso.get("output_tokens", "?"), str(titulo)[:80]
+            )
             return ""
-        logging.info("🤖 CTA IA gerada | modelo=%s | categoria=%s | caracteres=%s", OPENAI_MODEL, str(nicho)[:50], len(texto))
+        logging.info(
+            "🤖 CTA IA gerada | modelo=%s | categoria=%s | caracteres=%s | status=%s",
+            dados.get("model") or OPENAI_MODEL, str(nicho)[:50], len(texto), status
+        )
         return texto
     except Exception as e:
-        logging.warning("⚠️ IA indisponível; CTA padrão será usada | tipo=%s", type(e).__name__)
+        # Registra tipo e código HTTP, nunca a chave nem o corpo da requisição.
+        codigo_http = getattr(getattr(e, "response", None), "status_code", None)
+        logging.warning(
+            "⚠️ IA indisponível; CTA padrão será usada | tipo=%s | http=%s",
+            type(e).__name__, codigo_http or "n/a"
+        )
         return ""
-
 
 async def gerar_ctas_ia(ofertas):
     """Gera uma CTA por produto; o texto é reutilizado no VIP e em todos os pagos."""
