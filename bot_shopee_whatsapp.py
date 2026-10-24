@@ -15,7 +15,7 @@ print(f"URL_DO_BANCO_DE_DADOS configurada = {bool(os.getenv('URL_DO_BANCO_DE_DAD
 print(f"DATABASE_URL configurada = {bool(os.getenv('DATABASE_URL'))}")
 print("=" * 50)
 
-print("VERSAO V62-CTA-IA-WHATSAPP-PAGOS")
+print("VERSAO V63-CTA-IA-VALIDACAO-ROBUSTA")
 
 try:
     import psycopg2
@@ -1199,12 +1199,23 @@ async def gerar_cta_ia(nicho, titulo):
                     if conteudo.get("type") == "output_text":
                         partes.append(conteudo.get("text", ""))
             texto = " ".join(partes).strip()
+        texto = re.sub(r"\s+", " ", texto).strip()
+        texto = re.sub(r"^(?:CTA|chamada|sugestão)\s*[:：-]\s*", "", texto, flags=re.I)
         texto = re.sub(r"^['\"“”]+|['\"“”]+$", "", texto).strip()
-        texto = re.sub(r"\s+", " ", texto)
-        if not texto or len(texto) > 240:
-            logging.warning("🤖 CTA IA vazia ou longa demais; usando CTA padrão | produto=%s", str(titulo)[:80])
+
+        # Se a IA acrescentar explicações, aproveita apenas a primeira frase.
+        if len(texto) > 180:
+            partes = re.split(r"(?<=[.!?])\s+", texto)
+            if partes and partes[0].strip():
+                texto = partes[0].strip()
+        # Proteção final: texto comprido não deve descartar uma CTA aproveitável.
+        if len(texto) > 180:
+            corte = texto[:177].rsplit(" ", 1)[0].strip()
+            texto = (corte or texto[:177].strip()) + "…"
+        if not texto:
+            logging.warning("🤖 CTA IA vazia; usando CTA padrão | produto=%s", str(titulo)[:80])
             return ""
-        logging.info("🤖 CTA IA gerada | modelo=%s | categoria=%s", OPENAI_MODEL, str(nicho)[:50])
+        logging.info("🤖 CTA IA gerada | modelo=%s | categoria=%s | caracteres=%s", OPENAI_MODEL, str(nicho)[:50], len(texto))
         return texto
     except Exception as e:
         logging.warning("⚠️ IA indisponível; CTA padrão será usada | tipo=%s", type(e).__name__)
