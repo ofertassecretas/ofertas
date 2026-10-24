@@ -15,7 +15,7 @@ print(f"URL_DO_BANCO_DE_DADOS configurada = {bool(os.getenv('URL_DO_BANCO_DE_DAD
 print(f"DATABASE_URL configurada = {bool(os.getenv('DATABASE_URL'))}")
 print("=" * 50)
 
-print("VERSAO V64-CTA-IA-DIAGNOSTICO-RETRY")
+print("VERSAO V65-CTA-IA-MAIS-PERSUASIVA")
 
 try:
     import psycopg2
@@ -1158,11 +1158,25 @@ async def gerar_cta_ia(nicho, titulo):
         return ""
 
     prompt = (
-        "Crie UMA chamada curta para divulgar este produto da Shopee em português brasileiro. "
-        "Use linguagem natural, específica e variada; fale do produto ou de seu uso provável "
-        "sem inventar características. Evite 'Confira na Shopee' e frases genéricas. "
-        "No máximo 18 palavras e 2 emojis. Não invente desconto, urgência, estoque, qualidade, "
-        "compatibilidade ou resultados. Retorne somente a chamada, sem aspas nem explicação.\n\n"
+        "Você é redator de ofertas para afiliados brasileiros. Crie UMA CTA curta, natural e persuasiva "
+        "para este produto da Shopee. O objetivo é despertar interesse real e levar a pessoa a abrir a oferta, "
+        "não apenas repetir ou descrever o nome do produto.\n\n"
+        "REGRAS IMPORTANTES:\n"
+        "- Escreva em português brasileiro coloquial, como uma pessoa recomendando algo útil, sem exagero.\n"
+        "- Use de 10 a 18 palavras e, se combinar, apenas 1 emoji.\n"
+        "- Aproveite um detalhe concreto do título e conecte-o a uma necessidade ou situação de uso plausível.\n"
+        "- Termine com um convite claro e leve para ver os detalhes, escolher uma opção ou conferir a aplicação.\n"
+        "- Varie a construção: pode começar com uma pergunta, uma situação do dia a dia ou um benefício diretamente sustentado pelo título.\n"
+        "- Não comece sempre com 'Confira', 'Conheça' ou 'Veja'; não use 'uma opção para' como fórmula repetida.\n"
+        "- Não repita o título inteiro nem faça uma descrição de catálogo.\n"
+        "- Não invente desconto, preço promocional, urgência, estoque, qualidade, avaliações, vendas, compatibilidade ou resultados.\n"
+        "- Em peças e acessórios, não garanta compatibilidade: convide a pessoa a conferir a aplicação.\n"
+        "- Não use frases vazias como 'imperdível', 'corre que acaba', 'oportunidade única' ou 'não perca'.\n"
+        "- Retorne somente a CTA, sem aspas, rótulos ou explicações. Crie uma chamada diferente para cada produto.\n\n"
+        "EXEMPLOS DO ESTILO DESEJADO (não copie literalmente):\n"
+        "Cabo com conectores variados: 'Precisa de cabo V8, Tipo-C ou iPhone? Veja as opções desse modelo emborrachado 🔌'\n"
+        "Peça de moto: 'Está procurando essa peça para a manutenção da moto? Confira a aplicação antes de escolher 🏍️'\n"
+        "Roupa: 'Quer dar um toque diferente ao look? Veja os detalhes desse vestido amarelo de ombro único 💛'\n\n"
         f"Categoria: {str(nicho)[:80]}\nProduto: {str(titulo)[:250]}"
     )
     headers = {
@@ -1966,21 +1980,30 @@ def mensagem_whatsai(nome, preco, vendas, nota, comissao, link, cta_ia=""):
     )
 
 def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False, incluir_link_grupo=False, cta_ia=""):
-    disponiveis_ab = [x for x in ABERTURAS if x not in ABERTURAS_USADAS]
-    if not disponiveis_ab:
-        ABERTURAS_USADAS.clear()
-        disponiveis_ab = ABERTURAS
-    ab = random.choice(disponiveis_ab)
-    ABERTURAS_USADAS.add(ab)
-    
-    disponiveis_gt = [x for x in GATILHOS if x not in GATILHOS_USADAS]
-    if not disponiveis_gt:
-        GATILHOS_USADAS.clear()
-        disponiveis_gt = GATILHOS
-    gt = random.choice(disponiveis_gt)
-    GATILHOS_USADAS.add(gt)
-    
-    ch = random.choice(CHAMADAS)
+    # O FREE mantém exatamente o rodízio antigo. VIP e pagos usam etiquetas neutras,
+    # evitando alegações de urgência, popularidade ou confiança sem comprovação.
+    if free:
+        disponiveis_ab = [x for x in ABERTURAS if x not in ABERTURAS_USADAS]
+        if not disponiveis_ab:
+            ABERTURAS_USADAS.clear()
+            disponiveis_ab = ABERTURAS
+        ab = random.choice(disponiveis_ab)
+        ABERTURAS_USADAS.add(ab)
+
+        disponiveis_gt = [x for x in GATILHOS if x not in GATILHOS_USADAS]
+        if not disponiveis_gt:
+            GATILHOS_USADAS.clear()
+            disponiveis_gt = GATILHOS
+        gt = random.choice(disponiveis_gt)
+        GATILHOS_USADAS.add(gt)
+        ch = random.choice(CHAMADAS)
+    else:
+        ab = random.choice([
+            "👀 Olha os detalhes deste produto", "🔎 Dá uma olhada nesta opção",
+            "🛒 Veja esta oferta", "✨ Confira os detalhes", "📦 Uma opção para conhecer"
+        ])
+        gt = "Confira as informações do produto antes de escolher"
+        ch = "Veja os detalhes e confira se este produto atende ao que você procura 🛒"
     etiqueta = "🎁 OFERTA DESTAQUE DA SEMANA!" if free else ""
     
     vendas_texto = f"📊 Vendas: {vendas}" if vendas != "-" else "📊 Vendas: Não informado"
