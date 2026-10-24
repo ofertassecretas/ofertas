@@ -15,7 +15,7 @@ print(f"URL_DO_BANCO_DE_DADOS configurada = {bool(os.getenv('URL_DO_BANCO_DE_DAD
 print(f"DATABASE_URL configurada = {bool(os.getenv('DATABASE_URL'))}")
 print("=" * 50)
 
-print("VERSAO V60-FILA-PERSISTENTE-ESCALAVEL")
+print("VERSAO V62-CTA-IA-WHATSAPP-PAGOS")
 
 try:
     import psycopg2
@@ -1157,12 +1157,18 @@ async def gerar_cta_ia(nicho, titulo):
     if not OPENAI_API_KEY:
         return ""
     prompt = (
-        "Crie uma única chamada para ação (CTA) curta para uma oferta da Shopee. "
-        "Escreva em português brasileiro, com tom humano, simples e natural. "
-        "Varie a abordagem e convide a pessoa a conferir a oferta. "
-        "Use no máximo dois emojis. Não invente desconto, urgência, estoque, avaliações, "
-        "vendas ou benefícios que não estejam comprovados. Retorne somente a CTA, "
-        "sem aspas, título ou explicações.\n\n"
+        "Escreva UMA CTA curta e convincente para divulgar este produto da Shopee, "
+        "em português brasileiro natural, como uma pessoa recomendando algo num grupo. "
+        "Seja específica: use o nome/tipo do produto e, quando fizer sentido, a utilidade "
+        "óbvia dele ou para quem serve, sem inventar características. A frase precisa "
+        "dar vontade de abrir o link, sem parecer propaganda automática. "
+        "EVITE frases genéricas como 'Confira na Shopee', 'Veja essa oferta' ou "
+        "'Confira se combina com você'. Não comece sempre do mesmo jeito; alterne "
+        "entre convite direto, pergunta curta, destaque do uso e recomendação prática. "
+        "Não repita o título inteiro se ficar estranho. Máximo de 18 palavras e 2 emojis. "
+        "Não invente desconto, urgência, estoque, qualidade, compatibilidade, resultados, "
+        "avaliações, vendas ou benefícios que não estejam confirmados pelo nome do produto. "
+        "Sem hashtags, aspas, título ou explicações: retorne somente a CTA.\n\n"
         f"Categoria: {str(nicho)[:80]}\nProduto: {str(titulo)[:250]}"
     )
     headers = {
@@ -1277,9 +1283,10 @@ async def enviar_ofertas_clientes(ctx, ofertas):
                 prc = f"{preco:.2f}".replace(".", ",")
                 vnd = f"{vendas:,}".replace(",", ".") if vendas is not None else "-"
                 nt = f"{nota:.1f}".replace(".", ",") if nota is not None else "-"
-                txt_whats = mensagem_whatsai(titulo, prc, vnd, nt, comissao, link)
+                cta_ia = p.get("_radar_cta_ia", "")
+                txt_whats = mensagem_whatsai(titulo, prc, vnd, nt, comissao, link, cta_ia=cta_ia)
                 lk_whats = link_whatsai(txt_whats)
-                txt_tg = montar_tg(titulo, prc, vnd, nt, comissao, link, lk_whats, free=False, cta_ia=p.get("_radar_cta_ia", ""))
+                txt_tg = montar_tg(titulo, prc, vnd, nt, comissao, link, lk_whats, free=False, cta_ia=cta_ia)
                 itens_fila.append({
                     "chat_id": chat_id,
                     "cliente_id": str(chave),
@@ -1906,10 +1913,12 @@ def link_whatsai(texto):
     return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>', '', texto))}"
 
 # ✅ CORRIGIDO: Exibir "Não informado" quando dados não vierem
-def mensagem_whatsai(nome, preco, vendas, nota, comissao, link):
+def mensagem_whatsai(nome, preco, vendas, nota, comissao, link, cta_ia=""):
     vendas_texto = vendas if vendas != "-" else "Não informado"
     nota_texto = nota if nota != "-" else "Não informado"
+    chamada = f"👉 {cta_ia.strip()}\n\n" if cta_ia and cta_ia.strip() else ""
     return (
+        f"{chamada}"
         f"🔥 Produto: *{nome}*\n\n"
         f"💰 Preço: *R$ {preco}*\n"
         f"📊 Vendas: *{vendas_texto}*\n"
@@ -2185,9 +2194,10 @@ async def ciclo(ctx):
                 vnd = f"{vendas:,}".replace(",", ".") if vendas is not None else "-"
                 nt = f"{nota:.1f}".replace(".", ",") if nota is not None else "-"
                 
-                txt_whats = mensagem_whatsai(titulo, prc, vnd, nt, comissao, link)
+                cta_ia = p.get("_radar_cta_ia", "")
+                txt_whats = mensagem_whatsai(titulo, prc, vnd, nt, comissao, link, cta_ia=cta_ia)
                 lk_whats = link_whatsai(txt_whats)
-                txt_tg = montar_tg(titulo, prc, vnd, nt, comissao, link, lk_whats, free=False, incluir_link_grupo=True, cta_ia=p.get("_radar_cta_ia", ""))
+                txt_tg = montar_tg(titulo, prc, vnd, nt, comissao, link, lk_whats, free=False, incluir_link_grupo=True, cta_ia=cta_ia)
                 hid = hashlib.md5(f"{chave_titulo(titulo)}|{lb}".encode()).hexdigest()
                 enviados.append({"txt": txt_tg, "img": img, "hid": hid, "nicho": nicho})
             except Exception as e:
@@ -2312,7 +2322,6 @@ def iniciar():
 
 if __name__ == "__main__":
     iniciar()
-            
         
             
         
