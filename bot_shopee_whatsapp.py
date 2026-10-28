@@ -1809,15 +1809,14 @@ def avaliar_rejeicao(p):
         return "preco_alto"
     if comissao < COMISSAO_MIN:
         return "comissao_baixa"
-    # ✅ Só exclui se vier valor e for baixo. Se vier vazio → ACEITA!
-    if vendas is not None and vendas > 0 and vendas < VENDAS_MIN:
+    # ✅ Só exclui se vier valor e for baixo. Se vier vazio → ACEITA!    
+    if vendas is not None and vendas < VENDAS_MIN:
         return "poucas_vendas"
-    if nota is not None and nota > 0 and nota < AVALIACAO_MIN:
+    if nota is not None and nota < AVALIACAO_MIN:
         return "nota_baixa"
     if link in LINKS_CICLO_ATUAL or link in ULTIMOS_LINKS:
         return "link_repetido"
     return None
-
 def buscar_produtos(termo, nicho):
     termo_busca = sem_acento(termo.strip())
     logging.info("🔍 Buscando em %s: %s", nicho, termo_busca)
