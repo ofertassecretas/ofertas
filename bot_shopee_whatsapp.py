@@ -15,7 +15,7 @@ print(f"URL_DO_BANCO_DE_DADOS configurada = {bool(os.getenv('URL_DO_BANCO_DE_DAD
 print(f"DATABASE_URL configurada = {bool(os.getenv('DATABASE_URL'))}")
 print("=" * 50)
 
-print("VERSAO V65-CTA-IA-MAIS-PERSUASIVA")
+print("VERSAO V66-CTA-DIARIA-FREE-20H")
 
 try:
     import psycopg2
@@ -64,6 +64,8 @@ LINKS_PAGAMENTO_PLANOS = {
 }
 DIAS_POR_PLANO = {"semanal": 7, "mensal": 30, "anual": 365}
 LINK_GRUPO_OFERTAS = "https://chat.whatsapp.com/GTXOS0u7rZEIEBhLGQG9VM"
+LINK_GRUPO_FREE = "https://t.me/+7Soe4XnAqNgwYjYx"
+HORA_CTA_DIARIA_FREE = 20
 SHOPEE_GRAPHQL_URL = "https://open-api.affiliate.shopee.com.br/graphql"
 
 CHECK_INTERVAL = 5400
@@ -140,6 +142,12 @@ def inicializar_banco_persistente():
                         chave TEXT PRIMARY KEY,
                         dados JSONB NOT NULL,
                         atualizado_em TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS radar_cta_diaria_free (
+                        data DATE PRIMARY KEY,
+                        enviado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     )
                 """)
                 cur.execute("SELECT COUNT(*) FROM radar_clientes_telegram")
@@ -1157,12 +1165,28 @@ async def gerar_cta_ia(nicho, titulo):
     if not OPENAI_API_KEY:
         return ""
 
+    nicho_norm = normalizar(str(nicho))
+    titulo_norm = normalizar(str(titulo))
+    termos_femininos = (
+        "moda feminina", "maternidade", "vestido", "saia", "blusa feminina", "bolsa feminina",
+        "maquiagem", "batom", "base facial", "sutia", "lingerie", "calcinha", "top feminino",
+        "cropped", "conjunto feminino", "roupa feminina", "skincare", "cabelo feminino"
+    )
+    publico_feminino = any(t in nicho_norm or t in titulo_norm for t in termos_femininos)
+    orientacao_publico = (
+        "- Este produto é claramente voltado ao público feminino: use um tom próximo e espontâneo, "
+        "podendo abrir de forma variada com 'Olha só, meninas', 'Meninas, dá uma olhada' ou 'Amiga', "
+        "sem repetir a mesma abertura em todas as ofertas.\n"
+        if publico_feminino else
+        "- Não presuma que o público é feminino; use linguagem neutra e adequada ao produto.\n"
+    )
     prompt = (
         "Você é redator de ofertas para afiliados brasileiros. Crie UMA CTA curta, natural e persuasiva "
         "para este produto da Shopee. O objetivo é despertar interesse real e levar a pessoa a abrir a oferta, "
         "não apenas repetir ou descrever o nome do produto.\n\n"
         "REGRAS IMPORTANTES:\n"
         "- Escreva em português brasileiro coloquial, como uma pessoa recomendando algo útil, sem exagero.\n"
+        + orientacao_publico +
         "- Use de 10 a 18 palavras e, se combinar, apenas 1 emoji.\n"
         "- Aproveite um detalhe concreto do título e conecte-o a uma necessidade ou situação de uso plausível.\n"
         "- Termine com um convite claro e leve para ver os detalhes, escolher uma opção ou conferir a aplicação.\n"
@@ -1965,11 +1989,11 @@ def link_whatsai(texto):
     return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>', '', texto))}"
 
 # ✅ CORRIGIDO: Exibir "Não informado" quando dados não vierem
-def mensagem_whatsai(nome, preco, vendas, nota, comissao, link, cta_ia=""):
+def mensagem_whatsai(nome, preco, vendas, nota, comissao, link, cta_ia="", divulgar_grupos=False):
     vendas_texto = vendas if vendas != "-" else "Não informado"
     nota_texto = nota if nota != "-" else "Não informado"
     chamada = f"👉 {cta_ia.strip()}\n\n" if cta_ia and cta_ia.strip() else ""
-    return (
+    texto = (
         f"{chamada}"
         f"🔥 Produto: *{nome}*\n\n"
         f"💰 Preço: *R$ {preco}*\n"
@@ -1977,6 +2001,13 @@ def mensagem_whatsai(nome, preco, vendas, nota, comissao, link, cta_ia=""):
         f"⭐ Avaliação: *{nota_texto}*\n\n"
         f"🛒 Aproveite pelo link:\n{link}"
     )
+    if divulgar_grupos:
+        texto += (
+            f"\n\n📲 Entre também no nosso grupo de ofertas no WhatsApp:\n{LINK_GRUPO_OFERTAS}"
+            "\n\n🤖 Estou utilizando o Radar de Promoções, que facilita a seleção e divulgação de ofertas para afiliados."
+            f"\nConheça gratuitamente nosso grupo no Telegram:\n{LINK_GRUPO_FREE}"
+        )
+    return texto
 
 def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False, incluir_link_grupo=False, cta_ia=""):
     # O FREE mantém exatamente o rodízio antigo. VIP e pagos usam etiquetas neutras,
@@ -2256,7 +2287,7 @@ async def ciclo(ctx):
                 nt = f"{nota:.1f}".replace(".", ",") if nota is not None else "-"
                 
                 cta_ia = p.get("_radar_cta_ia", "")
-                txt_whats = mensagem_whatsai(titulo, prc, vnd, nt, comissao, link, cta_ia=cta_ia)
+                txt_whats = mensagem_whatsai(titulo, prc, vnd, nt, comissao, link, cta_ia=cta_ia, divulgar_grupos=True)
                 lk_whats = link_whatsai(txt_whats)
                 txt_tg = montar_tg(titulo, prc, vnd, nt, comissao, link, lk_whats, free=False, incluir_link_grupo=True, cta_ia=cta_ia)
                 hid = hashlib.md5(f"{chave_titulo(titulo)}|{lb}".encode()).hexdigest()
@@ -2318,6 +2349,60 @@ async def ciclo(ctx):
     except Exception as e:
         logging.error("❌ ERRO: %s", e, exc_info=True)
 
+def reservar_cta_free_do_dia():
+    """Reserva a data no PostgreSQL para impedir duplicação após reinícios do Railway."""
+    if not DB_PRONTA:
+        logging.error("⛔ CTA diária FREE não enviada: PostgreSQL indisponível; evitando envio sem controle de duplicidade.")
+        return False
+    hoje = datetime.now(FUSO_BR).date()
+    try:
+        with _db_conectar() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO radar_cta_diaria_free (data) VALUES (%s) ON CONFLICT (data) DO NOTHING",
+                    (hoje,)
+                )
+                return cur.rowcount == 1
+    except Exception as e:
+        logging.error("❌ Falha reservando CTA diária FREE: %s", e, exc_info=True)
+        return False
+
+def liberar_cta_free_do_dia():
+    try:
+        with _db_conectar() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM radar_cta_diaria_free WHERE data=%s", (datetime.now(FUSO_BR).date(),))
+    except Exception as e:
+        logging.error("❌ Falha liberando reserva da CTA diária FREE: %s", e)
+
+async def rotina_cta_diaria_free(bot):
+    """Publica uma chamada comercial por dia no grupo FREE, às 20h de Brasília."""
+    logging.info("📣 Rotina de CTA diária FREE iniciada | horário=20:00 | fuso=America/Sao_Paulo")
+    while True:
+        agora = datetime.now(FUSO_BR)
+        if agora.hour == HORA_CTA_DIARIA_FREE:
+            if reservar_cta_free_do_dia():
+                texto = (
+                    "🚀 <b>Quer ganhar tempo na divulgação das suas ofertas?</b>\n\n"
+                    "O Radar de Promoções foi criado para ajudar afiliados a receber ofertas selecionadas "
+                    "e publicar automaticamente no próprio grupo ou canal do Telegram.\n\n"
+                    "Você acompanha as ofertas e pode usar seus próprios links de afiliado, sem precisar "
+                    "ficar procurando produto por produto o tempo todo.\n\n"
+                    "🤖 Conheça os planos e escolha o que faz sentido para sua rotina:\n\n"
+                    f"📅 <b>Semanal — R$ 7,90:</b> {LINKS_PAGAMENTO_PLANOS['semanal']}\n"
+                    f"🗓️ <b>Mensal — R$ 19,90:</b> {LINKS_PAGAMENTO_PLANOS['mensal']}\n"
+                    f"⭐ <b>Anual — R$ 199,90:</b> {LINKS_PAGAMENTO_PLANOS['anual']}\n\n"
+                    "✅ Acesse o checkout do plano desejado e confira os detalhes.\n"
+                    "📩 Depois da compra, o próprio Radar orienta a configuração."
+                )
+                try:
+                    await bot.send_message(chat_id=CHAT_ID_FREE, text=texto, parse_mode="HTML", disable_web_page_preview=True)
+                    logging.info("📣 CTA diária FREE enviada | data=%s | horário=20:00", agora.date())
+                except Exception as e:
+                    liberar_cta_free_do_dia()
+                    logging.error("❌ Falha enviando CTA diária FREE | data=%s | tipo=%s", agora.date(), type(e).__name__, exc_info=True)
+        await asyncio.sleep(20)
+
 async def loop(app):
     ult = 0
     while True:
@@ -2365,6 +2450,7 @@ async def principal():
     asyncio.create_task(manter_vivo())
     asyncio.create_task(rotina_vencimentos(app.bot))
     asyncio.create_task(rotina_fila_envios(app.bot))
+    asyncio.create_task(rotina_cta_diaria_free(app.bot))
     asyncio.create_task(iniciar_webhook())
     try:
         await loop(app)
