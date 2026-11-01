@@ -15,7 +15,7 @@ print(f"URL_DO_BANCO_DE_DADOS configurada = {bool(os.getenv('URL_DO_BANCO_DE_DAD
 print(f"DATABASE_URL configurada = {bool(os.getenv('DATABASE_URL'))}")
 print("=" * 50)
 
-print("VERSAO V66-CTA-DIARIA-FREE-20H")
+print("VERSAO V67-AGENDA-CICLOS-0530-90MIN")
 
 try:
     import psycopg2
@@ -2404,14 +2404,35 @@ async def rotina_cta_diaria_free(bot):
         await asyncio.sleep(20)
 
 async def loop(app):
-    ult = 0
+    """Inicia às 05:30, ou imediatamente se o bot subir dentro do horário.
+
+    Os ciclos seguintes respeitam 90 minutos a partir do fim do ciclo anterior.
+    Reinicializações fora do horário não consomem o intervalo do próximo ciclo.
+    """
+    ultimo_ciclo = None
+    aviso_fora = False
     while True:
-        agora = time.time()
-        if agora - ult >= CHECK_INTERVAL:
-            logging.info("🔄 Iniciando ciclo de buscas...")
-            await ciclo(type("Ctx", (), {"bot": app.bot})())
-            ult = agora
-        await asyncio.sleep(60)
+        agora = datetime.now(FUSO_BR)
+        if horario_valido():
+            aviso_fora = False
+            intervalo_cumprido = (
+                ultimo_ciclo is None
+                or (agora - ultimo_ciclo).total_seconds() >= CHECK_INTERVAL
+            )
+            if intervalo_cumprido:
+                logging.info(
+                    "🔄 Iniciando ciclo de buscas | horário=%s | intervalo=%ss",
+                    agora.strftime("%H:%M:%S"), CHECK_INTERVAL
+                )
+                await ciclo(type("Ctx", (), {"bot": app.bot})())
+                ultimo_ciclo = datetime.now(FUSO_BR)
+        elif not aviso_fora:
+            logging.info(
+                "⏸️ Aguardando janela de ofertas | funcionamento=05:30–21:30 | agora=%s",
+                agora.strftime("%H:%M:%S")
+            )
+            aviso_fora = True
+        await asyncio.sleep(30)
 
 async def manter_vivo():
     while True:
