@@ -1986,8 +1986,8 @@ def anexar_afiliado(link, afiliado_id=None):
         return link
 
 def link_whatsai(texto):
-    return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>', '', texto))}"
-
+    return f"https://wa.me/?text={quote(re.sub(r'<[^>]+>', '', texto), safe='')}"
+    
 # ✅ CORRIGIDO: Exibir "Não informado" quando dados não vierem
 def mensagem_whatsai(nome, preco, vendas, nota, comissao, link, cta_ia="", divulgar_grupos=False):
     vendas_texto = vendas if vendas != "-" else "Não informado"
