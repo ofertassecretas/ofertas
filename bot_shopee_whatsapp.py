@@ -2428,7 +2428,7 @@ async def loop(app):
                 ultimo_ciclo = datetime.now(FUSO_BR)
         elif not aviso_fora:
             logging.info(
-                "⏸️ Aguardando janela de ofertas | funcionamento=05:30–21:40 | agora=%s",
+                "⏸️ Aguardando janela de ofertas | funcionamento=05:30–21:30 | agora=%s",
                 agora.strftime("%H:%M:%S")
             )
             aviso_fora = True
