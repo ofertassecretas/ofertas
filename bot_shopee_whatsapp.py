@@ -2005,7 +2005,7 @@ def mensagem_whatsai(nome, preco, vendas, nota, comissao, link, cta_ia="", divul
         texto += (
             f"\n\n📲 Entre também no nosso grupo de ofertas no WhatsApp:\n{LINK_GRUPO_OFERTAS}"
             "\n\n🤖 Estou utilizando o Radar de Promoções, que facilita a seleção e divulgação de ofertas para afiliados."
-            f"\n\nConheça gratuitamente nosso grupo no Telegram:\n{LINK_GRUPO_FREE}"
+            f"\nConheça gratuitamente nosso grupo no Telegram:\nhttps://t.me/%2B7Soe4XnAqNgwYjYx"
         )
     return texto
 
