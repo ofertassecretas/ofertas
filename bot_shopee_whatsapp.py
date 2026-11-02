@@ -2005,9 +2005,10 @@ def mensagem_whatsai(nome, preco, vendas, nota, comissao, link, cta_ia="", divul
         texto += (
             f"\n\n📲 Entre também no nosso grupo de ofertas no WhatsApp:\n{LINK_GRUPO_OFERTAS}"
             "\n\n🤖 Estou utilizando o Radar de Promoções, que facilita a seleção e divulgação de ofertas para afiliados."
-            f"\nConheça gratuitamente nosso grupo no Telegram:\nhttps://t.me/+7Soe4XnAqNgwYjYx"
+            f"\n\nConheça gratuitamente nosso grupo no Telegram:\n{LINK_GRUPO_FREE}"
         )
     return texto
+
 
 def montar_tg(nome, preco, vendas, nota, comissao, link, lk_whats, free=False, incluir_link_grupo=False, cta_ia=""):
     # O FREE mantém exatamente o rodízio antigo. VIP e pagos usam etiquetas neutras,
