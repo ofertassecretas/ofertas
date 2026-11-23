@@ -2255,8 +2255,18 @@ async def ciclo(ctx):
         nicho_free, produto_free = oferta_free
         logging.info("🎁 Sorteado para FREE: %s | %s", produto_free.get("productName","")[:50], nicho_free)
         
-        await ctx.bot.send_message(CHAT_ID_DESTINO, text="🚨 <b>OFERTAS NOVAS CHEGARAM!</b>", parse_mode="HTML")
-        await asyncio.sleep(5)
+        # ENVIO PROTEGIDO: se o aviso falhar, o ciclo continua normalmente.
+aviso_enviado = await enviar_msg(
+    ctx,
+    "🚨 <b>OFERTAS NOVAS CHEGARAM!</b>",
+    "",
+    CHAT_ID_DESTINO
+)
+
+if not aviso_enviado:
+    logging.warning("⚠️ Aviso inicial não enviado. Continuando com o envio das ofertas.")
+
+await asyncio.sleep(5)
         
         enviados = []
         for nicho, p in ofertas_vip:
@@ -2497,3 +2507,4 @@ if __name__ == "__main__":
         
             
         
+
