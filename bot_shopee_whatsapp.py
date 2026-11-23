@@ -2244,6 +2244,7 @@ async def ciclo(ctx):
         
         logging.info("✅ Total: %s | Enviando %s para VIP", len(ofertas), len(ofertas))
         
+      
         ofertas_vip = ofertas.copy()
 
         # Uma CTA por produto, reutilizada no VIP e nos grupos pagos.
@@ -2256,17 +2257,17 @@ async def ciclo(ctx):
         logging.info("🎁 Sorteado para FREE: %s | %s", produto_free.get("productName","")[:50], nicho_free)
         
         # ENVIO PROTEGIDO: se o aviso falhar, o ciclo continua normalmente.
-aviso_enviado = await enviar_msg(
-    ctx,
-    "🚨 <b>OFERTAS NOVAS CHEGARAM!</b>",
-    "",
-    CHAT_ID_DESTINO
-)
+        aviso_enviado = await enviar_msg(
+            ctx,
+            "🚨 <b>OFERTAS NOVAS CHEGARAM!</b>",
+            "",
+            CHAT_ID_DESTINO
+        )
 
-if not aviso_enviado:
-    logging.warning("⚠️ Aviso inicial não enviado. Continuando com o envio das ofertas.")
+        if not aviso_enviado:
+            logging.warning("⚠️ Aviso inicial não enviado. Continuando com o envio das ofertas.")
 
-await asyncio.sleep(5)
+        await asyncio.sleep(5)
         
         enviados = []
         for nicho, p in ofertas_vip:
@@ -2281,6 +2282,7 @@ await asyncio.sleep(5)
                     preco = float(preco_str) / 1000 if isinstance(preco_str, (int, float)) else float(preco_str or "0")
                 except:
                     preco = 0
+
                 
                 # ✅ Tratar valores nulos da API
                 vendas_val = p.get("sales")
@@ -2507,4 +2509,5 @@ if __name__ == "__main__":
         
             
         
+
 
